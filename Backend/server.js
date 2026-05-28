@@ -3,12 +3,14 @@ require('dotenv').config();
 const express = require('express');
 const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
+const expenseRoutes = require('./routes/expense');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/expenses', expenseRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {
