@@ -2,11 +2,12 @@ const pool = require('../config/db');
 
 const addExpense = async (req, res) => {
   try {
-    const { user_id, category_id, amount, expense_date, note } = req.body;
+    const userId = req.user.id;
+    const { category_id, amount, expense_date, note } = req.body;
 
     await pool.query(
       'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-      [user_id, category_id, amount, expense_date, note || null]
+      [userId, category_id, amount, expense_date, note || null]
     );
 
     res.json({
@@ -23,6 +24,8 @@ const addExpense = async (req, res) => {
 
 const getExpenses = async (req, res) => {
   try {
+    const userId = req.user.id;
+
     const [expenses] = await pool.query(
       `SELECT
         e.id,
@@ -36,7 +39,9 @@ const getExpenses = async (req, res) => {
         e.updated_at
       FROM expenses e
       JOIN categories c ON c.id = e.category_id
-      ORDER BY e.expense_date DESC, e.id DESC`
+      WHERE e.user_id = ?
+      ORDER BY e.expense_date DESC, e.id DESC`,
+      [userId]
     );
 
     res.json({
@@ -53,13 +58,21 @@ const getExpenses = async (req, res) => {
 
 const updateExpense = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { id } = req.params;
     const { amount, category_id, expense_date, note } = req.body;
 
-    await pool.query(
-      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ? WHERE id = ?',
-      [amount, category_id, expense_date, note || null, id]
+    const [result] = await pool.query(
+      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ? WHERE id = ? AND user_id = ?',
+      [amount, category_id, expense_date, note || null, id, userId]
     );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
 
     res.json({
       success: true,
@@ -75,9 +88,20 @@ const updateExpense = async (req, res) => {
 
 const deleteExpense = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { id } = req.params;
 
-    await pool.query('DELETE FROM expenses WHERE id = ?', [id]);
+    const [result] = await pool.query(
+      'DELETE FROM expenses WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Expense not found',
+      });
+    }
 
     res.json({
       success: true,

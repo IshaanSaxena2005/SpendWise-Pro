@@ -4,6 +4,7 @@ const express = require('express');
 const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
 const expenseRoutes = require('./routes/expense');
+const categoryRoutes = require('./routes/category');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/categories', categoryRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {
