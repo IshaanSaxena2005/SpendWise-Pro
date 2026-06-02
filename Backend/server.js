@@ -7,6 +7,9 @@ const expenseRoutes = require('./routes/expense');
 const categoryRoutes = require('./routes/category');
 const budgetRoutes = require('./routes/budget');
 const analyticsRoutes = require('./routes/analytics');
+const healthRoutes = require('./routes/health');
+const predictionRoutes = require('./routes/prediction');
+const forecastRoutes = require('./routes/forecast');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +20,9 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/predictions', predictionRoutes);
+app.use('/api/forecast', forecastRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {
