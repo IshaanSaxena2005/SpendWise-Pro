@@ -5,6 +5,8 @@ const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
 const expenseRoutes = require('./routes/expense');
 const categoryRoutes = require('./routes/category');
+const budgetRoutes = require('./routes/budget');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +15,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {
