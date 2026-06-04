@@ -22,13 +22,16 @@ def forecast():
         if len(history) == 0:
              return jsonify({'error': '"history" cannot be empty'}), 400
             
-        # Use the machine learning model to get the prediction and trend
-        predicted_spending, trend_direction = train_and_predict(history)
+        # Use the machine learning model to get prediction, trend, and evaluation metrics
+        predicted_spending, trend_direction, mae, rmse, r2_score = train_and_predict(history)
         
-        # Return the response in the specified format
+        # Return the response including the new evaluation metrics
         return jsonify({
             'predicted_spending': round(predicted_spending, 2), # Round to 2 decimal places for currency
-            'trend_direction': trend_direction
+            'trend_direction': trend_direction,
+            'mae': round(mae, 2) if mae is not None else None,
+            'rmse': round(rmse, 2) if rmse is not None else None,
+            'r2_score': round(r2_score, 2) if r2_score is not None else None
         })
         
     except Exception as e:
