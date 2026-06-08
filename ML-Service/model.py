@@ -51,7 +51,8 @@ def train_and_predict(history):
     # ------------------------------------------------------------
     y_pred_test = model.predict(X_test)
     mae = mean_absolute_error(y_test, y_pred_test)          # Mean Absolute Error
-    rmse = mean_squared_error(y_test, y_pred_test, squared=False)  # Root Mean Squared Error
+    mse = mean_squared_error(y_test, y_pred_test)          # Mean Squared Error
+    rmse = mse ** 0.5                                      # Root Mean Squared Error
     r2 = r2_score(y_test, y_pred_test)                     # R² Score (coefficient of determination)
 
     # ------------------------------------------------------------
