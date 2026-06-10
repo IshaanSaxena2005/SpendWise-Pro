@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Mail, Lock, ArrowRight } from 'lucide-react';
+import { X, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../lib/api';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,15 +13,34 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
   const [view, setView] = useState<'login' | 'signup'>(initialView);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate auth success
-    onClose();
-    navigate('/dashboard');
+    setError(null);
+    setLoading(true);
+
+    try {
+      const endpoint = view === 'login' ? '/auth/login' : '/auth/signup';
+      const response = await api.post(endpoint, { email, password });
+      
+      if (response.data && response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        onClose();
+        navigate('/dashboard');
+      } else {
+        throw new Error('Token not received from server.');
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Authentication failed.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -30,6 +50,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
         <button 
           onClick={onClose}
           className="absolute top-6 right-6 text-black/40 hover:text-black transition-colors"
+          disabled={loading}
         >
           <X className="w-5 h-5" />
         </button>
@@ -44,9 +65,16 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
         <h2 className="text-3xl font-medium text-black mb-2" style={{ letterSpacing: '-0.02em' }}>
           {view === 'login' ? 'Welcome back' : 'Create an account'}
         </h2>
-        <p className="text-black/60 mb-8">
+        <p className="text-black/60 mb-6">
           {view === 'login' ? 'Enter your details to access your dashboard.' : 'Start your journey to financial clarity.'}
         </p>
+
+        {error && (
+          <div className="mb-6 flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-xs text-rose-600 font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -57,9 +85,10 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all"
+                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
                 placeholder="you@example.com"
                 required
+                disabled={loading}
               />
             </div>
           </div>
@@ -72,19 +101,21 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all"
+                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
                 placeholder="••••••••"
                 required
+                disabled={loading}
               />
             </div>
           </div>
 
           <button 
             type="submit"
-            className="w-full inline-flex items-center justify-center gap-2 bg-black text-white text-base font-medium px-6 py-3.5 rounded-xl hover:bg-gray-800 transition-colors mt-4"
+            disabled={loading}
+            className="w-full inline-flex items-center justify-center gap-2 bg-black text-white text-base font-medium px-6 py-3.5 rounded-xl hover:bg-gray-800 transition-colors mt-4 disabled:opacity-55"
           >
-            {view === 'login' ? 'Sign In' : 'Sign Up'}
-            <ArrowRight className="w-4 h-4" />
+            {loading ? 'Processing...' : view === 'login' ? 'Sign In' : 'Sign Up'}
+            {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
 
@@ -92,14 +123,14 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
           {view === 'login' ? (
             <>
               Don't have an account?{' '}
-              <button onClick={() => setView('signup')} className="text-black font-medium hover:underline">
+              <button onClick={() => { setView('signup'); setError(null); }} className="text-black font-medium hover:underline" disabled={loading}>
                 Sign up
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => setView('login')} className="text-black font-medium hover:underline">
+              <button onClick={() => { setView('login'); setError(null); }} className="text-black font-medium hover:underline" disabled={loading}>
                 Log in
               </button>
             </>

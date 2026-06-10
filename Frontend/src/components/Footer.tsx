@@ -1,69 +1,155 @@
 import { Mail } from 'lucide-react';
 
+const stats = [
+  { value: '6+',  label: 'Core Features' },
+  { value: '2',   label: 'ML Models' },
+  { value: '10+', label: 'REST APIs' },
+  { value: 'JWT', label: 'Secured' },
+];
+
+const quickLinks = [
+  { name: 'Home',               href: '#' },
+  { name: 'Dashboard Preview',  href: '#preview' },
+  { name: 'AI Insights',        href: '#ai-insights' },
+  { name: 'About',              href: '#about' },
+];
+
+const techStack = ['React', 'Node.js', 'MySQL', 'Python', 'Flask', 'Scikit-Learn'];
+
 export function Footer() {
+  const handleScroll = (href: string) => {
+    if (href === '#') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (href.startsWith('#')) {
+      const el = document.getElementById(href.replace('#', ''));
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
-    <footer className="bg-white px-6 py-16 border-t border-black/10">
-      <div className="max-w-[88rem] mx-auto grid grid-cols-1 md:grid-cols-5 gap-10 mb-16">
-        <div className="col-span-1 md:col-span-2">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center">
-              <span className="text-white text-sm font-bold tracking-wider">SW</span>
+    <footer className="bg-white border-t border-black/5">
+
+      {/* ── Stats Strip ─────────────────────────────────────────── */}
+      <div className="border-b border-black/5">
+        <div className="max-w-[1400px] mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {stats.map((s) => (
+            <div
+              key={s.label}
+              className="flex flex-col items-center justify-center bg-[#F5F5F5] rounded-2xl py-5 px-4 border border-black/5"
+            >
+              <span className="text-2xl font-extrabold text-black tracking-tight">{s.value}</span>
+              <span className="text-xs font-medium text-black/40 mt-1 uppercase tracking-widest">{s.label}</span>
             </div>
-            <span className="text-xl font-semibold text-black">SpendWise Pro</span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 3-Column Body ───────────────────────────────────────── */}
+      <div className="max-w-[1400px] mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-3 gap-12">
+
+        {/* Col 1 — Brand */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <img src="/logo2.png" alt="SpendWise Pro" className="w-10 h-10 object-contain rounded-xl" />
+            <span className="text-lg font-extrabold text-black tracking-tight">SpendWise Pro</span>
           </div>
-          <p className="text-black/60 max-w-sm mb-6 leading-relaxed">
-            The intelligent system for tracking expenses, managing budgets, and forecasting your financial future.
+          <p className="text-sm text-black/45 leading-relaxed max-w-xs">
+            AI-Powered Personal Finance Intelligence
           </p>
-          <div className="flex items-center gap-4">
-            <a href="#" className="w-10 h-10 rounded-full bg-[#F5F5F5] flex items-center justify-center text-black hover:bg-black hover:text-white transition-colors">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
-            </a>
-            <a href="#" className="w-10 h-10 rounded-full bg-[#F5F5F5] flex items-center justify-center text-black hover:bg-black hover:text-white transition-colors">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" clipRule="evenodd" /></svg>
-            </a>
-            <a href="#" className="w-10 h-10 rounded-full bg-[#F5F5F5] flex items-center justify-center text-black hover:bg-black hover:text-white transition-colors">
-              <Mail className="w-5 h-5" />
-            </a>
+          <p className="text-xs text-black/30 leading-relaxed max-w-xs">
+            A full-stack portfolio project demonstrating end-to-end financial management with machine learning capabilities.
+          </p>
+        </div>
+
+        {/* Col 2 — Quick Links */}
+        <div>
+          <h4 className="text-xs font-bold text-black/30 uppercase tracking-widest mb-5">Quick Links</h4>
+          <ul className="flex flex-col gap-3">
+            {quickLinks.map((link) => (
+              <li key={link.name}>
+                <a
+                  href={link.href}
+                  onClick={(e) => {
+                    if (link.href.startsWith('#')) {
+                      e.preventDefault();
+                      handleScroll(link.href);
+                    }
+                  }}
+                  className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
+                >
+                  {link.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Col 3 — Developer */}
+        <div>
+          <h4 className="text-xs font-bold text-black/30 uppercase tracking-widest mb-5">Developer</h4>
+          <ul className="flex flex-col gap-3">
+            <li>
+              <a
+                href="https://github.com/IshaanSaxena2005"
+                target="_blank" rel="noopener noreferrer"
+                className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
+              >
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.linkedin.com/in/ishaan-saxena2005/"
+                target="_blank" rel="noopener noreferrer"
+                className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
+              >
+                LinkedIn
+              </a>
+            </li>
+            <li>
+              <a
+                href="mailto:saxenaishaan3@gmail.com"
+                className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200 inline-flex items-center gap-1.5"
+              >
+                <Mail className="w-3.5 h-3.5 opacity-60" />
+                Email
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      {/* ── Bottom Bar ──────────────────────────────────────────── */}
+      <div className="border-t border-black/5">
+        <div className="max-w-[1400px] mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+
+          {/* Author */}
+          <div className="text-xs text-black/40 font-medium">
+            Built by{' '}
+            <span className="text-black font-semibold">Ishaan Saxena</span>
+            {' '}•{' '}
+            B.Tech CSE (Big Data Analytics)
+          </div>
+
+          {/* Tech stack badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {techStack.map((tech) => (
+              <span
+                key={tech}
+                className="text-[10px] font-semibold bg-[#F0F0F0] text-black/50 px-2.5 py-1 rounded-full border border-black/5"
+              >
+                {tech}
+              </span>
+            ))}
+          </div>
+
+          {/* Copyright */}
+          <div className="text-xs text-black/35 font-medium whitespace-nowrap">
+            &copy; {new Date().getFullYear()} SpendWise Pro. All rights reserved.
           </div>
         </div>
-        
-        <div>
-          <h4 className="text-black font-semibold mb-6">Product</h4>
-          <ul className="space-y-4">
-            <li><a href="#features" className="text-black/60 hover:text-black transition-colors">Features</a></li>
-            <li><a href="#analytics" className="text-black/60 hover:text-black transition-colors">Analytics</a></li>
-            <li><a href="#ai-insights" className="text-black/60 hover:text-black transition-colors">AI Insights</a></li>
-            <li><a href="/login" className="text-black/60 hover:text-black transition-colors">Launch Dashboard</a></li>
-          </ul>
-        </div>
-        
-        <div>
-          <h4 className="text-black font-semibold mb-6">Technology</h4>
-          <ul className="space-y-4">
-            <li><a href="#technology" className="text-black/60 hover:text-black transition-colors">Architecture</a></li>
-            <li><a href="#about" className="text-black/60 hover:text-black transition-colors">Security</a></li>
-            <li><a href="#" className="text-black/60 hover:text-black transition-colors">Machine Learning</a></li>
-          </ul>
-        </div>
-        
-        <div>
-          <h4 className="text-black font-semibold mb-6">Resources</h4>
-          <ul className="space-y-4">
-            <li><a href="#contact" className="text-black/60 hover:text-black transition-colors">Contact Support</a></li>
-            <li><a href="#" className="text-black/60 hover:text-black transition-colors">Privacy Policy</a></li>
-            <li><a href="#" className="text-black/60 hover:text-black transition-colors">Terms of Service</a></li>
-          </ul>
-        </div>
       </div>
-      
-      <div className="max-w-[88rem] mx-auto pt-8 border-t border-black/10 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="text-black/40 text-sm font-medium">
-          &copy; {new Date().getFullYear()} SpendiWise Pro. All rights reserved.
-        </div>
-        <div className="text-black/40 text-sm font-medium">
-          Designed with precision and intelligence.
-        </div>
-      </div>
+
     </footer>
   );
 }

@@ -1,27 +1,27 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 
-// Landing page components (untouched)
-import { Navbar }           from './components/Navbar';
-import { Hero }             from './components/Hero';
-import { About }            from './components/About';
-import { DashboardCarousel} from './components/DashboardCarousel';
-import { AIIntelligence }   from './components/AIIntelligence';
-import { CTA }              from './components/CTA';
-import { Footer }           from './components/Footer';
-import { AuthModal }        from './components/AuthModal';
+// Landing page components
+import { Navbar }            from './components/Navbar';
+import { Hero }              from './components/Hero';
+import { DashboardCarousel } from './components/DashboardCarousel';
+import { AIIntelligence }    from './components/AIIntelligence';
+import { About }             from './components/About';
+import { ProjectHighlights } from './components/ProjectHighlights';
+import { Footer }            from './components/Footer';
+import { AuthModal }         from './components/AuthModal';
 
-// Dashboard shell
-import { DashboardLayout }  from './components/dashboard/DashboardLayout';
+// Dashboard layout
+import { DashboardLayout }   from './components/dashboard/DashboardLayout';
 
 // Dashboard pages
-import { DashboardOverview} from './components/dashboard/DashboardOverview';
-import { ExpensesPage }     from './components/dashboard/ExpensesPage';
-import { BudgetsPage }      from './components/dashboard/BudgetsPage';
-import { AnalyticsPage }    from './components/dashboard/AnalyticsPage';
-import { InsightsPage }     from './components/dashboard/InsightsPage';
+import { DashboardOverview } from './components/dashboard/DashboardOverview';
+import { ExpensesPage }      from './components/dashboard/ExpensesPage';
+import { BudgetsPage }       from './components/dashboard/BudgetsPage';
+import { AnalyticsPage }     from './components/dashboard/AnalyticsPage';
+import { InsightsPage }      from './components/dashboard/InsightsPage';
 
-// ─── Landing Page (video hero kept exactly as-is) ────────────────────────────
+// ─── Landing Page ────────────────────────────────────────────────────────────
 function LandingPage() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authView, setAuthView]     = useState<'login' | 'signup'>('login');
@@ -32,16 +32,27 @@ function LandingPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[#F5F5F5] min-h-screen">
+    <div className="flex flex-col bg-white min-h-screen">
+      {/* 1. Navbar */}
       <div className="h-screen flex flex-col overflow-hidden relative">
         <Navbar onOpenAuth={openAuth} />
-        <Hero  onOpenAuth={openAuth} />
+        {/* 2. Hero Section */}
+        <Hero />
       </div>
 
-      <About />
+      {/* 3. Dashboard Preview Section */}
       <DashboardCarousel />
+
+      {/* 4. AI Insights Section */}
       <AIIntelligence />
-      <CTA />
+
+      {/* 5. How SpendWise Works Section */}
+      <About />
+
+      {/* 6. Project Highlights Section */}
+      <ProjectHighlights />
+
+      {/* 7. Footer */}
       <Footer />
 
       <AuthModal
@@ -58,7 +69,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Landing page — video hero preserved */}
+        {/* Landing page */}
         <Route path="/" element={<LandingPage />} />
 
         {/* Dashboard — all inner pages nested under shared layout */}
