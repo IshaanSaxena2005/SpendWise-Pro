@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt } from 'lucide-react';
 import { getTransactions, getCategories, deleteTransaction, type Transaction } from '../../lib/store';
 import { AddTransactionModal } from './AddTransactionModal';
 
@@ -63,12 +63,6 @@ export function ExpensesPage() {
           <h1 className="text-xl font-semibold text-black tracking-tight">Transactions</h1>
           <p className="text-sm text-black/50">Manage and track every transaction</p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="hidden md:flex items-center gap-2 bg-black text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-gray-800 transition-colors"
-        >
-          + Add Transaction
-        </button>
       </div>
 
       {/* Filters */}
@@ -97,8 +91,14 @@ export function ExpensesPage() {
             <option value="expense">Expenses</option>
             <option value="income">Income</option>
           </select>
-          <input type="date" className="bg-[#F5F5F5] rounded-xl px-3 py-2 text-sm focus:outline-none" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-          <input type="date" className="bg-[#F5F5F5] rounded-xl px-3 py-2 text-sm focus:outline-none" value={dateTo}   onChange={e => setDateTo(e.target.value)} />
+          <div className="flex items-center bg-[#F5F5F5] rounded-xl px-3 py-2 text-sm">
+            <span className="text-black/40 mr-2 text-xs font-medium">From</span>
+            <input type="date" className="bg-transparent focus:outline-none" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </div>
+          <div className="flex items-center bg-[#F5F5F5] rounded-xl px-3 py-2 text-sm">
+            <span className="text-black/40 mr-2 text-xs font-medium">To</span>
+            <input type="date" className="bg-transparent focus:outline-none" value={dateTo}   onChange={e => setDateTo(e.target.value)} />
+          </div>
           <button
             onClick={exportCSV}
             className="flex items-center gap-1.5 border border-violet-600 text-violet-600 text-sm font-medium px-3 py-2 rounded-xl hover:bg-violet-50 transition-colors"
@@ -108,20 +108,47 @@ export function ExpensesPage() {
         </div>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'TOTAL TRANSACTIONS', value: filtered.length, color: 'text-black' },
+          { label: 'TOTAL EXPENSES', value: fmt(filtered.filter(t => t.type === 'expense').reduce((s,t) => s+t.amount, 0)), color: 'text-rose-500' },
+          { label: 'TOTAL INCOME', value: fmt(filtered.filter(t => t.type === 'income').reduce((s,t) => s+t.amount, 0)), color: 'text-emerald-600' },
+          { label: 'NET FLOW', value: fmt(filtered.reduce((s,t) => t.type === 'income' ? s+t.amount : s-t.amount, 0)), color: 'text-violet-600' }
+        ].map((card, idx) => (
+          <div key={idx} className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
+            <span className="text-[10px] font-semibold text-black/40 tracking-wider mb-2 block">{card.label}</span>
+            <div className={`text-xl font-bold tracking-tight ${card.color}`}>{card.value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-md shadow-sm">
               <tr className="border-b border-black/5">
-                {['Date', 'Description', 'Category', 'Type', 'Amount', ''].map(h => (
-                  <th key={h} className="text-left text-[10px] font-semibold text-black/40 tracking-wider px-5 py-3">{h}</th>
+                {['Date', 'Description', 'Category', 'Type', 'Amount', 'Actions'].map(h => (
+                  <th key={h} className="text-left text-[10px] font-bold text-black/50 tracking-widest uppercase px-5 py-3.5">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {paginated.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-sm text-black/40">No transactions found</td></tr>
+                <tr>
+                  <td colSpan={6} className="text-center py-20">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-[#F5F5F5] rounded-2xl flex items-center justify-center mb-4 border border-black/5">
+                        <Receipt className="w-8 h-8 text-black/20" />
+                      </div>
+                      <p className="text-base font-semibold text-black mb-1.5">No transactions found</p>
+                      <p className="text-sm text-black/40 max-w-[300px] leading-relaxed mx-auto">
+                        We couldn't find any transactions matching your filters. Adjust the filters or add a new transaction to get started.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
               ) : paginated.map(t => {
                 const cat = categories.find(c => c.id === t.category_id) || { name: 'Other', icon: '❓', bg: '#F3F4F6' };
                 return (
@@ -142,9 +169,9 @@ export function ExpensesPage() {
                       {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
                     </td>
                     <td className="px-5 py-3">
-                      <div className="hidden group-hover:flex gap-1">
-                        <button onClick={() => setEditTxn(t)} className="p-1.5 text-black/30 hover:text-black rounded-lg hover:bg-black/5"><Edit2 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDelete(t.id)} className="p-1.5 text-black/30 hover:text-rose-500 rounded-lg hover:bg-rose-50"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditTxn(t)} className="p-1.5 text-black/40 hover:text-black rounded-lg hover:bg-black/5 transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDelete(t.id)} className="p-1.5 text-black/40 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
                   </tr>

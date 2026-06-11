@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import {
-  getTransactions, getBudgets, getCategories, getInsights, getAIScore,
+  getTransactions, getBudgets, getCategories, getAIScore,
   deleteTransaction, type Transaction
 } from '../../lib/store';
 import { AddTransactionModal } from './AddTransactionModal';
@@ -20,7 +20,6 @@ export function DashboardOverview() {
   const transactions = getTransactions();
   const budgets      = getBudgets();
   const categories   = getCategories();
-  const insights     = getInsights();
   const aiScore      = getAIScore();
 
   const juneTxns = transactions.filter(t => t.date.startsWith('2026-06'));
@@ -44,10 +43,6 @@ export function DashboardOverview() {
     }
   };
 
-  const insightColors: Record<string, string> = {
-    danger: 'bg-rose-500', warning: 'bg-amber-400', success: 'bg-emerald-500', info: 'bg-blue-500'
-  };
-
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       {/* Page Title */}
@@ -59,18 +54,26 @@ export function DashboardOverview() {
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: 'TOTAL BALANCE', value: fmt(totalBalance), sub: '+8% vs last month', icon: CreditCard, color: 'text-black' },
-          { label: 'TOTAL INCOME',  value: fmt(totalIncome),  sub: 'Salary + freelance',  icon: TrendingDown, color: 'text-emerald-600' },
-          { label: 'TOTAL EXPENSES',value: fmt(totalExpenses),sub: '+12% vs last month',  icon: TrendingUp,   color: 'text-rose-500' },
-          { label: 'BUDGET LEFT',   value: fmt(budgetLeft),   sub: `${Math.round(budgetPct)}% used`, icon: Target, color: 'text-violet-600' },
-        ].map(({ label, value, sub, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-semibold text-black/40 tracking-wider">{label}</span>
-              <Icon className={`w-4 h-4 ${color}`} />
+          { label: 'TOTAL BALANCE', value: fmt(totalBalance), sub: '+8.2%', subTrend: 'up', icon: CreditCard, color: 'text-black' },
+          { label: 'TOTAL INCOME',  value: fmt(totalIncome),  sub: '+5.1%', subTrend: 'up', icon: TrendingDown, color: 'text-emerald-600' },
+          { label: 'TOTAL EXPENSES',value: fmt(totalExpenses),sub: '-2.4%', subTrend: 'down', icon: TrendingUp,   color: 'text-rose-500' },
+          { label: 'BUDGET LEFT',   value: fmt(budgetLeft),   sub: `${Math.round(budgetPct)}% used`, subTrend: 'neutral', icon: Target, color: 'text-violet-600' },
+        ].map(({ label, value, sub, subTrend, icon: Icon, color }) => (
+          <div key={label} className="bg-white rounded-3xl p-5 border border-black/5 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-[#F5F5F5] border border-black/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <Icon className={`w-5 h-5 ${color}`} />
+              </div>
+              <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-md ${
+                subTrend === 'up' ? 'bg-emerald-50 text-emerald-600' :
+                subTrend === 'down' ? 'bg-emerald-50 text-emerald-600' :
+                'bg-black/5 text-black/60'
+              }`}>
+                {subTrend === 'up' ? '↗' : subTrend === 'down' ? '↘' : '→'} {sub}
+              </span>
             </div>
-            <div className={`text-xl font-semibold ${color} mb-1`}>{value}</div>
-            <div className="text-[11px] text-black/40">{sub}</div>
+            <span className="text-[10px] font-semibold text-black/40 tracking-widest uppercase block mb-1">{label}</span>
+            <div className={`text-2xl font-semibold ${color} tracking-tight`}>{value}</div>
           </div>
         ))}
       </div>
@@ -79,30 +82,30 @@ export function DashboardOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         {/* Recent Transactions */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
             <h2 className="font-semibold text-black text-sm">Recent Transactions</h2>
-            <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:underline">View all →</a>
+            <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
           </div>
-          <div className="divide-y divide-black/5">
+          <div className="divide-y divide-black/5 flex-1">
             {transactions.slice(0, 8).map(t => {
               const cat = categories.find(c => c.id === t.category_id) || { name: 'Other', icon: '❓', color: '#9CA3AF', bg: '#F3F4F6' };
               return (
-                <div key={t.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#F5F5F5]/50 transition-colors group">
+                <div key={t.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#F5F5F5]/60 transition-colors group">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-base shrink-0" style={{ background: cat.bg }}>{cat.icon}</div>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 shadow-sm" style={{ background: cat.bg }}>{cat.icon}</div>
                     <div>
-                      <p className="text-sm font-medium text-black leading-none mb-0.5">{t.title}</p>
-                      <p className="text-[11px] text-black/40">{cat.name} · {shortDate(t.date)}</p>
+                      <p className="text-sm font-medium text-black leading-none mb-1 group-hover:text-violet-600 transition-colors">{t.title}</p>
+                      <p className="text-[11px] text-black/50 font-medium">{cat.name} <span className="opacity-50 mx-1">•</span> {shortDate(t.date)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-medium ${t.type === 'income' ? 'text-emerald-600' : 'text-black'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-semibold tracking-tight ${t.type === 'income' ? 'text-emerald-600' : 'text-black'}`}>
                       {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
                     </span>
                     <div className="hidden group-hover:flex items-center gap-1">
-                      <button onClick={() => setEditTxn(t)} className="p-1 text-black/30 hover:text-black rounded"><Edit2 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(t.id)} className="p-1 text-black/30 hover:text-rose-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setEditTxn(t)} className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDelete(t.id)} className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 </div>
@@ -113,51 +116,107 @@ export function DashboardOverview() {
 
         {/* Right Column */}
         <div className="space-y-4">
+
+          {/* AI Financial Health Score (Circular Gauge) */}
+          <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 relative overflow-hidden group hover:border-violet-200 transition-colors">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-black text-sm">Financial Health</h2>
+              <Brain className="w-4 h-4 text-violet-600" />
+            </div>
+            
+            <div className="flex items-center gap-5">
+              {/* Circular Gauge */}
+              <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
+                <svg className="transform -rotate-90 w-20 h-20 drop-shadow-sm">
+                  <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-black/5" />
+                  <circle cx="40" cy="40" r="34" stroke="url(#healthGradient)" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 34} strokeDashoffset={(2 * Math.PI * 34) - ((aiScore / 100) * (2 * Math.PI * 34))} className="transition-all duration-1000 ease-out stroke-round" strokeLinecap="round" />
+                  <defs>
+                    <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={aiScore >= 80 ? '#10B981' : aiScore >= 60 ? '#F59E0B' : '#F43F5E'} />
+                      <stop offset="100%" stopColor={aiScore >= 80 ? '#059669' : aiScore >= 60 ? '#D97706' : '#E11D48'} />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute flex flex-col items-center justify-center">
+                  <span className="text-xl font-bold text-black tracking-tight">{aiScore}</span>
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-sm font-semibold text-black mb-0.5">
+                  {aiScore >= 80 ? 'Excellent' : aiScore >= 60 ? 'Good' : 'Needs Attention'}
+                </div>
+                <div className="text-xs text-black/50 leading-relaxed">
+                  Your spending is well optimized. Keep it up!
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Forecast Card */}
+          <div className="bg-gradient-to-br from-violet-600 to-violet-800 rounded-2xl p-5 text-white shadow-md relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium opacity-90">Next Month Forecast</span>
+              <TrendingUp className="w-4 h-4 opacity-80" />
+            </div>
+            <div className="text-3xl font-bold mb-1 tracking-tight">₹12,850</div>
+            <div className="text-xs font-medium opacity-80 mb-5">Predicted Spending</div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>
+                <div className="text-sm font-semibold flex items-center gap-1">Increasing ↗</div>
+              </div>
+              <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Confidence</div>
+                <div className="text-sm font-semibold flex items-center gap-1">92%</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick AI Recommendations */}
+          <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 hover:border-black/10 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-black text-sm">Quick Recommendations</h2>
+              <Brain className="w-4 h-4 text-violet-600" />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-rose-50 border border-rose-100/50">
+                <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <p className="text-xs font-medium text-rose-800 leading-relaxed">Shopping is approaching the monthly budget limit. Hold off on non-essentials.</p>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100/50">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs font-medium text-emerald-800 leading-relaxed">Travel spending reduced by 18% compared to last month. Great job!</p>
+              </div>
+            </div>
+          </div>
+
           {/* Budget Tracker */}
           <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-black text-sm">Budget Tracker</h2>
-              <a href="/dashboard/budgets" className="text-xs text-violet-600 font-medium hover:underline">Edit →</a>
+              <h2 className="font-semibold text-black text-sm">Budget Utilization</h2>
+              <a href="/dashboard/budgets" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">Edit →</a>
             </div>
-            <div className="space-y-3">
-              {budgets.slice(0, 4).map(b => {
+            <div className="space-y-4">
+              {budgets.slice(0, 3).map(b => {
                 const cat = categories.find(c => c.id === b.category_id);
                 const pct = b.monthly_limit > 0 ? Math.min((b.spent / b.monthly_limit) * 100, 100) : 0;
-                const barColor = pct >= 100 ? '#F43F5E' : pct >= 70 ? '#F59E0B' : '#8B5CF6';
+                const barColor = pct >= 85 ? '#F43F5E' : pct >= 60 ? '#F59E0B' : '#10B981';
                 return (
-                  <div key={b.category_id}>
+                  <div key={b.category_id} className="group cursor-pointer">
                     <div className="flex justify-between text-xs mb-1.5">
-                      <span className="font-medium text-black/70">{cat?.name}</span>
-                      <span className="text-black/40">{fmt(b.spent)} / {fmt(b.monthly_limit)}</span>
+                      <span className="font-semibold text-black/80 group-hover:text-black transition-colors">{cat?.name}</span>
+                      <span className="text-black/50 font-medium">{fmt(b.spent)} <span className="opacity-40">/</span> {fmt(b.monthly_limit)}</span>
                     </div>
-                    <div className="w-full h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: barColor }} />
+                    <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, background: barColor }} />
                     </div>
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          {/* AI Health Score */}
-          <div className="bg-gradient-to-br from-violet-600 to-violet-800 rounded-2xl p-5 text-white">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium opacity-90">AI Financial Health</span>
-              <Brain className="w-4 h-4 opacity-80" />
-            </div>
-            <div className="text-4xl font-bold mb-1">{aiScore}</div>
-            <div className="text-xs opacity-70 mb-4">
-              {aiScore >= 80 ? 'Excellent' : aiScore >= 70 ? 'Good' : aiScore >= 50 ? 'Fair' : 'Needs Attention'}
-            </div>
-            <div className="space-y-2">
-              {insights.slice(0, 2).map((ins, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${insightColors[ins.type] || 'bg-white'}`} />
-                  <div>
-                    <p className="text-xs font-medium opacity-90">{ins.title}</p>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

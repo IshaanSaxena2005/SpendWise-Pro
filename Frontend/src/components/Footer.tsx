@@ -123,12 +123,8 @@ export function Footer() {
       <div className="border-t border-black/5">
         <div className="max-w-[1400px] mx-auto px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
 
-          {/* Author */}
           <div className="text-xs text-black/40 font-medium">
-            Built by{' '}
-            <span className="text-black font-semibold">Ishaan Saxena</span>
-            {' '}•{' '}
-            B.Tech CSE (Big Data Analytics)
+            SpendWise Pro • Personal Finance Management
           </div>
 
           {/* Tech stack badges */}

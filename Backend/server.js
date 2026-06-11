@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+const cors = require('cors');
 const express = require('express');
 const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
@@ -12,6 +12,10 @@ const predictionRoutes = require('./routes/prediction');
 const forecastRoutes = require('./routes/forecast');
 
 const app = express();
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());

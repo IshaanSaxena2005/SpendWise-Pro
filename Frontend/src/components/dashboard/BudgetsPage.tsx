@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Target, TrendingUp, Wallet, Plus, AlertTriangle } from 'lucide-react';
+import { Target, TrendingUp, Wallet, Plus, AlertTriangle, Brain } from 'lucide-react';
 import { getBudgets, getCategories, setBudget } from '../../lib/store';
 
 function fmt(n: number) { return '₹' + n.toLocaleString('en-IN'); }
@@ -10,6 +10,7 @@ export function BudgetsPage() {
   const [catId, setCatId]           = useState(String(categories[0]?.id || '1'));
   const [limit, setLimit]           = useState('');
   const [submitted, setSubmitted]   = useState(false);
+  const [filter, setFilter]         = useState('All');
 
   const totalLimit = budgets.reduce((s, b) => s + b.monthly_limit, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
@@ -25,11 +26,101 @@ export function BudgetsPage() {
     setTimeout(() => setSubmitted(false), 2000);
   };
 
+  const filteredBudgets = budgets.filter(b => {
+    const pct = b.monthly_limit > 0 ? (b.spent / b.monthly_limit) * 100 : 0;
+    if (filter === 'All') return true;
+    if (filter === 'On Track') return pct < 60;
+    if (filter === 'Warning') return pct >= 60 && pct < 85;
+    if (filter === 'Critical') return pct >= 85;
+    return true;
+  });
+
+  const alerts = budgets.filter(b => b.monthly_limit > 0 && b.spent / b.monthly_limit >= 0.85);
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <div>
         <h1 className="text-xl font-semibold text-black tracking-tight">Budgets</h1>
         <p className="text-sm text-black/50">Set limits, stay on track</p>
+      </div>
+
+      {/* Top Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* AI Warnings */}
+        <div className="lg:col-span-2">
+          {alerts.length > 0 ? (
+            <div className="bg-gradient-to-br from-violet-600 to-violet-900 rounded-2xl p-6 shadow-md relative overflow-hidden group h-full">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-500"></div>
+              <div className="flex items-center gap-2 mb-4 relative z-10">
+                <Brain className="w-5 h-5 text-violet-200" />
+                <h3 className="text-base font-semibold text-white tracking-tight">AI Budget Monitor</h3>
+              </div>
+              <div className="space-y-3 relative z-10">
+                {alerts.map(b => {
+                  const cat = categories.find(c => c.id === b.category_id);
+                  return (
+                    <div key={b.category_id} className="bg-black/20 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle className="w-5 h-5 text-rose-400" />
+                        <p className="text-sm font-medium text-white">
+                          <span className="font-bold text-rose-300">{cat?.name}</span> may exceed budget by {fmt(b.spent * 1.2 - b.monthly_limit)} this month.
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Confidence</div>
+                        <div className="text-sm font-semibold text-white">89%</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-[#F5F5F5] rounded-2xl p-6 border border-black/5 h-full flex flex-col items-center justify-center text-center">
+              <Target className="w-8 h-8 text-black/20 mb-3" />
+              <p className="text-sm font-semibold text-black mb-1">All budgets on track</p>
+              <p className="text-xs text-black/40">AI sees no immediate risks.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Circular Budget Utilization */}
+        <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 flex flex-col items-center justify-center text-center group hover:border-violet-200 transition-colors">
+          <h3 className="text-sm font-semibold text-black mb-6">Overall Utilization</h3>
+          <div className="relative flex items-center justify-center w-32 h-32 mb-4">
+            <svg className="transform -rotate-90 w-32 h-32 drop-shadow-sm">
+              <circle cx="64" cy="64" r="54" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-black/5" />
+              <circle cx="64" cy="64" r="54" stroke="url(#overallGradient)" strokeWidth="12" fill="transparent" strokeDasharray={2 * Math.PI * 54} strokeDashoffset={(2 * Math.PI * 54) - ((overallPct / 100) * (2 * Math.PI * 54))} className="transition-all duration-1000 ease-out stroke-round" strokeLinecap="round" />
+              <defs>
+                <linearGradient id="overallGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor={overallPct >= 85 ? '#F43F5E' : overallPct >= 60 ? '#F59E0B' : '#10B981'} />
+                  <stop offset="100%" stopColor={overallPct >= 85 ? '#E11D48' : overallPct >= 60 ? '#D97706' : '#059669'} />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold text-black tracking-tight">{Math.round(overallPct)}%</span>
+            </div>
+          </div>
+          <p className="text-xs text-black/50 font-medium">Safe to spend: <span className="text-emerald-600 font-bold">{fmt(totalLeft)}</span></p>
+        </div>
+      </div>
+
+      {/* Filters & Grid */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {['All', 'On Track', 'Warning', 'Critical'].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+              filter === f
+                ? 'bg-black text-white shadow-md'
+                : 'bg-white border border-black/10 text-black/60 hover:text-black hover:border-black/20'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
       </div>
 
       {/* Summary Cards */}
@@ -50,38 +141,37 @@ export function BudgetsPage() {
         ))}
       </div>
 
-      {/* Budget Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {budgets.map(b => {
+        {filteredBudgets.map(b => {
           const cat = categories.find(c => c.id === b.category_id) || { name: 'Unknown', icon: '❓', color: '#9CA3AF', bg: '#F3F4F6' };
           const pct = b.monthly_limit > 0 ? Math.min((b.spent / b.monthly_limit) * 100, 100) : 0;
-          const isOver = b.spent > b.monthly_limit;
-          const barColor = isOver ? '#F43F5E' : pct >= 70 ? '#F59E0B' : '#8B5CF6';
+          const isOver = b.spent >= b.monthly_limit;
+          const barColor = pct >= 85 ? '#F43F5E' : pct >= 60 ? '#F59E0B' : '#10B981';
+          const statusText = pct >= 85 ? 'Critical' : pct >= 60 ? 'Warning' : 'On Track';
+          const statusColor = pct >= 85 ? 'bg-rose-50 text-rose-600' : pct >= 60 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600';
 
           return (
             <div key={b.category_id} className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ background: cat.bg }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm" style={{ background: cat.bg }}>
                     {cat.icon}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-black">{cat.name}</p>
-                    {isOver && (
-                      <div className="flex items-center gap-1 text-rose-500 text-[10px] font-medium mt-0.5">
-                        <AlertTriangle className="w-3 h-3" /> Over budget!
-                      </div>
-                    )}
+                    <p className="text-sm font-semibold text-black leading-tight">{cat.name}</p>
+                    <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wide uppercase ${statusColor}`}>
+                      {statusText}
+                    </span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-base font-semibold text-black">{fmt(b.spent)}</p>
-                  <p className="text-[11px] text-black/40">of {fmt(b.monthly_limit)}</p>
+                  <p className="text-lg font-bold text-black tracking-tight">{fmt(b.spent)}</p>
+                  <p className="text-[11px] text-black/40 font-medium">of {fmt(b.monthly_limit)}</p>
                 </div>
               </div>
-              <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden mb-2">
+              <div className="w-full h-2.5 bg-[#F5F5F5] rounded-full overflow-hidden mb-2.5">
                 <div
-                  className="h-full rounded-full transition-all duration-500"
+                  className="h-full rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${pct}%`, background: barColor }}
                 />
               </div>

@@ -20,6 +20,8 @@ import { ExpensesPage }      from './components/dashboard/ExpensesPage';
 import { BudgetsPage }       from './components/dashboard/BudgetsPage';
 import { AnalyticsPage }     from './components/dashboard/AnalyticsPage';
 import { InsightsPage }      from './components/dashboard/InsightsPage';
+import { ProfilePage }       from './components/dashboard/ProfilePage';
+import { SettingsPage }      from './components/dashboard/SettingsPage';
 
 // ─── Landing Page ────────────────────────────────────────────────────────────
 function LandingPage() {
@@ -79,6 +81,8 @@ function App() {
           <Route path="budgets"          element={<BudgetsPage />} />
           <Route path="analytics"        element={<AnalyticsPage />} />
           <Route path="insights"         element={<InsightsPage />} />
+          <Route path="profile"          element={<ProfilePage />} />
+          <Route path="settings"         element={<SettingsPage />} />
         </Route>
       </Routes>
     </Router>
