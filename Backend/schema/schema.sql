@@ -10,6 +10,8 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    is_verified BOOLEAN DEFAULT FALSE,
+    verification_token VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_email UNIQUE (email)
 ) ENGINE=InnoDB;
@@ -73,3 +75,58 @@ CREATE TABLE budgets (
 -- Note: In MySQL, UNIQUE allows multiple rows where category_id IS NULL.
 -- Enforce at most one overall budget per user per month in application logic,
 -- or use a single INSERT ... ON DUPLICATE KEY UPDATE pattern with a fixed sentinel if you prefer DB-only enforcement.
+
+-- Password Resets
+CREATE TABLE password_resets (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_password_resets_user 
+        FOREIGN KEY (user_id) REFERENCES users (id) 
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Notifications
+CREATE TABLE notifications (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    read_status BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_user 
+        FOREIGN KEY (user_id) REFERENCES users (id) 
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- AI Insights
+CREATE TABLE ai_insights (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    severity VARCHAR(50) NOT NULL,
+    confidence_score DECIMAL(5, 2) NOT NULL,
+    category VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ai_insights_user 
+        FOREIGN KEY (user_id) REFERENCES users (id) 
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Recommendations
+CREATE TABLE recommendations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    impact_score DECIMAL(5, 2) NOT NULL,
+    category VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_recommendations_user 
+        FOREIGN KEY (user_id) REFERENCES users (id) 
+        ON DELETE CASCADE
+) ENGINE=InnoDB;

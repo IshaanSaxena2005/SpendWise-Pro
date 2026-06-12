@@ -10,6 +10,8 @@ const analyticsRoutes = require('./routes/analytics');
 const healthRoutes = require('./routes/health');
 const predictionRoutes = require('./routes/prediction');
 const forecastRoutes = require('./routes/forecast');
+const intelligenceRoutes = require('./routes/intelligence');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 app.use(cors({
@@ -27,6 +29,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/predictions', predictionRoutes);
 app.use('/api/forecast', forecastRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {

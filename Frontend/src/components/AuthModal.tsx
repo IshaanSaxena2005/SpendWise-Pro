@@ -6,11 +6,13 @@ import api from '../lib/api';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialView?: 'login' | 'signup';
+  initialView?: 'login' | 'signup' | 'forgot-password' | 'reset-password';
+  verificationSuccess?: boolean;
+  resetToken?: string | null;
 }
 
-export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalProps) {
-  const [view, setView] = useState<'login' | 'signup'>(initialView);
+export function AuthModal({ isOpen, onClose, initialView = 'login', verificationSuccess = false, resetToken = null }: AuthModalProps) {
+  const [view, setView] = useState<'login' | 'signup' | 'forgot-password' | 'reset-password'>(initialView);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,17 +26,23 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setView(initialView);
     setError(null);
-    setSuccess(null);
-  }, [initialView, isOpen]);
+    if (verificationSuccess) {
+      setSuccess('Your email has been verified. You can now log in.');
+    } else {
+      setSuccess(null);
+    }
+  }, [initialView, isOpen, verificationSuccess]);
 
   if (!isOpen) return null;
 
-  const switchView = (v: 'login' | 'signup') => {
+  const switchView = (v: 'login' | 'signup' | 'forgot-password' | 'reset-password') => {
     setView(v);
     setError(null);
     setSuccess(null);
     setFullName('');
-    setEmail('');
+    if (v !== 'forgot-password') {
+        setEmail('');
+    }
     setPassword('');
   };
 
@@ -52,7 +60,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
       setError('Please enter your email address.');
       return;
     }
-    if (password.length < 6) {
+    if (view === 'reset-password' && password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
     }
@@ -60,12 +68,34 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
     setLoading(true);
 
     try {
+      if (view === 'forgot-password') {
+        const response = await api.post('/auth/forgot-password', { email: email.trim() });
+        setSuccess(response.data.message);
+        return;
+      }
+
+      if (view === 'reset-password') {
+        const response = await api.post('/auth/reset-password', { 
+          email: email.trim(), 
+          token: resetToken, 
+          newPassword: password 
+        });
+        setSuccess(response.data.message);
+        setTimeout(() => switchView('login'), 3000);
+        return;
+      }
+
       const endpoint = view === 'login' ? '/auth/login' : '/auth/signup';
       const payload = view === 'signup'
         ? { full_name: fullName.trim(), email: email.trim(), password }
         : { email: email.trim(), password };
 
       const response = await api.post(endpoint, payload);
+
+      if (view === 'signup' && response.data?.requiresVerification) {
+        setSuccess(response.data.message);
+        return;
+      }
 
       if (response.data?.token) {
         localStorage.setItem('token', response.data.token);
@@ -78,8 +108,11 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
     } catch (err: any) {
       const status = err.response?.status;
       const serverMsg = err.response?.data?.message || err.response?.data?.error;
+      const errorType = err.response?.data?.errorType;
 
-      if (serverMsg) {
+      if (errorType === 'unverified') {
+        setError('unverified');
+      } else if (serverMsg) {
         setError(serverMsg);
       } else if (status === 409) {
         setError('An account with this email already exists.');
@@ -94,6 +127,25 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
       } else {
         setError('Authentication failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email to resend verification.');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await api.post('/auth/resend-verification', { email: email.trim() });
+      setSuccess(response.data.message);
+      setError(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to resend verification email.');
     } finally {
       setLoading(false);
     }
@@ -119,19 +171,35 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
         </div>
 
         <h2 className="text-3xl font-medium text-black mb-2" style={{ letterSpacing: '-0.02em' }}>
-          {view === 'login' ? 'Welcome back' : 'Create account'}
+          {view === 'login' && 'Welcome back'}
+          {view === 'signup' && 'Create account'}
+          {view === 'forgot-password' && 'Reset password'}
+          {view === 'reset-password' && 'New password'}
         </h2>
         <p className="text-black/60 mb-6 text-sm">
-          {view === 'login'
-            ? 'Sign in to access your financial dashboard.'
-            : 'Start your journey to financial clarity.'}
+          {view === 'login' && 'Sign in to access your financial dashboard.'}
+          {view === 'signup' && 'Start your journey to financial clarity.'}
+          {view === 'forgot-password' && 'Enter your email to receive a reset link.'}
+          {view === 'reset-password' && 'Please enter your new password below.'}
         </p>
 
         {/* Error banner */}
         {error && (
-          <div className="mb-5 flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-xs text-rose-600 font-medium">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
+          <div className="mb-5 flex flex-col gap-2 bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-xs text-rose-600 font-medium">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error === 'unverified' ? 'Please verify your email before logging in.' : error}</span>
+            </div>
+            {error === 'unverified' && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                className="mt-1 self-start px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Resend Verification Email
+              </button>
+            )}
           </div>
         )}
 
@@ -166,44 +234,62 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
           )}
 
           {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-black/80 mb-2">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
-                placeholder="you@example.com"
-                required
-                disabled={loading}
-                autoComplete="email"
-              />
+          {view !== 'reset-password' && (
+            <div>
+              <label className="block text-sm font-medium text-black/80 mb-2">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
+                  placeholder="you@example.com"
+                  required
+                  disabled={loading}
+                  autoComplete="email"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Password */}
-          <div>
-            <label className="block text-sm font-medium text-black/80 mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
-                placeholder="••••••••"
-                required
-                minLength={6}
-                disabled={loading}
-                autoComplete={view === 'login' ? 'current-password' : 'new-password'}
-              />
+          {view !== 'forgot-password' && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-black/80">
+                  {view === 'reset-password' ? 'New Password' : 'Password'}
+                </label>
+                {view === 'login' && (
+                  <button 
+                    type="button" 
+                    onClick={() => switchView('forgot-password')}
+                    className="text-xs font-medium text-black hover:underline"
+                    tabIndex={-1}
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                  autoComplete={view === 'login' ? 'current-password' : 'new-password'}
+                />
+              </div>
+              {(view === 'signup' || view === 'reset-password') && (
+                <p className="text-xs text-black/40 mt-1.5 ml-1">Minimum 6 characters</p>
+              )}
             </div>
-            {view === 'signup' && (
-              <p className="text-xs text-black/40 mt-1.5 ml-1">Minimum 6 characters</p>
-            )}
-          </div>
+          )}
 
           <button
             type="submit"
@@ -212,36 +298,53 @@ export function AuthModal({ isOpen, onClose, initialView = 'login' }: AuthModalP
           >
             {loading
               ? 'Processing…'
-              : view === 'login' ? 'Sign In' : 'Create Account'}
+              : view === 'login' ? 'Sign In' 
+              : view === 'signup' ? 'Create Account' 
+              : view === 'forgot-password' ? 'Send Reset Link'
+              : 'Update Password'}
             {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
 
-        <div className="mt-7 text-center text-sm text-black/60">
-          {view === 'login' ? (
-            <>
-              Don't have an account?{' '}
-              <button
-                onClick={() => switchView('signup')}
-                className="text-black font-medium hover:underline"
-                disabled={loading}
-              >
-                Sign up free
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{' '}
-              <button
-                onClick={() => switchView('login')}
-                className="text-black font-medium hover:underline"
-                disabled={loading}
-              >
-                Log in
-              </button>
-            </>
-          )}
-        </div>
+        {(view === 'forgot-password' || view === 'reset-password') ? (
+          <div className="mt-7 text-center text-sm text-black/60">
+            Remembered your password?{' '}
+            <button
+              onClick={() => switchView('login')}
+              className="text-black font-medium hover:underline"
+              disabled={loading}
+            >
+              Sign in
+            </button>
+          </div>
+        ) : (
+          <div className="mt-7 text-center text-sm text-black/60">
+            {view === 'login' && (
+              <div>
+                Don't have an account?{' '}
+                <button
+                  onClick={() => switchView('signup')}
+                  className="text-black font-medium hover:underline"
+                  disabled={loading}
+                >
+                  Sign up free
+                </button>
+              </div>
+            )}
+            {view !== 'login' && (
+              <div>
+                Already have an account?{' '}
+                <button
+                  onClick={() => switchView('login')}
+                  className="text-black font-medium hover:underline"
+                  disabled={loading}
+                >
+                  Log in
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

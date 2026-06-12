@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon } from 'lucide-react';
+import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon, X, AlertCircle } from 'lucide-react';
 import { getTransactions, getBudgets, getCategories } from '../../lib/store';
 import { getUser } from '../../lib/auth';
 import api from '../../lib/api';
@@ -47,9 +47,37 @@ export function SettingsPage() {
     };
   });
 
+  // Delete Account State
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     // Other effects if any
   }, []);
+
+  type DeleteAccountError = { response?: { data?: { message?: string } } };
+
+const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError('Please enter your password.');
+      return;
+    }
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await api.delete('/auth/delete-account', { data: { password: deletePassword } });
+      localStorage.clear();
+      window.location.href = '/?deleted=true';
+    } catch (err: unknown) {
+      const e = err as DeleteAccountError;
+      setDeleteError(e.response?.data?.message || 'Failed to delete account. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
 
 
@@ -317,7 +345,7 @@ export function SettingsPage() {
                     <p className="text-sm text-rose-700/80 mb-5">
                       Permanently delete your account and all associated data. This action cannot be undone.
                     </p>
-                    <button className="bg-rose-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-rose-700 transition-colors shadow-sm shadow-rose-600/20">
+                    <button onClick={() => setDeleteStep(1)} className="bg-rose-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-rose-700 transition-colors shadow-sm shadow-rose-600/20">
                       Delete Account
                     </button>
                   </div>
@@ -327,6 +355,98 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Delete Account Modal Step 1 */}
+      {deleteStep === 1 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteStep(0)} />
+          <div className="relative bg-white rounded-3xl w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h2 className="text-xl font-bold text-center text-black mb-2">Delete Account?</h2>
+            <p className="text-center text-black/60 mb-6 text-sm">
+              Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteStep(0)} className="flex-1 bg-[#F5F5F5] hover:bg-[#E5E5E5] text-black text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => setDeleteStep(2)} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-rose-600/20">
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal Step 2 */}
+      {deleteStep === 2 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={!deleteLoading ? () => { setDeleteStep(0); setDeletePassword(''); setDeleteError(null); } : undefined} />
+          <div className="relative bg-white rounded-3xl w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={() => { setDeleteStep(0); setDeletePassword(''); setDeleteError(null); }}
+              className="absolute top-6 right-6 text-black/40 hover:text-black transition-colors"
+              disabled={deleteLoading}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-black mb-2">Confirm Identity</h2>
+            <p className="text-black/60 mb-6 text-sm">
+              Please enter your password to confirm account deletion.
+            </p>
+
+            {deleteError && (
+              <div className="mb-4 flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-xs text-rose-600 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="relative mb-6">
+              <input
+                type={showDeletePassword ? "text" : "password"}
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Current Password"
+                className="w-full bg-[#F5F5F5] border border-transparent rounded-xl pl-4 pr-10 py-3 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                disabled={deleteLoading}
+              />
+              <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-black/40 hover:text-black">
+                {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDeleteStep(0); setDeletePassword(''); setDeleteError(null); }}
+                className="flex-1 bg-[#F5F5F5] hover:bg-[#E5E5E5] text-black text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-rose-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                disabled={deleteLoading || !deletePassword}
+              >
+                {deleteLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Permanently'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
