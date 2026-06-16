@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
-  getTransactions, getBudgets, getCategories, getAIScore,
+  getTransactions, getBudgets, getCategories,
   deleteTransaction, type Transaction
 } from '../../lib/store';
+import {
+  getYearMonth, getPreviousYearMonth,
+  computeMonthTotals, computeGrowthPercent, formatHealthRating
+} from '../../lib/financeMetrics';
 import { AddTransactionModal } from './AddTransactionModal';
 import api from '../../lib/api';
 
@@ -16,12 +20,32 @@ function shortDate(d: string) {
   return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()] + ' ' + dt.getDate();
 }
 
+interface HealthData {
+  score: number;
+  rating: string;
+  recommendations: string[];
+}
+
+
+function HealthSkeleton() {
+  return (
+    <div className="flex items-center gap-5 animate-pulse">
+      <div className="w-20 h-20 rounded-full bg-black/10 shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-24 bg-black/10 rounded" />
+        <div className="h-3 w-full bg-black/5 rounded" />
+        <div className="h-3 w-3/4 bg-black/5 rounded" />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardOverview() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const transactions = getTransactions();
   const budgets      = getBudgets();
   const categories   = getCategories();
-  const aiScore      = getAIScore();
+
   const [forecast, setForecast] = useState<{
     predicted_spending?: number;
     trend_direction?: string;
@@ -30,6 +54,7 @@ export function DashboardOverview() {
     message?: string;
   } | null>(null);
   const [loadingForecast, setLoadingForecast] = useState<boolean>(true);
+
   const [anomalies, setAnomalies] = useState<{
     id: number;
     title: string;
@@ -38,6 +63,10 @@ export function DashboardOverview() {
     category_name?: string;
   }[]>([]);
   const [loadingAnomalies, setLoadingAnomalies] = useState<boolean>(true);
+
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
+  const [healthError, setHealthError] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchForecast = async () => {
@@ -69,19 +98,59 @@ export function DashboardOverview() {
     fetchAnomalies();
   }, []);
 
-  const juneTxns = transactions.filter(t => t.date.startsWith('2026-06'));
-  let totalIncome = 0, totalExpenses = 0;
-  juneTxns.forEach(t => {
-    if (t.type === 'income') totalIncome += t.amount;
-    else totalExpenses += t.amount;
-  });
-  const totalBalance = totalIncome - totalExpenses;
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        setLoadingHealth(true);
+        setHealthError(false);
+        const response = await api.get('/health/score');
+        if (response.data?.success) {
+          setHealth({
+            score: response.data.score,
+            rating: response.data.rating,
+            recommendations: response.data.recommendations ?? [],
+          });
+        } else {
+          setHealthError(true);
+        }
+      } catch (error) {
+        console.error('Error fetching health score:', error);
+        setHealthError(true);
+      } finally {
+        setLoadingHealth(false);
+      }
+    };
+    fetchHealth();
+  }, []);
+
+  const currentMonth = getYearMonth();
+  const previousMonth = getPreviousYearMonth();
+
+  const currentTotals = computeMonthTotals(transactions, currentMonth);
+  const previousTotals = computeMonthTotals(transactions, previousMonth);
+
+  const totalIncome = currentTotals.income;
+  const totalExpenses = currentTotals.expenses;
+  const totalBalance = currentTotals.balance;
+
+  const balanceGrowth = computeGrowthPercent(currentTotals.balance, previousTotals.balance);
+  const incomeGrowth = computeGrowthPercent(currentTotals.income, previousTotals.income);
+  const expenseGrowth = computeGrowthPercent(currentTotals.expenses, previousTotals.expenses);
 
   const activeBudgets = budgets.filter(b => b.monthly_limit > 0);
   const totalLimit = activeBudgets.reduce((s, b) => s + b.monthly_limit, 0);
   const totalSpent = activeBudgets.reduce((s, b) => s + b.spent, 0);
   const budgetLeft = Math.max(totalLimit - totalSpent, 0);
   const budgetPct  = totalLimit > 0 ? Math.min((totalSpent / totalLimit) * 100, 100) : 0;
+  const budgetSub = totalLimit > 0 ? `${Math.round(budgetPct)}% used` : 'Insufficient data';
+
+  const aiScore = health?.score ?? null;
+  const healthRating = healthError || !health ? 'N/A' : formatHealthRating(health.rating);
+  const healthDescription = healthError
+    ? 'Insufficient data'
+    : health?.recommendations?.[0] ?? 'Insufficient data';
+
+  const quickRecommendations = health?.recommendations?.slice(0, 2) ?? [];
 
   const handleDelete = (id: number) => {
     if (confirm('Delete this transaction?')) {
@@ -89,6 +158,41 @@ export function DashboardOverview() {
       window.location.reload();
     }
   };
+
+  const metricCards = [
+    {
+      label: 'TOTAL BALANCE',
+      value: fmt(totalBalance),
+      sub: balanceGrowth.display,
+      subTrend: balanceGrowth.trend,
+      icon: CreditCard,
+      color: 'text-black',
+    },
+    {
+      label: 'TOTAL INCOME',
+      value: fmt(totalIncome),
+      sub: incomeGrowth.display,
+      subTrend: incomeGrowth.trend,
+      icon: TrendingDown,
+      color: 'text-emerald-600',
+    },
+    {
+      label: 'TOTAL EXPENSES',
+      value: fmt(totalExpenses),
+      sub: expenseGrowth.display,
+      subTrend: expenseGrowth.trend,
+      icon: TrendingUp,
+      color: 'text-rose-500',
+    },
+    {
+      label: 'BUDGET LEFT',
+      value: totalLimit > 0 ? fmt(budgetLeft) : 'N/A',
+      sub: budgetSub,
+      subTrend: 'neutral' as const,
+      icon: Target,
+      color: 'text-violet-600',
+    },
+  ];
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -100,12 +204,7 @@ export function DashboardOverview() {
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {[
-          { label: 'TOTAL BALANCE', value: fmt(totalBalance), sub: '+8.2%', subTrend: 'up', icon: CreditCard, color: 'text-black' },
-          { label: 'TOTAL INCOME',  value: fmt(totalIncome),  sub: '+5.1%', subTrend: 'up', icon: TrendingDown, color: 'text-emerald-600' },
-          { label: 'TOTAL EXPENSES',value: fmt(totalExpenses),sub: '-2.4%', subTrend: 'down', icon: TrendingUp,   color: 'text-rose-500' },
-          { label: 'BUDGET LEFT',   value: fmt(budgetLeft),   sub: `${Math.round(budgetPct)}% used`, subTrend: 'neutral', icon: Target, color: 'text-violet-600' },
-        ].map(({ label, value, sub, subTrend, icon: Icon, color }) => (
+        {metricCards.map(({ label, value, sub, subTrend, icon: Icon, color }) => (
           <div key={label} className="bg-white rounded-3xl p-5 border border-black/5 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             <div className="flex items-center justify-between mb-4">
               <div className="w-10 h-10 rounded-2xl bg-[#F5F5F5] border border-black/5 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -135,7 +234,9 @@ export function DashboardOverview() {
             <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
           </div>
           <div className="divide-y divide-black/5 flex-1">
-            {transactions.slice(0, 8).map(t => {
+            {transactions.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-black/50">No transactions yet.</div>
+            ) : transactions.slice(0, 8).map(t => {
               const cat = categories.find(c => c.id === t.category_id) || { name: 'Other', icon: '❓', color: '#9CA3AF', bg: '#F3F4F6' };
               return (
                 <div key={t.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#F5F5F5]/60 transition-colors group">
@@ -171,34 +272,51 @@ export function DashboardOverview() {
               <h2 className="font-semibold text-black text-sm">Financial Health</h2>
               <Brain className="w-4 h-4 text-violet-600" />
             </div>
-            
-            <div className="flex items-center gap-5">
-              {/* Circular Gauge */}
-              <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
-                <svg className="transform -rotate-90 w-20 h-20 drop-shadow-sm">
-                  <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-black/5" />
-                  <circle cx="40" cy="40" r="34" stroke="url(#healthGradient)" strokeWidth="6" fill="transparent" strokeDasharray={2 * Math.PI * 34} strokeDashoffset={(2 * Math.PI * 34) - ((aiScore / 100) * (2 * Math.PI * 34))} className="transition-all duration-1000 ease-out stroke-round" strokeLinecap="round" />
-                  <defs>
-                    <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor={aiScore >= 80 ? '#10B981' : aiScore >= 60 ? '#F59E0B' : '#F43F5E'} />
-                      <stop offset="100%" stopColor={aiScore >= 80 ? '#059669' : aiScore >= 60 ? '#D97706' : '#E11D48'} />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center">
-                  <span className="text-xl font-bold text-black tracking-tight">{aiScore}</span>
+
+            {loadingHealth ? (
+              <HealthSkeleton />
+            ) : (
+              <div className="flex items-center gap-5">
+                {/* Circular Gauge */}
+                <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
+                  <svg className="transform -rotate-90 w-20 h-20 drop-shadow-sm">
+                    <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-black/5" />
+                    {aiScore !== null && (
+                      <circle
+                        cx="40" cy="40" r="34"
+                        stroke="url(#healthGradient)"
+                        strokeWidth="6"
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 34}
+                        strokeDashoffset={(2 * Math.PI * 34) - ((aiScore / 100) * (2 * Math.PI * 34))}
+                        className="transition-all duration-1000 ease-out stroke-round"
+                        strokeLinecap="round"
+                      />
+                    )}
+                    <defs>
+                      <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={aiScore !== null && aiScore >= 80 ? '#10B981' : aiScore !== null && aiScore >= 60 ? '#F59E0B' : '#F43F5E'} />
+                        <stop offset="100%" stopColor={aiScore !== null && aiScore >= 80 ? '#059669' : aiScore !== null && aiScore >= 60 ? '#D97706' : '#E11D48'} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-xl font-bold text-black tracking-tight">
+                      {aiScore !== null ? aiScore : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold text-black mb-0.5">
+                    {healthRating}
+                  </div>
+                  <div className="text-xs text-black/50 leading-relaxed">
+                    {healthDescription}
+                  </div>
                 </div>
               </div>
-              
-              <div>
-                <div className="text-sm font-semibold text-black mb-0.5">
-                  {aiScore >= 80 ? 'Excellent' : aiScore >= 60 ? 'Good' : 'Needs Attention'}
-                </div>
-                <div className="text-xs text-black/50 leading-relaxed">
-                  Your spending is well optimized. Keep it up!
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* AI Forecast Card */}
@@ -208,23 +326,26 @@ export function DashboardOverview() {
               <span className="text-sm font-medium opacity-90">Next Month Forecast</span>
               <TrendingUp className="w-4 h-4 opacity-80" />
             </div>
-            
+
             {loadingForecast ? (
-              <div className="text-sm opacity-80">Loading forecast...</div>
+              <div className="space-y-2 animate-pulse">
+                <div className="h-8 w-32 bg-white/20 rounded" />
+                <div className="h-3 w-24 bg-white/10 rounded" />
+              </div>
             ) : forecast?.message ? (
               <div className="text-sm opacity-80">{forecast.message}</div>
             ) : (
               <>
                 <div className="text-3xl font-bold mb-1 tracking-tight">
-                  {forecast?.predicted_spending ? `₹${Math.floor(forecast.predicted_spending).toLocaleString('en-IN')}` : '—'}
+                  {forecast?.predicted_spending != null ? `₹${Math.floor(forecast.predicted_spending).toLocaleString('en-IN')}` : 'N/A'}
                 </div>
                 <div className="text-xs font-medium opacity-80 mb-5">Predicted Spending</div>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
                     <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>
                     <div className="text-sm font-semibold flex items-center gap-1">
-                      {forecast?.trend_direction || '—'}
+                      {forecast?.trend_direction || 'N/A'}
                       {forecast?.trend_direction === 'Increasing' && '↗'}
                       {forecast?.trend_direction === 'Decreasing' && '↘'}
                       {forecast?.trend_direction === 'Stable' && '→'}
@@ -233,12 +354,12 @@ export function DashboardOverview() {
                   <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
                     <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">MAE</div>
                     <div className="text-sm font-semibold flex items-center gap-1">
-                      {forecast?.mae ? `₹${Math.floor(forecast.mae).toLocaleString('en-IN')}` : '—'}
+                      {forecast?.mae != null ? `₹${Math.floor(forecast.mae).toLocaleString('en-IN')}` : 'N/A'}
                     </div>
                   </div>
                 </div>
-                
-                {forecast?.rmse && (
+
+                {forecast?.rmse != null && (
                   <div className="mt-3 bg-black/20 rounded-xl p-3 backdrop-blur-sm">
                     <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">RMSE</div>
                     <div className="text-sm font-semibold flex items-center gap-1">
@@ -257,7 +378,10 @@ export function DashboardOverview() {
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
             {loadingAnomalies ? (
-              <div className="text-sm text-black/50">Loading...</div>
+              <div className="space-y-2 animate-pulse">
+                <div className="h-4 w-full bg-black/5 rounded" />
+                <div className="h-3 w-3/4 bg-black/5 rounded" />
+              </div>
             ) : anomalies.length === 0 ? (
               <div className="text-sm text-black/50">No unusual spending detected.</div>
             ) : (
@@ -279,16 +403,31 @@ export function DashboardOverview() {
               <h2 className="font-semibold text-black text-sm">Quick Recommendations</h2>
               <Brain className="w-4 h-4 text-violet-600" />
             </div>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-rose-50 border border-rose-100/50">
-                <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                <p className="text-xs font-medium text-rose-800 leading-relaxed">Shopping is approaching the monthly budget limit. Hold off on non-essentials.</p>
+            {loadingHealth ? (
+              <div className="space-y-3 animate-pulse">
+                <div className="h-16 bg-black/5 rounded-xl" />
+                <div className="h-16 bg-black/5 rounded-xl" />
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100/50">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="text-xs font-medium text-emerald-800 leading-relaxed">Travel spending reduced by 18% compared to last month. Great job!</p>
+            ) : quickRecommendations.length === 0 ? (
+              <div className="text-sm text-black/50">Insufficient data — add transactions and budgets to get recommendations.</div>
+            ) : (
+              <div className="space-y-3">
+                {quickRecommendations.map((text, idx) => {
+                  const isWarning = /exceed|over|budget|reduce|stabilise|variation|dominates/i.test(text);
+                  const Icon = isWarning ? ShieldAlert : CheckCircle2;
+                  const style = isWarning
+                    ? 'bg-rose-50 border-rose-100/50 text-rose-800'
+                    : 'bg-emerald-50 border-emerald-100/50 text-emerald-800';
+                  const iconColor = isWarning ? 'text-rose-500' : 'text-emerald-600';
+                  return (
+                    <div key={idx} className={`flex items-start gap-3 p-3 rounded-xl border ${style}`}>
+                      <Icon className={`w-4 h-4 ${iconColor} shrink-0 mt-0.5`} />
+                      <p className="text-xs font-medium leading-relaxed">{text}</p>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Budget Tracker */}
@@ -297,24 +436,28 @@ export function DashboardOverview() {
               <h2 className="font-semibold text-black text-sm">Budget Utilization</h2>
               <a href="/dashboard/budgets" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">Edit →</a>
             </div>
-            <div className="space-y-4">
-              {budgets.slice(0, 3).map(b => {
-                const cat = categories.find(c => c.id === b.category_id);
-                const pct = b.monthly_limit > 0 ? Math.min((b.spent / b.monthly_limit) * 100, 100) : 0;
-                const barColor = pct >= 85 ? '#F43F5E' : pct >= 60 ? '#F59E0B' : '#10B981';
-                return (
-                  <div key={b.category_id} className="group cursor-pointer">
-                    <div className="flex justify-between text-xs mb-1.5">
-                      <span className="font-semibold text-black/80 group-hover:text-black transition-colors">{cat?.name}</span>
-                      <span className="text-black/50 font-medium">{fmt(b.spent)} <span className="opacity-40">/</span> {fmt(b.monthly_limit)}</span>
+            {activeBudgets.length === 0 ? (
+              <div className="text-sm text-black/50">No budgets set. <a href="/dashboard/budgets" className="text-violet-600 hover:underline">Create one →</a></div>
+            ) : (
+              <div className="space-y-4">
+                {activeBudgets.slice(0, 3).map(b => {
+                  const cat = categories.find(c => c.id === b.category_id);
+                  const pct = b.monthly_limit > 0 ? Math.min((b.spent / b.monthly_limit) * 100, 100) : 0;
+                  const barColor = pct >= 85 ? '#F43F5E' : pct >= 60 ? '#F59E0B' : '#10B981';
+                  return (
+                    <div key={b.category_id} className="group cursor-pointer">
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="font-semibold text-black/80 group-hover:text-black transition-colors">{cat?.name ?? 'Unknown'}</span>
+                        <span className="text-black/50 font-medium">{fmt(b.spent)} <span className="opacity-40">/</span> {fmt(b.monthly_limit)}</span>
+                      </div>
+                      <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, background: barColor }} />
+                      </div>
                     </div>
-                    <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, background: barColor }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

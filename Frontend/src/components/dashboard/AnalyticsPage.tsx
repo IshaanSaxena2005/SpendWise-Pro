@@ -1,6 +1,7 @@
 import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { getTransactions, getCategories, getBudgets } from '../../lib/store';
+import { getYearMonth } from '../../lib/financeMetrics';
 import api from '../../lib/api';
 import { useState, useEffect } from 'react';
 
@@ -54,17 +55,10 @@ export function AnalyticsPage() {
     fetchForecast();
   }, []);
 
-  // June 2026 summary
-  const juneTxns = transactions.filter(t => t.date.startsWith('2026-06'));
-  let totalIncome = 0, totalExpenses = 0;
-  juneTxns.forEach(t => {
-    if (t.type === 'income') totalIncome += t.amount;
-    else totalExpenses += t.amount;
-  });
-
-  // Spending by category
+  // Current month spending by category
+  const currentMonth = getYearMonth();
   const map: Record<number, number> = {};
-  transactions.filter(t => t.type === 'expense' && t.date.startsWith('2026-06')).forEach(t => {
+  transactions.filter(t => t.type === 'expense' && t.date.startsWith(currentMonth)).forEach(t => {
     map[t.category_id] = (map[t.category_id] || 0) + t.amount;
   });
   const byCategory = Object.entries(map)
@@ -76,25 +70,76 @@ export function AnalyticsPage() {
 
   const highestCat = byCategory.length > 0 ? byCategory[0].cat.name : 'N/A';
   
+  // Dynamic Trend Data (Last 6 months)
+  const last6Months = Array.from({ length: 6 }).map((_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (5 - i));
+    return {
+      label: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()],
+      yearMonth: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      income: 0,
+      expenses: 0
+    };
+  });
+
+  transactions.forEach(t => {
+    const prefix = t.date.substring(0, 7);
+    const monthData = last6Months.find(m => m.yearMonth === prefix);
+    if (monthData) {
+      if (t.type === 'income') monthData.income += t.amount;
+      else monthData.expenses += t.amount;
+    }
+  });
+
+  const trendData = last6Months.map(m => ({ month: m.label, income: m.income, expenses: m.expenses }));
+
   // KPI Calculations
-  const avgMonthlyExpense = 40800; // Mocked avg of Jan-May + June
-  const expenseGrowth = ((totalExpenses - 41000) / 41000) * 100; // vs May
+  const total6MonthExpenses = last6Months.reduce((acc, m) => acc + m.expenses, 0);
+  const avgMonthlyExpense = total6MonthExpenses / 6;
+  
+  const currentMonthExp = last6Months[5].expenses;
+  const prevMonthExp = last6Months[4].expenses;
+  const expenseGrowth = prevMonthExp > 0 ? ((currentMonthExp - prevMonthExp) / prevMonthExp) * 100 : null;
+  
   const totalBudget = budgets.reduce((acc, b) => acc + b.monthly_limit, 0);
   const totalSpent = budgets.reduce((acc, b) => acc + b.spent, 0);
   const budgetEfficiency = totalBudget > 0 ? ((totalBudget - totalSpent) / totalBudget) * 100 : 0;
 
-  // Monthly Trend Data
-  const trendData = [
-    { month: 'Jan', income: 62000, expenses: 38000 },
-    { month: 'Feb', income: 55000, expenses: 42000 },
-    { month: 'Mar', income: 70000, expenses: 35000 },
-    { month: 'Apr', income: 65000, expenses: 48000 },
-    { month: 'May', income: 58000, expenses: 41000 },
-    { month: 'Jun', income: totalIncome || 60000, expenses: totalExpenses || 45000 },
-  ];
+  const currentMonthIncome = last6Months[5].income;
+  const prevMonthIncome = last6Months[4].income;
+  const incomeChange = prevMonthIncome > 0
+    ? ((currentMonthIncome - prevMonthIncome) / prevMonthIncome) * 100
+    : null;
+
+  const activeBudgets = budgets.filter(b => b.monthly_limit > 0);
+  const overBudgetCount = activeBudgets.filter(b => b.spent >= b.monthly_limit).length;
+  const onTrackCount = activeBudgets.filter(b => b.spent < b.monthly_limit * 0.85).length;
+
+  const spendingInsight = prevMonthExp > 0 && expenseGrowth !== null
+    ? {
+        title: expenseGrowth < 0 ? 'Spending Decreased' : expenseGrowth > 0 ? 'Spending Increased' : 'Spending Stable',
+        text: `Monthly expenses are ${expenseGrowth < 0 ? 'down' : expenseGrowth > 0 ? 'up' : 'unchanged'} by ${Math.abs(expenseGrowth).toFixed(1)}% vs last month.`,
+      }
+    : { title: 'Spending Trend', text: 'Insufficient data — add transactions to compare monthly spending.' };
+
+  const incomeInsight = prevMonthIncome > 0 && incomeChange !== null
+    ? {
+        title: Math.abs(incomeChange) < 5 ? 'Income Stable' : incomeChange > 0 ? 'Income Increased' : 'Income Decreased',
+        text: `Income is ${incomeChange > 0 ? 'up' : incomeChange < 0 ? 'down' : 'stable'} by ${Math.abs(incomeChange).toFixed(1)}% compared to last month.`,
+      }
+    : { title: 'Income Trend', text: 'Insufficient data — add income transactions to track stability.' };
+
+  const budgetInsight = activeBudgets.length > 0
+    ? {
+        title: 'Budget Adherence',
+        text: overBudgetCount > 0
+          ? `${overBudgetCount} categor${overBudgetCount === 1 ? 'y is' : 'ies are'} over budget. ${onTrackCount} on track.`
+          : `${onTrackCount} of ${activeBudgets.length} categories are within set limits.`,
+      }
+    : { title: 'Budget Adherence', text: 'Insufficient data — set budgets to track adherence.' };
 
   // Forecast Data
-  const forecastData = forecast?.spending_history 
+  const forecastData = forecast?.spending_history && forecast.spending_history.length > 0
     ? [
         ...forecast.spending_history.map((amount, index) => ({ 
           month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][index % 12], 
@@ -105,14 +150,7 @@ export function AnalyticsPage() {
           forecast: forecast.predicted_spending 
         }
       ]
-    : [
-        { month: 'Jan', actual: 38000 },
-        { month: 'Feb', actual: 42000 },
-        { month: 'Mar', actual: 35000 },
-        { month: 'Apr', actual: 48000 },
-        { month: 'May', actual: 41000 },
-        { month: 'Jun', actual: totalExpenses || 45000 },
-      ];
+    : [];
 
 
 
@@ -128,7 +166,7 @@ export function AnalyticsPage() {
         {[
           { label: 'HIGHEST SPENDING', value: highestCat, sub: 'Top Category', icon: PieChart, color: 'text-rose-500' },
           { label: 'AVG MONTHLY EXPENSE', value: fmt(avgMonthlyExpense), sub: 'Last 6 months', icon: BarChart2, color: 'text-violet-600' },
-          { label: 'EXPENSE GROWTH', value: `${expenseGrowth > 0 ? '+' : ''}${expenseGrowth.toFixed(1)}%`, sub: 'vs last month', icon: TrendingUp, color: expenseGrowth > 0 ? 'text-rose-500' : 'text-emerald-600' },
+          { label: 'EXPENSE GROWTH', value: expenseGrowth !== null ? `${expenseGrowth > 0 ? '+' : ''}${expenseGrowth.toFixed(1)}%` : 'N/A', sub: 'vs last month', icon: TrendingUp, color: expenseGrowth !== null && expenseGrowth > 0 ? 'text-rose-500' : 'text-emerald-600' },
           { label: 'BUDGET EFFICIENCY', value: `${Math.round(budgetEfficiency)}%`, sub: 'Savings potential', icon: Target, color: 'text-emerald-600' },
         ].map(({ label, value, sub, icon: Icon, color }) => (
           <div key={label} className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
@@ -149,8 +187,8 @@ export function AnalyticsPage() {
             <TrendingDown className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-emerald-900">Spending Decreased</h4>
-            <p className="text-xs text-emerald-700/80 font-medium mt-0.5">Discretionary spending is down by 72%.</p>
+            <h4 className="text-sm font-semibold text-emerald-900">{spendingInsight.title}</h4>
+            <p className="text-xs text-emerald-700/80 font-medium mt-0.5">{spendingInsight.text}</p>
           </div>
         </div>
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-center gap-3">
@@ -158,8 +196,8 @@ export function AnalyticsPage() {
             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-blue-900">Income Stable</h4>
-            <p className="text-xs text-blue-700/80 font-medium mt-0.5">Recurring income sources are consistent.</p>
+            <h4 className="text-sm font-semibold text-blue-900">{incomeInsight.title}</h4>
+            <p className="text-xs text-blue-700/80 font-medium mt-0.5">{incomeInsight.text}</p>
           </div>
         </div>
         <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex items-center gap-3">
@@ -167,8 +205,8 @@ export function AnalyticsPage() {
             <Target className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-violet-900">Budget Adherence</h4>
-            <p className="text-xs text-violet-700/80 font-medium mt-0.5">Categories are well within set limits.</p>
+            <h4 className="text-sm font-semibold text-violet-900">{budgetInsight.title}</h4>
+            <p className="text-xs text-violet-700/80 font-medium mt-0.5">{budgetInsight.text}</p>
           </div>
         </div>
       </div>

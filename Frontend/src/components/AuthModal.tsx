@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { fetchAndSyncCategories } from '../lib/categories';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -99,6 +100,11 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
 
       if (response.data?.token) {
         localStorage.setItem('token', response.data.token);
+        try {
+          await fetchAndSyncCategories();
+        } catch {
+          // Categories sync failed — dashboard will retry on mount
+        }
         onClose();
         navigate('/dashboard');
       } else {

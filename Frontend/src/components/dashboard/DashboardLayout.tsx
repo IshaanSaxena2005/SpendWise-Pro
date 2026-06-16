@@ -9,6 +9,10 @@ import { AskSpendWiseAI } from './AskSpendWiseAI';
 import { getUser, type User as UserType } from '../../lib/auth';
 import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
+import { getBudgets, getCategories } from '../../lib/store';
+import { buildDashboardNotifications, type DashboardNotification } from '../../lib/notifications';
+import { fetchAndSyncCategories } from '../../lib/categories';
+import api from '../../lib/api';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -124,7 +128,38 @@ export function DashboardLayout() {
   const [hasUnread,   setHasUnread]   = useState(() => {
     return localStorage.getItem('sw_notif_read') !== 'true';
   });
+  const [notifications, setNotifications] = useState<DashboardNotification[]>([]);
   const user = getUser();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchAndSyncCategories().catch(() => {
+        // Keep local categories if sync fails
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      const budgets = getBudgets();
+      const categories = getCategories();
+      let healthRecs: string[] = [];
+
+      try {
+        const response = await api.get('/health/score');
+        if (response.data?.success) {
+          healthRecs = response.data.recommendations ?? [];
+        }
+      } catch {
+        // Health API unavailable — budget warnings still shown
+      }
+
+      setNotifications(buildDashboardNotifications(budgets, categories, healthRecs));
+    };
+
+    loadNotifications();
+  }, [location.pathname]);
 
   const isProfileOrSettings = location.pathname.includes('/profile') || location.pathname.includes('/settings');
 
@@ -217,30 +252,21 @@ export function DashboardLayout() {
                       <span className="text-xs font-medium text-violet-600 cursor-pointer">Mark all read</span>
                     </div>
                     <div className="divide-y divide-black/5 max-h-[300px] overflow-y-auto">
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-rose-500 rounded-full mt-1.5 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-black">Budget Warning</p>
-                          <p className="text-xs text-black/50 mt-0.5">Shopping is approaching 90% of its limit.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">2 hours ago</p>
+                      {notifications.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-black/50">No notifications</div>
+                      ) : notifications.map(n => (
+                        <div key={n.id} className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
+                          <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                            n.type === 'warning' ? 'bg-rose-500' :
+                            n.type === 'success' ? 'bg-emerald-500' :
+                            n.unread ? 'bg-violet-500' : 'bg-transparent border border-black/20'
+                          }`} />
+                          <div>
+                            <p className="text-sm font-medium text-black">{n.title}</p>
+                            <p className="text-xs text-black/50 mt-0.5">{n.message}</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-violet-500 rounded-full mt-1.5 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-black">New AI Insight Available</p>
-                          <p className="text-xs text-black/50 mt-0.5">We found a new way for you to save ₹2,400.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">5 hours ago</p>
-                        </div>
-                      </div>
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-transparent rounded-full mt-1.5 shrink-0 border border-black/20" />
-                        <div>
-                          <p className="text-sm font-medium text-black">Monthly Report Ready</p>
-                          <p className="text-xs text-black/50 mt-0.5">Your financial summary for May is ready to view.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">1 day ago</p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 </>

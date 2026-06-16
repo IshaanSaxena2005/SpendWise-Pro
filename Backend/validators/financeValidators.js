@@ -53,6 +53,16 @@ const categoryValidation = [
     .trim()
     .notEmpty().withMessage('Category name is required')
     .isLength({ min: 1, max: 50 }).withMessage('Category name must be 1-50 characters'),
+  body('icon')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 20 }).withMessage('Icon must be 1-20 characters'),
+  body('color')
+    .optional()
+    .matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Color must be a valid hex code'),
+  body('bg')
+    .optional()
+    .matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Background must be a valid hex code'),
 ];
 
 const budgetValidation = [

@@ -14,20 +14,26 @@ const generate = async (req, res) => {
 const getInsights = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query('SELECT * FROM ai_insights WHERE user_id = ? ORDER BY created_at DESC', [userId]);
-    res.json(rows);
+    const [rows] = await pool.query(
+      'SELECT * FROM ai_insights WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json({ success: true, insights: rows });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
 const getRecommendations = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query('SELECT * FROM recommendations WHERE user_id = ? ORDER BY created_at DESC', [userId]);
-    res.json(rows);
+    const [rows] = await pool.query(
+      'SELECT * FROM recommendations WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json({ success: true, recommendations: rows });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

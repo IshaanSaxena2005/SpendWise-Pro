@@ -1,0 +1,30 @@
+[35mBackend/controllers/authController.js[m[36m:[m    const verificationToken = crypto.[1;31mrandom[mBytes(32).toString('hex');
+[35mBackend/controllers/authController.js[m[36m:[m    const verificationToken = crypto.[1;31mrandom[mBytes(32).toString('hex');
+[35mBackend/controllers/authController.js[m[36m:[m    const resetToken = crypto.[1;31mrandom[mBytes(32).toString('hex');
+[35mBackend/scripts/test-phase13.js[m[36m:[m    // [1;31mMock[m sendPasswordResetEmail logic or capture it.
+[35mBackend/scripts/test-phase13.js[m[36m:[m    // let's insert a [1;31mdummy[m plain text token hashed by us in the database so we can test the /reset-password endpoint!
+[35mBackend/scripts/test-phase13.js[m[36m:[m    const [1;31mdummy[mHash = await bcrypt.hash(testPlainToken, 10);
+[35mBackend/scripts/test-phase13.js[m[36m:[m    await db.query('UPDATE password_resets SET token = ? WHERE user_id = ?', [[1;31mdummy[mHash, userId]);
+[35mBackend/scripts/test-phase13.js[m[36m:[m    console.log('Updated database with [1;31mdummy[m hashed token for resetting.');
+[35mBackend/scripts/test-phase13.js[m[36m:[m    console.log('Testing reset-password endpoint with [1;31mdummy[m token...');
+[35mBackend/test-phase13.js[m[36m:[m    // [1;31mMock[m sendPasswordResetEmail logic or capture it.
+[35mBackend/test-phase13.js[m[36m:[m    // let's insert a [1;31mdummy[m plain text token hashed by us in the database so we can test the /reset-password endpoint!
+[35mBackend/test-phase13.js[m[36m:[m    const [1;31mdummy[mHash = await bcrypt.hash(testPlainToken, 10);
+[35mBackend/test-phase13.js[m[36m:[m    await db.query('UPDATE password_resets SET token = ? WHERE user_id = ?', [[1;31mdummy[mHash, userId]);
+[35mBackend/test-phase13.js[m[36m:[m    console.log('Updated database with [1;31mdummy[m hashed token for resetting.');
+[35mBackend/test-phase13.js[m[36m:[m    console.log('Testing reset-password endpoint with [1;31mdummy[m token...');
+[35mFrontend/src/components/DashboardCarousel.tsx[m[36m:[mconst [1;31mmock[mups = [
+[35mFrontend/src/components/DashboardCarousel.tsx[m[36m:[m      setActive((prev) => (prev + 1) % [1;31mmock[mups.length);
+[35mFrontend/src/components/DashboardCarousel.tsx[m[36m:[m          {[1;31mmock[mups.map((m, i) => (
+[35mFrontend/src/components/DashboardCarousel.tsx[m[36m:[m          {[1;31mmock[mups.map((m, i) => (
+[35mFrontend/src/components/dashboard/AnalyticsPage.tsx[m[36m:[m  const avgMonthlyExpense = 40800; // [1;31mMock[med avg of Jan-May + June
+[35mFrontend/src/components/dashboard/AskSpendWiseAI.tsx[m[36m:[m    const userMsg: Message = { id: crypto.[1;31mrandom[mUUID(), role: 'user', content: text };
+[35mFrontend/src/components/dashboard/AskSpendWiseAI.tsx[m[36m:[m        id: crypto.[1;31mrandom[mUUID(), 
+[35mFrontend/src/components/dashboard/AskSpendWiseAI.tsx[m[36m:[m          id: crypto.[1;31mrandom[mUUID(), 
+Binary file [35mML-Service/__pycache__/anomaly.cpython-313.pyc[m matches
+Binary file [35mML-Service/__pycache__/model.cpython-313.pyc[m matches
+[35mML-Service/anomaly.py[m[36m:[mIsolation Forest works by [1;31mrandom[mly partitioning the data space. Points that
+[35mML-Service/anomaly.py[m[36m:[m    # Convert the list to a 2‑D NumPy array because scikit‑learn expects shape (n_[1;31msample[ms, n_features).
+[35mML-Service/anomaly.py[m[36m:[m    # A fixed `[1;31mrandom[m_state` makes results reproducible for debugging.
+[35mML-Service/anomaly.py[m[36m:[m    iso = IsolationForest(contamination=contamination, [1;31mrandom[m_state=42)
+[35mML-Service/model.py[m[36m:[m        X, y, test_size=0.2, [1;31mrandom[m_state=42, shuffle=False

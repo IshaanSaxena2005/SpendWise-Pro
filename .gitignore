@@ -23,5 +23,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Uploads 
+# Uploads (optional)
 Backend/uploads/

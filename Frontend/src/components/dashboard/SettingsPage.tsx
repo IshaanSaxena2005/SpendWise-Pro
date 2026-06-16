@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon, X, AlertCircle } from 'lucide-react';
+import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon, X, AlertCircle, Tag } from 'lucide-react';
 import { getTransactions, getBudgets, getCategories } from '../../lib/store';
 import { getUser } from '../../lib/auth';
 import api from '../../lib/api';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
+import { CategoriesSettings } from './CategoriesSettings';
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -161,6 +162,7 @@ const handleDeleteAccount = async () => {
 
   const tabs = [
     { id: 'general', label: 'General', icon: UserIcon },
+    { id: 'categories', label: 'Categories', icon: Tag },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'data', label: 'Data Management', icon: Database },
@@ -246,6 +248,8 @@ const handleDeleteAccount = async () => {
               </div>
             </div>
           )}
+
+          {activeTab === 'categories' && <CategoriesSettings />}
 
           {activeTab === 'notifications' && (
             <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8">

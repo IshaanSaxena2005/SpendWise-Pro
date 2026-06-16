@@ -1,18 +1,26 @@
 const pool = require('../config/db');
 
+const CATEGORY_FIELDS = 'id, user_id, name, icon, color, bg, created_at';
+
 const createCategory = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name } = req.body;
+    const { name, icon = '📁', color = '#6B7280', bg = '#F3F4F6' } = req.body;
 
-    await pool.query(
-      'INSERT INTO categories (user_id, name) VALUES (?, ?)',
-      [userId, name]
+    const [result] = await pool.query(
+      'INSERT INTO categories (user_id, name, icon, color, bg) VALUES (?, ?, ?, ?, ?)',
+      [userId, name, icon, color, bg]
     );
 
-    res.json({
+    const [rows] = await pool.query(
+      `SELECT ${CATEGORY_FIELDS} FROM categories WHERE id = ? AND user_id = ?`,
+      [result.insertId, userId]
+    );
+
+    res.status(201).json({
       success: true,
       message: 'Category created',
+      category: rows[0],
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -34,7 +42,7 @@ const getCategories = async (req, res) => {
     const userId = req.user.id;
 
     const [categories] = await pool.query(
-      'SELECT id, user_id, name, created_at FROM categories WHERE user_id = ? ORDER BY name ASC',
+      `SELECT ${CATEGORY_FIELDS} FROM categories WHERE user_id = ? ORDER BY name ASC`,
       [userId]
     );
 
@@ -54,11 +62,11 @@ const updateCategory = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, icon, color, bg } = req.body;
 
     const [result] = await pool.query(
-      'UPDATE categories SET name = ? WHERE id = ? AND user_id = ?',
-      [name, id, userId]
+      'UPDATE categories SET name = ?, icon = ?, color = ?, bg = ? WHERE id = ? AND user_id = ?',
+      [name, icon, color, bg, id, userId]
     );
 
     if (result.affectedRows === 0) {
@@ -68,9 +76,15 @@ const updateCategory = async (req, res) => {
       });
     }
 
+    const [rows] = await pool.query(
+      `SELECT ${CATEGORY_FIELDS} FROM categories WHERE id = ? AND user_id = ?`,
+      [id, userId]
+    );
+
     res.json({
       success: true,
       message: 'Category updated',
+      category: rows[0],
     });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
