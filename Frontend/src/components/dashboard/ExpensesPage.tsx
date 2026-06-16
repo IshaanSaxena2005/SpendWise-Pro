@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt } from 'lucide-react';
-import { getTransactions, getCategories, deleteTransaction, type Transaction } from '../../lib/store';
+import { getCategories, type Transaction } from '../../lib/store';
+import { useExpenses, deleteExpenseApi } from '../../lib/expenses';
 import { AddTransactionModal } from './AddTransactionModal';
 
 const PAGE_SIZE = 10;
@@ -9,6 +10,7 @@ function fmt(n: number) { return '₹' + n.toLocaleString('en-IN'); }
 
 export function ExpensesPage() {
   const categories = getCategories();
+  const { transactions: all, refresh } = useExpenses();
   const [search,    setSearch]    = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const [typeFilter,setTypeFilter]= useState('all');
@@ -17,8 +19,6 @@ export function ExpensesPage() {
   const [page,      setPage]      = useState(1);
   const [editTxn,   setEditTxn]   = useState<Transaction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-
-  const all = getTransactions();
 
   const filtered = useMemo(() => {
     return all.filter(t => {
@@ -34,10 +34,14 @@ export function ExpensesPage() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Delete this transaction?')) {
-      deleteTransaction(id);
-      window.location.reload();
+      try {
+        await deleteExpenseApi(id);
+        await refresh();
+      } catch {
+        alert('Failed to delete transaction.');
+      }
     }
   };
 
@@ -204,7 +208,12 @@ export function ExpensesPage() {
         )}
       </div>
 
-      <AddTransactionModal isOpen={modalOpen || !!editTxn} onClose={() => { setModalOpen(false); setEditTxn(null); }} editTxn={editTxn} />
+      <AddTransactionModal
+        isOpen={modalOpen || !!editTxn}
+        onClose={() => { setModalOpen(false); setEditTxn(null); }}
+        editTxn={editTxn}
+        onSaved={refresh}
+      />
     </div>
   );
 }

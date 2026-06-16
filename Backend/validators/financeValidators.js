@@ -46,6 +46,9 @@ const expenseValidation = [
     .optional()
     .trim()
     .isLength({ max: 500 }).withMessage('Note must be 500 characters or fewer'),
+  body('transaction_type')
+    .optional()
+    .isIn(['expense', 'income']).withMessage('Invalid transaction type'),
 ];
 
 const categoryValidation = [

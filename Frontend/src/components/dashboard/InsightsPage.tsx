@@ -21,7 +21,7 @@ interface ApiRecommendation {
 }
 
 interface HealthData {
-  score: number;
+  score: number | null;
   rating: string;
   recommendations: string[];
 }
@@ -97,7 +97,7 @@ export function InsightsPage() {
 
         if (healthRes.data?.success) {
           setHealth({
-            score: healthRes.data.score,
+            score: healthRes.data.score ?? null,
             rating: healthRes.data.rating,
             recommendations: healthRes.data.recommendations ?? [],
           });
@@ -114,7 +114,9 @@ export function InsightsPage() {
   }, []);
 
   const aiScore = health?.score ?? null;
-  const scoreLabel = health ? formatHealthRating(health.rating) : 'N/A';
+  const scoreLabel = health
+    ? (health.score === null ? 'Insufficient Data' : formatHealthRating(health.rating))
+    : 'N/A';
   const scoreColor = aiScore !== null && aiScore >= 80 ? 'text-emerald-600' : aiScore !== null && aiScore >= 60 ? 'text-blue-600' : aiScore !== null && aiScore >= 40 ? 'text-amber-600' : 'text-rose-500';
 
   const topRecommendation = recommendations[0] ?? null;

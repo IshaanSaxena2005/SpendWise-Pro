@@ -261,6 +261,29 @@ const getHealthScore = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    const [[expenseRow]] = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM expenses WHERE user_id = ?',
+      [userId]
+    );
+    const [[budgetRow]] = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM budgets WHERE user_id = ?',
+      [userId]
+    );
+
+    if (Number(expenseRow.cnt) === 0 && Number(budgetRow.cnt) === 0) {
+      return res.json({
+        success: true,
+        score: null,
+        rating: 'Insufficient Data',
+        recommendations: [
+          'Add your first expense to start tracking spending.',
+          'Set monthly budgets to monitor category limits.',
+          'Log expenses regularly to improve your financial health score.',
+        ],
+        factors: null,
+      });
+    }
+
     // Run all four factors in parallel
     const [budgetAdherence, spendingConsistency, categoryBalance, expenseActivity] =
       await Promise.all([

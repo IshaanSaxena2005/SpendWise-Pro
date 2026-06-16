@@ -1,6 +1,8 @@
 import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { getTransactions, getCategories, getBudgets } from '../../lib/store';
+import { useExpenses } from '../../lib/expenses';
+import { useBudgets } from '../../lib/budgets';
+import { useCategories } from '../../lib/categories';
 import { getYearMonth } from '../../lib/financeMetrics';
 import api from '../../lib/api';
 import { useState, useEffect } from 'react';
@@ -29,9 +31,9 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 }
 
 export function AnalyticsPage() {
-  const transactions = getTransactions();
-  const categories   = getCategories();
-  const budgets      = getBudgets();
+  const { transactions } = useExpenses();
+  const categories = useCategories();
+  const { budgets } = useBudgets();
   const [forecast, setForecast] = useState<{
     predicted_spending?: number;
     trend_direction?: string;

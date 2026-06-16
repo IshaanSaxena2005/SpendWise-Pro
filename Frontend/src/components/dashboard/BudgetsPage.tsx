@@ -1,29 +1,38 @@
 import { useState } from 'react';
 import { Target, TrendingUp, Wallet, Plus, AlertTriangle, Brain } from 'lucide-react';
-import { getBudgets, getCategories, setBudget } from '../../lib/store';
+import { getCategories } from '../../lib/store';
+import { useBudgets, setBudgetApi } from '../../lib/budgets';
 
 function fmt(n: number) { return '₹' + n.toLocaleString('en-IN'); }
 
 export function BudgetsPage() {
   const categories = getCategories();
-  const [budgets, setBudgets]       = useState(getBudgets());
+  const { budgets, refresh } = useBudgets();
   const [catId, setCatId]           = useState(String(categories[0]?.id || '1'));
   const [limit, setLimit]           = useState('');
   const [submitted, setSubmitted]   = useState(false);
   const [filter, setFilter]         = useState('All');
+  const [saving, setSaving]         = useState(false);
 
   const totalLimit = budgets.reduce((s, b) => s + b.monthly_limit, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
   const totalLeft  = Math.max(totalLimit - totalSpent, 0);
   const overallPct = totalLimit > 0 ? Math.min((totalSpent / totalLimit) * 100, 100) : 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBudget(parseInt(catId, 10), parseFloat(limit));
-    setBudgets(getBudgets());
-    setLimit('');
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2000);
+    setSaving(true);
+    try {
+      await setBudgetApi(parseInt(catId, 10), parseFloat(limit));
+      await refresh();
+      setLimit('');
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 2000);
+    } catch {
+      alert('Failed to save budget.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredBudgets = budgets.filter(b => {
@@ -58,6 +67,8 @@ export function BudgetsPage() {
               <div className="space-y-3 relative z-10">
                 {alerts.map(b => {
                   const cat = categories.find(c => c.id === b.category_id);
+                  const pct = b.monthly_limit > 0 ? (b.spent / b.monthly_limit) * 100 : 0;
+                  const confidence = Math.min(Math.round(pct), 99);
                   return (
                     <div key={b.category_id} className="bg-black/20 backdrop-blur-sm rounded-xl p-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -67,8 +78,8 @@ export function BudgetsPage() {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Confidence</div>
-                        <div className="text-sm font-semibold text-white">89%</div>
+                        <div className="text-[10px] text-white/50 uppercase tracking-widest font-bold mb-1">Utilization</div>
+                        <div className="text-sm font-semibold text-white">{confidence}%</div>
                       </div>
                     </div>
                   );
@@ -211,10 +222,11 @@ export function BudgetsPage() {
             </div>
             <button
               type="submit"
-              className="flex items-center gap-2 bg-black text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+              disabled={saving}
+              className="flex items-center gap-2 bg-black text-white text-sm font-medium px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shrink-0 disabled:opacity-55"
             >
               <Plus className="w-4 h-4" />
-              {submitted ? 'Saved!' : 'Set Budget'}
+              {submitted ? 'Saved!' : saving ? 'Saving…' : 'Set Budget'}
             </button>
           </div>
         </form>

@@ -43,6 +43,7 @@ CREATE TABLE expenses (
     user_id BIGINT UNSIGNED NOT NULL,
     category_id BIGINT UNSIGNED NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
+    transaction_type ENUM('expense', 'income') NOT NULL DEFAULT 'expense',
     expense_date DATE NOT NULL,
     note VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

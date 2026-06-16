@@ -9,10 +9,10 @@ import { AskSpendWiseAI } from './AskSpendWiseAI';
 import { getUser, type User as UserType } from '../../lib/auth';
 import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
-import { getBudgets, getCategories } from '../../lib/store';
-import { buildDashboardNotifications, type DashboardNotification } from '../../lib/notifications';
+import { fetchExpenses } from '../../lib/expenses';
+import { fetchBudgets } from '../../lib/budgets';
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type DashboardNotification } from '../../lib/notifications';
 import { fetchAndSyncCategories } from '../../lib/categories';
-import api from '../../lib/api';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -125,37 +125,29 @@ export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modalOpen,   setModalOpen]   = useState(false);
   const [notifOpen,   setNotifOpen]   = useState(false);
-  const [hasUnread,   setHasUnread]   = useState(() => {
-    return localStorage.getItem('sw_notif_read') !== 'true';
-  });
+  const [hasUnread,   setHasUnread]   = useState(false);
   const [notifications, setNotifications] = useState<DashboardNotification[]>([]);
   const user = getUser();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      fetchAndSyncCategories().catch(() => {
-        // Keep local categories if sync fails
-      });
+      fetchAndSyncCategories().catch(() => {});
+      fetchExpenses().then(() => fetchBudgets()).catch(() => {});
     }
   }, []);
 
   useEffect(() => {
     const loadNotifications = async () => {
-      const budgets = getBudgets();
-      const categories = getCategories();
-      let healthRecs: string[] = [];
-
+      if (!localStorage.getItem('token')) return;
       try {
-        const response = await api.get('/health/score');
-        if (response.data?.success) {
-          healthRecs = response.data.recommendations ?? [];
-        }
+        const items = await fetchNotifications();
+        setNotifications(items);
+        setHasUnread(items.some(n => n.unread));
       } catch {
-        // Health API unavailable — budget warnings still shown
+        setNotifications([]);
+        setHasUnread(false);
       }
-
-      setNotifications(buildDashboardNotifications(budgets, categories, healthRecs));
     };
 
     loadNotifications();
@@ -170,9 +162,28 @@ export function DashboardLayout() {
 
   const handleOpenNotif = () => {
     setNotifOpen(v => !v);
-    if (!notifOpen) {
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
       setHasUnread(false);
-      localStorage.setItem('sw_notif_read', 'true');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleNotificationClick = async (id: number) => {
+    try {
+      await markNotificationRead(id);
+      setNotifications(prev => {
+        const updated = prev.map(n => n.id === id ? { ...n, unread: false } : n);
+        setHasUnread(updated.some(n => n.unread));
+        return updated;
+      });
+    } catch {
+      // ignore
     }
   };
 
@@ -249,13 +260,13 @@ export function DashboardLayout() {
                   <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-black/5 z-20 overflow-hidden">
                     <div className="px-4 py-3 border-b border-black/5 flex justify-between items-center">
                       <span className="font-semibold text-black text-sm">Notifications</span>
-                      <span className="text-xs font-medium text-violet-600 cursor-pointer">Mark all read</span>
+                      <span className="text-xs font-medium text-violet-600 cursor-pointer" onClick={handleMarkAllRead}>Mark all read</span>
                     </div>
                     <div className="divide-y divide-black/5 max-h-[300px] overflow-y-auto">
                       {notifications.length === 0 ? (
                         <div className="p-6 text-center text-sm text-black/50">No notifications</div>
                       ) : notifications.map(n => (
-                        <div key={n.id} className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
+                        <div key={n.id} onClick={() => handleNotificationClick(n.id)} className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
                           <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
                             n.type === 'warning' ? 'bg-rose-500' :
                             n.type === 'success' ? 'bg-emerald-500' :
@@ -292,7 +303,7 @@ export function DashboardLayout() {
       </main>
 
       {/* Add Transaction Modal */}
-      <AddTransactionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      <AddTransactionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => { fetchExpenses().then(() => fetchBudgets()); }} />
 
       {/* Floating AI Chatbot */}
       <AskSpendWiseAI />

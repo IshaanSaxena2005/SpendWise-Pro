@@ -1,56 +1,43 @@
-import type { Budget, Category } from './store';
+import api from './api';
 
 export interface DashboardNotification {
-  id: string;
+  id: number;
   title: string;
   message: string;
   type: 'warning' | 'info' | 'success';
   unread: boolean;
 }
 
-/** Build notification items from budget utilization and health recommendations. */
-export function buildDashboardNotifications(
-  budgets: Budget[],
-  categories: Category[],
-  healthRecommendations: string[] = []
-): DashboardNotification[] {
-  const notifications: DashboardNotification[] = [];
+function mapNotificationType(type: string): DashboardNotification['type'] {
+  if (type === 'anomaly' || type === 'warning' || type === 'budget') return 'warning';
+  if (type === 'success') return 'success';
+  return 'info';
+}
 
-  budgets
-    .filter(b => b.monthly_limit > 0)
-    .forEach(b => {
-      const pct = (b.spent / b.monthly_limit) * 100;
-      const cat = categories.find(c => c.id === b.category_id);
-      const name = cat?.name ?? 'Category';
+interface ApiNotification {
+  id: number;
+  title: string;
+  description: string;
+  type: string;
+  read_status: boolean | 0 | 1;
+}
 
-      if (pct >= 100) {
-        notifications.push({
-          id: `budget-over-${b.category_id}`,
-          title: 'Budget Exceeded',
-          message: `${name} is over budget at ${Math.round(pct)}% of its limit.`,
-          type: 'warning',
-          unread: true,
-        });
-      } else if (pct >= 85) {
-        notifications.push({
-          id: `budget-warn-${b.category_id}`,
-          title: 'Budget Warning',
-          message: `${name} is approaching ${Math.round(pct)}% of its limit.`,
-          type: 'warning',
-          unread: true,
-        });
-      }
-    });
+export async function fetchNotifications(): Promise<DashboardNotification[]> {
+  const response = await api.get('/notifications');
+  const rows: ApiNotification[] = response.data?.notifications ?? response.data ?? [];
+  return rows.map(n => ({
+    id: n.id,
+    title: n.title,
+    message: n.description,
+    type: mapNotificationType(n.type),
+    unread: !n.read_status,
+  }));
+}
 
-  healthRecommendations.slice(0, 2).forEach((text, idx) => {
-    notifications.push({
-      id: `health-rec-${idx}`,
-      title: 'Financial Health Insight',
-      message: text,
-      type: 'info',
-      unread: idx === 0,
-    });
-  });
+export async function markNotificationRead(id: number): Promise<void> {
+  await api.put(`/notifications/${id}/read`);
+}
 
-  return notifications;
+export async function markAllNotificationsRead(): Promise<void> {
+  await api.put('/notifications/read-all');
 }

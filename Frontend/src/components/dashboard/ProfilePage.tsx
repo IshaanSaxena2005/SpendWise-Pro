@@ -1,6 +1,7 @@
 import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getTransactions, getBudgets } from '../../lib/store';
+import { useExpenses } from '../../lib/expenses';
+import { useBudgets } from '../../lib/budgets';
 import { getUser } from '../../lib/auth';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 
@@ -8,8 +9,8 @@ function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); 
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const transactions = getTransactions();
-  const budgets = getBudgets();
+  const { transactions } = useExpenses();
+  const { budgets } = useBudgets();
   const user = getUser();
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);

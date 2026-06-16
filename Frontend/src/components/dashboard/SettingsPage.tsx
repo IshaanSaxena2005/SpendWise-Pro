@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon, X, AlertCircle, Tag } from 'lucide-react';
-import { getTransactions, getBudgets, getCategories } from '../../lib/store';
+import { getCategories } from '../../lib/store';
+import { useExpenses, getCachedExpenses } from '../../lib/expenses';
+import { useBudgets, getCachedBudgets } from '../../lib/budgets';
 import { getUser } from '../../lib/auth';
 import api from '../../lib/api';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
@@ -8,6 +10,8 @@ import { CategoriesSettings } from './CategoriesSettings';
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
+  useExpenses();
+  useBudgets();
 
   const [email, setEmail] = useState(() => getUser().email);
   const [name, setName] = useState(() => {
@@ -116,7 +120,7 @@ const handleDeleteAccount = async () => {
   const pwdStrength = getPasswordStrength(newPwd);
 
   const exportCSV = () => {
-    const txns = getTransactions();
+    const txns = getCachedExpenses();
     let csv = 'ID,Title,Amount,Type,Date,Category ID\n';
     txns.forEach(t => {
       csv += `${t.id},"${t.title}",${t.amount},${t.type},${t.date},${t.category_id}\n`;
@@ -147,8 +151,8 @@ const handleDeleteAccount = async () => {
     })();
 
     const zip = new JSZip();
-    zip.file('transactions.json', JSON.stringify(getTransactions(), null, 2));
-    zip.file('budgets.json', JSON.stringify(getBudgets(), null, 2));
+    zip.file('transactions.json', JSON.stringify(getCachedExpenses(), null, 2));
+    zip.file('budgets.json', JSON.stringify(getCachedBudgets(), null, 2));
     zip.file('categories.json', JSON.stringify(getCategories(), null, 2));
     zip.file('profile.json', JSON.stringify({ name, email, timezone }, null, 2));
 

@@ -74,14 +74,16 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/anomaly', anomalyRoutes);
 
-app.get('/test-db', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT NOW() AS now');
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/test-db', async (req, res) => {
+    try {
+      const [rows] = await pool.query('SELECT NOW() AS now');
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
 
 async function start() {
   await fs.mkdir(path.join(__dirname, 'uploads', 'avatars'), { recursive: true });

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
-import {
-  getTransactions, getBudgets, getCategories,
-  deleteTransaction, type Transaction
-} from '../../lib/store';
+import { getCategories, type Transaction } from '../../lib/store';
+import { useExpenses, deleteExpenseApi } from '../../lib/expenses';
+import { useBudgets } from '../../lib/budgets';
 import {
   getYearMonth, getPreviousYearMonth,
   computeMonthTotals, computeGrowthPercent, formatHealthRating
@@ -21,7 +20,7 @@ function shortDate(d: string) {
 }
 
 interface HealthData {
-  score: number;
+  score: number | null;
   rating: string;
   recommendations: string[];
 }
@@ -42,8 +41,8 @@ function HealthSkeleton() {
 
 export function DashboardOverview() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
-  const transactions = getTransactions();
-  const budgets      = getBudgets();
+  const { transactions, refresh: refreshExpenses } = useExpenses();
+  const { budgets } = useBudgets();
   const categories   = getCategories();
 
   const [forecast, setForecast] = useState<{
@@ -106,7 +105,7 @@ export function DashboardOverview() {
         const response = await api.get('/health/score');
         if (response.data?.success) {
           setHealth({
-            score: response.data.score,
+            score: response.data.score ?? null,
             rating: response.data.rating,
             recommendations: response.data.recommendations ?? [],
           });
@@ -145,17 +144,21 @@ export function DashboardOverview() {
   const budgetSub = totalLimit > 0 ? `${Math.round(budgetPct)}% used` : 'Insufficient data';
 
   const aiScore = health?.score ?? null;
-  const healthRating = healthError || !health ? 'N/A' : formatHealthRating(health.rating);
+  const healthRating = healthError || !health ? 'N/A' : health.score === null ? 'Insufficient Data' : formatHealthRating(health.rating);
   const healthDescription = healthError
     ? 'Insufficient data'
     : health?.recommendations?.[0] ?? 'Insufficient data';
 
   const quickRecommendations = health?.recommendations?.slice(0, 2) ?? [];
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Delete this transaction?')) {
-      deleteTransaction(id);
-      window.location.reload();
+      try {
+        await deleteExpenseApi(id);
+        await refreshExpenses();
+      } catch {
+        alert('Failed to delete transaction.');
+      }
     }
   };
 
@@ -464,7 +467,7 @@ export function DashboardOverview() {
 
       {/* Edit Modal */}
       {editTxn && (
-        <AddTransactionModal isOpen={true} onClose={() => setEditTxn(null)} editTxn={editTxn} />
+        <AddTransactionModal isOpen={true} onClose={() => setEditTxn(null)} editTxn={editTxn} onSaved={refreshExpenses} />
       )}
     </div>
   );
