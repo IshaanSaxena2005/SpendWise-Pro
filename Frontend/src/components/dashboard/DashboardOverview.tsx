@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, TrendingDown, CreditCard, Target, Brain, Edit2, Trash2, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
   getTransactions, getBudgets, getCategories, getAIScore,
   deleteTransaction, type Transaction
 } from '../../lib/store';
 import { AddTransactionModal } from './AddTransactionModal';
+import api from '../../lib/api';
 
 function fmt(n: number) {
   return '₹' + Math.floor(n).toLocaleString('en-IN');
@@ -21,6 +22,52 @@ export function DashboardOverview() {
   const budgets      = getBudgets();
   const categories   = getCategories();
   const aiScore      = getAIScore();
+  const [forecast, setForecast] = useState<{
+    predicted_spending?: number;
+    trend_direction?: string;
+    mae?: number;
+    rmse?: number;
+    message?: string;
+  } | null>(null);
+  const [loadingForecast, setLoadingForecast] = useState<boolean>(true);
+  const [anomalies, setAnomalies] = useState<{
+    id: number;
+    title: string;
+    description: string;
+    created_at: string;
+    category_name?: string;
+  }[]>([]);
+  const [loadingAnomalies, setLoadingAnomalies] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchForecast = async () => {
+      try {
+        setLoadingForecast(true);
+        const response = await api.get('/forecast');
+        setForecast(response.data);
+      } catch (error) {
+        console.error('Error fetching forecast:', error);
+      } finally {
+        setLoadingForecast(false);
+      }
+    };
+    fetchForecast();
+  }, []);
+
+  useEffect(() => {
+    const fetchAnomalies = async () => {
+      try {
+        setLoadingAnomalies(true);
+        const response = await api.get('/anomaly/check');
+        setAnomalies(response.data.anomalies || []);
+      } catch (error) {
+        console.error('Error fetching anomalies:', error);
+      } finally {
+        setLoadingAnomalies(false);
+      }
+    };
+    fetchAnomalies();
+  }, []);
 
   const juneTxns = transactions.filter(t => t.date.startsWith('2026-06'));
   let totalIncome = 0, totalExpenses = 0;
@@ -161,19 +208,69 @@ export function DashboardOverview() {
               <span className="text-sm font-medium opacity-90">Next Month Forecast</span>
               <TrendingUp className="w-4 h-4 opacity-80" />
             </div>
-            <div className="text-3xl font-bold mb-1 tracking-tight">₹12,850</div>
-            <div className="text-xs font-medium opacity-80 mb-5">Predicted Spending</div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>
-                <div className="text-sm font-semibold flex items-center gap-1">Increasing ↗</div>
-              </div>
-              <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Confidence</div>
-                <div className="text-sm font-semibold flex items-center gap-1">92%</div>
-              </div>
+            {loadingForecast ? (
+              <div className="text-sm opacity-80">Loading forecast...</div>
+            ) : forecast?.message ? (
+              <div className="text-sm opacity-80">{forecast.message}</div>
+            ) : (
+              <>
+                <div className="text-3xl font-bold mb-1 tracking-tight">
+                  {forecast?.predicted_spending ? `₹${Math.floor(forecast.predicted_spending).toLocaleString('en-IN')}` : '—'}
+                </div>
+                <div className="text-xs font-medium opacity-80 mb-5">Predicted Spending</div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>
+                    <div className="text-sm font-semibold flex items-center gap-1">
+                      {forecast?.trend_direction || '—'}
+                      {forecast?.trend_direction === 'Increasing' && '↗'}
+                      {forecast?.trend_direction === 'Decreasing' && '↘'}
+                      {forecast?.trend_direction === 'Stable' && '→'}
+                    </div>
+                  </div>
+                  <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">MAE</div>
+                    <div className="text-sm font-semibold flex items-center gap-1">
+                      {forecast?.mae ? `₹${Math.floor(forecast.mae).toLocaleString('en-IN')}` : '—'}
+                    </div>
+                  </div>
+                </div>
+                
+                {forecast?.rmse && (
+                  <div className="mt-3 bg-black/20 rounded-xl p-3 backdrop-blur-sm">
+                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">RMSE</div>
+                    <div className="text-sm font-semibold flex items-center gap-1">
+                      ₹{Math.floor(forecast.rmse).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Anomaly Alerts Card */}
+          <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 hover:border-black/10 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-black text-sm">Anomaly Alerts</h2>
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
+            {loadingAnomalies ? (
+              <div className="text-sm text-black/50">Loading...</div>
+            ) : anomalies.length === 0 ? (
+              <div className="text-sm text-black/50">No unusual spending detected.</div>
+            ) : (
+              <div className="space-y-3">
+                {anomalies.slice(0, 3).map((anomaly, idx) => (
+                <div key={idx} className="p-3 border border-amber-100 bg-amber-50 rounded-xl">
+                  <div className="text-sm font-medium text-amber-900">{anomaly.title}</div>
+                  <div className="text-xs text-amber-700 mt-1">{anomaly.description}</div>
+                  <div className="text-[10px] text-amber-600 mt-1">{new Date(anomaly.created_at).toLocaleDateString()}</div>
+                </div>
+              ))}
+              </div>
+            )}
           </div>
 
           {/* Quick AI Recommendations */}

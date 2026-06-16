@@ -1,9 +1,3 @@
-CREATE DATABASE IF NOT EXISTS smart_financial_intelligence
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE smart_financial_intelligence;
-
 -- Identity and authentication
 CREATE TABLE users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -14,6 +8,17 @@ CREATE TABLE users (
     verification_token VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_email UNIQUE (email)
+) ENGINE=InnoDB;
+
+CREATE TABLE profile_photos (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+    file_path VARCHAR(255) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_profile_photo_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Per-user categories (e.g. Food, Travel, Shopping)

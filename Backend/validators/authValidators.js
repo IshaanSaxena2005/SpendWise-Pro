@@ -1,0 +1,63 @@
+const { body } = require('express-validator');
+
+const signupValidation = [
+  body('full_name')
+    .trim()
+    .notEmpty().withMessage('Full name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Full name must be 2-100 characters'),
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email')
+    .normalizeEmail(),
+  body('password')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+];
+
+const loginValidation = [
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required'),
+];
+
+const forgotPasswordValidation = [
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email')
+    .normalizeEmail(),
+];
+
+const resetPasswordValidation = [
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email')
+    .normalizeEmail(),
+  body('token')
+    .trim()
+    .notEmpty().withMessage('Reset token is required'),
+  body('newPassword')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+];
+
+const profileValidation = [
+  body('full_name')
+    .trim()
+    .notEmpty().withMessage('Full name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Full name must be 2-100 characters'),
+];
+
+const deleteAccountValidation = [
+  body('password')
+    .notEmpty().withMessage('Password is required'),
+];
+
+module.exports = {
+  signupValidation,
+  loginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
+  profileValidation,
+  deleteAccountValidation,
+};

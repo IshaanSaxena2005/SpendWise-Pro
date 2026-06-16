@@ -1,6 +1,8 @@
 import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { getTransactions, getCategories, getBudgets } from '../../lib/store';
+import api from '../../lib/api';
+import { useState, useEffect } from 'react';
 
 function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
 
@@ -29,6 +31,28 @@ export function AnalyticsPage() {
   const transactions = getTransactions();
   const categories   = getCategories();
   const budgets      = getBudgets();
+  const [forecast, setForecast] = useState<{
+    predicted_spending?: number;
+    trend_direction?: string;
+    spending_history?: number[];
+    message?: string;
+  } | null>(null);
+  const [, setLoadingForecast] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchForecast = async () => {
+      try {
+        setLoadingForecast(true);
+        const response = await api.get('/forecast');
+        setForecast(response.data);
+      } catch (error) {
+        console.error('Error fetching forecast:', error);
+      } finally {
+        setLoadingForecast(false);
+      }
+    };
+    fetchForecast();
+  }, []);
 
   // June 2026 summary
   const juneTxns = transactions.filter(t => t.date.startsWith('2026-06'));
@@ -70,15 +94,25 @@ export function AnalyticsPage() {
   ];
 
   // Forecast Data
-  const forecastData = [
-    { month: 'Jan', actual: 38000 },
-    { month: 'Feb', actual: 42000 },
-    { month: 'Mar', actual: 35000 },
-    { month: 'Apr', actual: 48000 },
-    { month: 'May', actual: 41000 },
-    { month: 'Jun', actual: totalExpenses || 45000 },
-    { month: 'Jul', forecast: 43500 }, // Predicted Next Month
-  ];
+  const forecastData = forecast?.spending_history 
+    ? [
+        ...forecast.spending_history.map((amount, index) => ({ 
+          month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][index % 12], 
+          actual: amount 
+        })),
+        { 
+          month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(forecast.spending_history.length) % 12], 
+          forecast: forecast.predicted_spending 
+        }
+      ]
+    : [
+        { month: 'Jan', actual: 38000 },
+        { month: 'Feb', actual: 42000 },
+        { month: 'Mar', actual: 35000 },
+        { month: 'Apr', actual: 48000 },
+        { month: 'May', actual: 41000 },
+        { month: 'Jun', actual: totalExpenses || 45000 },
+      ];
 
 
 

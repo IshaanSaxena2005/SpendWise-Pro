@@ -31,7 +31,7 @@ const signup = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    const [result] = await pool.query(
+    await pool.query(
       'INSERT INTO users (full_name, email, password_hash, is_verified, verification_token) VALUES (?, ?, ?, ?, ?)',
       [full_name, email, passwordHash, false, verificationToken]
     );
@@ -189,7 +189,13 @@ const verifyEmail = async (req, res) => {
     );
 
     // Redirect to frontend with verified=true parameter
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'FRONTEND_URL is not configured.',
+      });
+    }
     res.redirect(`${frontendUrl}/?verified=true`);
   } catch (err) {
     res.status(500).json({

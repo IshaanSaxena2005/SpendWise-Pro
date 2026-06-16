@@ -3,6 +3,7 @@ import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, Eye
 import { getTransactions, getBudgets, getCategories } from '../../lib/store';
 import { getUser } from '../../lib/auth';
 import api from '../../lib/api';
+import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -20,6 +21,7 @@ export function SettingsPage() {
     }
   });
   const [saveToast, setSaveToast] = useState<'idle' | 'success' | 'error'>('idle');
+  const currentUser = getUser();
 
   // Security State
   const [currentPwd, setCurrentPwd] = useState('');
@@ -198,6 +200,10 @@ const handleDeleteAccount = async () => {
             <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8">
               <h2 className="text-lg font-bold text-black mb-6">General Settings</h2>
               <div className="space-y-5 max-w-md">
+                <div className="pb-5 border-b border-black/5">
+                  <label className="block text-xs font-bold text-black/50 uppercase tracking-widest mb-3">Profile Photo</label>
+                  <ProfilePhotoUploader userName={name || currentUser.full_name} variant="settings" />
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-black/50 uppercase tracking-widest mb-2">Full Name</label>
                   <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5 transition-all" />

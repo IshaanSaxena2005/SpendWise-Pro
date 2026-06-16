@@ -1,16 +1,26 @@
 const express = require('express');
 const { signup, login, updateProfile, verifyEmail, resendVerification, deleteAccount, forgotPassword, resetPassword } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
+const validateRequest = require('../middleware/validateRequest');
+const { authLimiter } = require('../middleware/rateLimiters');
+const {
+  signupValidation,
+  loginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
+  profileValidation,
+  deleteAccountValidation,
+} = require('../validators/authValidators');
 
 const router = express.Router();
 
-router.post('/signup', signup);
-router.post('/login', login);
-router.put('/profile', authMiddleware, updateProfile);
+router.post('/signup', authLimiter, signupValidation, validateRequest, signup);
+router.post('/login', authLimiter, loginValidation, validateRequest, login);
+router.put('/profile', authMiddleware, profileValidation, validateRequest, updateProfile);
 router.get('/verify-email/:token', verifyEmail);
-router.post('/resend-verification', resendVerification);
-router.delete('/delete-account', authMiddleware, deleteAccount);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/resend-verification', forgotPasswordValidation, validateRequest, resendVerification);
+router.delete('/delete-account', authMiddleware, deleteAccountValidation, validateRequest, deleteAccount);
+router.post('/forgot-password', authLimiter, forgotPasswordValidation, validateRequest, forgotPassword);
+router.post('/reset-password', authLimiter, resetPasswordValidation, validateRequest, resetPassword);
 
 module.exports = router;

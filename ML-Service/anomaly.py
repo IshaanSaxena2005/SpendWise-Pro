@@ -46,9 +46,10 @@ def detect_anomaly(history, current_expense):
     X = np.array(history, dtype=float).reshape(-1, 1)
 
     # Train the Isolation Forest on the historical expenses.
-    # `contamination='auto'` lets the algorithm guess the proportion of outliers.
+    # For small datasets, use a higher contamination to ensure we can detect outliers.
     # A fixed `random_state` makes results reproducible for debugging.
-    iso = IsolationForest(contamination="auto", random_state=42)
+    contamination = 0.25 if len(history) < 10 else 0.1
+    iso = IsolationForest(contamination=contamination, random_state=42)
     iso.fit(X)
 
     # Evaluate the current expense.
@@ -57,7 +58,8 @@ def detect_anomaly(history, current_expense):
     score = iso.decision_function(np.array([[float(current_expense)]]))[0]
     prediction = iso.predict(np.array([[float(current_expense)]]))[0]
 
-    is_anomaly = bool(prediction == -1)
+    # Also use a score threshold for cases where predict is not reliable (small datasets)
+    is_anomaly = bool(prediction == -1 or score <= 0.05)
 
     return {
         "is_anomaly": is_anomaly,

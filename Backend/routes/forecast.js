@@ -7,7 +7,7 @@ const router = express.Router();
 // Ensure all forecast routes are protected
 router.use(authMiddleware);
 
-// GET /api/forecast/next-month
-router.get('/next-month', getNextMonthForecast);
+// GET /api/forecast
+router.get('/', getNextMonthForecast);
 
 module.exports = router;

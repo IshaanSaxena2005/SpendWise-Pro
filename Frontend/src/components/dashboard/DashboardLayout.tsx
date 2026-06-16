@@ -1,12 +1,14 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Receipt, Target, BarChart2,
-  Lightbulb, LogOut, Menu, X, Bell, User, Plus, Settings
+  Lightbulb, LogOut, Menu, X, Bell, Plus, Settings
 } from 'lucide-react';
 import { AddTransactionModal } from './AddTransactionModal';
 import { AskSpendWiseAI } from './AskSpendWiseAI';
 import { getUser, type User as UserType } from '../../lib/auth';
+import { AvatarCircle } from './ProfilePhotoUploader';
+import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -24,6 +26,31 @@ interface SidebarProps {
 }
 
 function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetchProfileAvatar()
+      .then(url => {
+        if (mounted) setAvatarUrl(url);
+      })
+      .catch(() => {
+        if (mounted) setAvatarUrl(null);
+      });
+
+    const handleAvatarUpdated = (event: Event) => {
+      setAvatarUrl((event as CustomEvent<{ url: string | null }>).detail.url);
+    };
+
+    window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+    };
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -69,9 +96,7 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
 
         {/* User Profile Mini */}
         <Link to="/dashboard/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer group">
-          <div className="w-9 h-9 rounded-full bg-[#F5F5F5] border border-black/10 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-black/20 transition-colors">
-            <User className="w-5 h-5 text-black/50" />
-          </div>
+          <AvatarCircle userName={user.full_name} avatarUrl={avatarUrl} size="sm" className="group-hover:border-black/20 transition-colors" />
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-semibold text-black leading-tight truncate group-hover:text-violet-600 transition-colors">{user.full_name}</span>
             <span className="text-[11px] text-black/50 font-medium truncate">{user.role}</span>

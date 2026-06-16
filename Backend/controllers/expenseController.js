@@ -1,18 +1,40 @@
 const pool = require('../config/db');
+const { checkAnomaly } = require('../services/anomalyService');
 
 const addExpense = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { category_id, amount, expense_date, note } = req.body;
+    const { category_id, amount, expense_date, note, title } = req.body;
+    const expenseNote = note || title;
 
     await pool.query(
       'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-      [userId, category_id, amount, expense_date, note || null]
+      [userId, category_id, amount, expense_date, expenseNote]
     );
+
+    const anomaly = await checkAnomaly(userId, amount, category_id);
+    if (anomaly.is_anomaly) {
+      const [categories] = await pool.query(
+        'SELECT name FROM categories WHERE id = ?',
+        [category_id]
+      );
+      const categoryName = categories[0]?.name || 'Unknown';
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, description, type, category_id, read) 
+         VALUES (?, ?, ?, 'anomaly', ?, FALSE)`,
+        [
+          userId,
+          'Unusual spending detected',
+          `Your transaction of ₹${amount} in ${categoryName} is unusually high.`,
+          category_id
+        ]
+      );
+    }
 
     res.json({
       success: true,
       message: 'Expense added',
+      is_anomaly: anomaly.is_anomaly
     });
   } catch (err) {
     res.status(500).json({
@@ -60,11 +82,12 @@ const updateExpense = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { amount, category_id, expense_date, note } = req.body;
+    const { amount, category_id, expense_date, note, title } = req.body;
+    const expenseNote = note || title;
 
     const [result] = await pool.query(
       'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ? WHERE id = ? AND user_id = ?',
-      [amount, category_id, expense_date, note || null, id, userId]
+      [amount, category_id, expense_date, expenseNote, id, userId]
     );
 
     if (result.affectedRows === 0) {

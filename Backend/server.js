@@ -1,8 +1,12 @@
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
+const fs = require('fs/promises');
+const helmet = require('helmet');
+const path = require('path');
 const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
 const expenseRoutes = require('./routes/expense');
 const categoryRoutes = require('./routes/category');
 const budgetRoutes = require('./routes/budget');
@@ -12,16 +16,52 @@ const predictionRoutes = require('./routes/prediction');
 const forecastRoutes = require('./routes/forecast');
 const intelligenceRoutes = require('./routes/intelligence');
 const notificationRoutes = require('./routes/notifications');
+const aiRoutes = require('./routes/ai');
+const anomalyRoutes = require('./routes/anomaly');
 
 const app = express();
+const devOrigins = process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  ...(process.env.CORS_ORIGIN || '').split(','),
+  ...devOrigins,
+]
+  .filter(Boolean)
+  .map(origin => origin.trim().replace(/\/$/, ''));
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin(origin, callback) {
+    const normalizedOrigin = origin?.replace(/\/$/, '');
+    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON payload.',
+    });
+  }
+
+  next(err);
+});
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/budgets', budgetRoutes);
@@ -31,6 +71,8 @@ app.use('/api/predictions', predictionRoutes);
 app.use('/api/forecast', forecastRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/anomaly', anomalyRoutes);
 
 app.get('/test-db', async (req, res) => {
   try {
@@ -42,11 +84,28 @@ app.get('/test-db', async (req, res) => {
 });
 
 async function start() {
+  await fs.mkdir(path.join(__dirname, 'uploads', 'avatars'), { recursive: true });
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS profile_photos (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+      file_path VARCHAR(255) NOT NULL,
+      uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_profile_photo_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
   await pool.query('SELECT 1');
-  console.log('Database connection verified');
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('Database connection verified');
+  }
 
   app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`Server listening on http://localhost:${PORT}`);
+    }
   });
 }
 

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Brain, X, Send, Sparkles, User } from 'lucide-react';
+import api from '../../lib/api';
 
 interface Message {
   id: string;
@@ -8,8 +9,8 @@ interface Message {
 }
 
 const PREDEFINED_PROMPTS = [
-  "Where am I overspending?",
-  "How can I save ₹5000 this month?",
+  "How much did I spend this month?",
+  "What is my top spending category?",
   "Which category needs attention?",
   "Predict next month's expenses."
 ];
@@ -35,7 +36,7 @@ export function AskSpendWiseAI() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSend = (text: string) => {
+  const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text };
@@ -43,24 +44,24 @@ export function AskSpendWiseAI() {
     setInput('');
     setIsTyping(true);
 
-    // Mock AI response
-    setTimeout(() => {
+    try {
+      const response = await api.post('/ai/chat', { query: text });
+      const aiMsg: Message = { 
+        id: crypto.randomUUID(), 
+        role: 'ai', 
+        content: response.data.response 
+      };
+      setMessages(prev => [...prev, aiMsg]);
+    } catch {
+        const errorMsg: Message = { 
+          id: crypto.randomUUID(), 
+          role: 'ai', 
+          content: "Sorry, I couldn't process your request right now." 
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      } finally {
       setIsTyping(false);
-      let reply = "I'm analyzing your data to provide the best recommendation...";
-      
-      const lower = text.toLowerCase();
-      if (lower.includes('overspending')) {
-        reply = "Based on your recent transactions, you're overspending in the **Shopping** category. It is currently at 95% of your monthly limit. I recommend pausing non-essential purchases.";
-      } else if (lower.includes('save')) {
-        reply = "To save ₹5000 this month, try reducing your **Dining Out** frequency by 50% and delay your planned **Electronics** purchase. This easily covers the gap.";
-      } else if (lower.includes('attention')) {
-        reply = "Your **Travel** budget needs attention. You've spent ₹12,000 against a limit of ₹10,000.";
-      } else if (lower.includes('predict') || lower.includes('next month')) {
-        reply = "My machine learning models predict your expenses will drop by ~5% next month, totaling around ₹43,500, assuming you adhere to your base limits.";
-      }
-
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'ai', content: reply }]);
-    }, 1500);
+    }
   };
 
   return (

@@ -1,0 +1,75 @@
+
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: spendwise-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-spendwise}
+      MYSQL_USER: ${DB_USER:-spendwise_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-spendwise_pass}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./Backend/schema/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ml-service:
+    build: ./ML-Service
+    container_name: spendwise-ml
+    restart: always
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/health') || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./Backend
+    container_name: spendwise-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ml-service:
+        condition: service_started
+    environment:
+      PORT: 5000
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkeyfordemo}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-spendwise_user}
+      DB_PASSWORD: ${DB_PASSWORD:-spendwise_pass}
+      DB_NAME: ${DB_NAME:-spendwise}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:5000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:80}
+      ML_SERVICE_URL: http://ml-service:5001
+      NODE_ENV: ${NODE_ENV:-development}
+    volumes:
+      - ./Backend/uploads:/app/uploads
+
+  frontend:
+    build: ./Frontend
+    container_name: spendwise-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

@@ -4,6 +4,10 @@ from anomaly import detect_anomaly
 
 app = Flask(__name__)
 
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "healthy"})
+
 @app.route('/forecast', methods=['POST'])
 def forecast():
     try:

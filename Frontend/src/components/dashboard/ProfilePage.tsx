@@ -1,7 +1,8 @@
-import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut, Calendar } from 'lucide-react';
+import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getTransactions, getBudgets } from '../../lib/store';
 import { getUser } from '../../lib/auth';
+import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 
 function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
 
@@ -26,8 +27,8 @@ export function ProfilePage() {
       {/* 1. Personal Information */}
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-48 h-48 bg-violet-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-700"></div>
-        <div className="w-24 h-24 rounded-full bg-[#F5F5F5] border-4 border-white shadow-md flex items-center justify-center shrink-0 relative z-10">
-          <User className="w-10 h-10 text-black/40" />
+        <div className="relative z-10">
+          <ProfilePhotoUploader userName={user.full_name} />
         </div>
         <div className="flex-1 text-center md:text-left relative z-10">
           <h2 className="text-2xl font-bold text-black tracking-tight mb-1">{user.full_name}</h2>
@@ -35,9 +36,6 @@ export function ProfilePage() {
           <div className="flex flex-col md:flex-row gap-3 md:gap-6 text-sm text-black/60 font-medium">
             <div className="flex items-center justify-center md:justify-start gap-2">
               <Mail className="w-4 h-4 text-black/40" /> {user.email}
-            </div>
-            <div className="flex items-center justify-center md:justify-start gap-2">
-              <Calendar className="w-4 h-4 text-black/40" /> {user.joined}
             </div>
           </div>
         </div>

@@ -17,11 +17,13 @@ const transporter = nodemailer.createTransport({
  * @param {string} token - Verification token
  */
 const sendVerificationEmail = async (toEmail, token) => {
-  // Use frontend URL from env or fallback to localhost during development
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const backendUrl = process.env.BACKEND_URL;
+  if (!backendUrl) {
+    throw new Error('BACKEND_URL is required to send verification emails.');
+  }
   // Use the backend API to verify the token so we don't have to build frontend routes explicitly
   // We'll create a GET endpoint that verifies the token and then redirects to the frontend with a success flag
-  const verificationLink = `http://localhost:5000/api/auth/verify-email/${token}`;
+  const verificationLink = `${backendUrl.replace(/\/$/, '')}/api/auth/verify-email/${token}`;
   
   const mailOptions = {
     from: `"SpendWise Pro" <${process.env.SMTP_USER || 'noreply@spendwisepro.com'}>`,
@@ -49,15 +51,18 @@ const sendVerificationEmail = async (toEmail, token) => {
   try {
     // Check if SMTP credentials are provided, otherwise log to console for development
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log('----------------------------------------------------');
-      console.log('SMTP Credentials not configured. Printing email link to console:');
-      console.log(`Verification Link: ${verificationLink}`);
-      console.log('----------------------------------------------------');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('----------------------------------------------------');
+        console.log('SMTP credentials not configured. Verification email was not sent.');
+        console.log('----------------------------------------------------');
+      }
       return true;
     }
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`Verification email sent: ${info.messageId}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Verification email sent: ${info.messageId}`);
+    }
     return true;
   } catch (error) {
     console.error('Error sending verification email:', error);
@@ -71,7 +76,10 @@ const sendVerificationEmail = async (toEmail, token) => {
  * @param {string} token - Reset token
  */
 const sendPasswordResetEmail = async (toEmail, token) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl) {
+    throw new Error('FRONTEND_URL is required to send password reset emails.');
+  }
   const resetLink = `${frontendUrl}/?reset_token=${token}`;
   
   const mailOptions = {
@@ -100,15 +108,18 @@ const sendPasswordResetEmail = async (toEmail, token) => {
 
   try {
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log('----------------------------------------------------');
-      console.log('SMTP Credentials not configured. Printing email link to console:');
-      console.log(`Password Reset Link: ${resetLink}`);
-      console.log('----------------------------------------------------');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('----------------------------------------------------');
+        console.log('SMTP credentials not configured. Password reset email was not sent.');
+        console.log('----------------------------------------------------');
+      }
       return true;
     }
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent: ${info.messageId}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Password reset email sent: ${info.messageId}`);
+    }
     return true;
   } catch (error) {
     console.error('Error sending password reset email:', error);

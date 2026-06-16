@@ -1,0 +1,11 @@
+
+node_modules
+npm-debug.log
+uploads/*
+.git
+.gitignore
+*.md
+eslint.config.cjs
+test*.js
+migrate*.js
+show-tables.js
