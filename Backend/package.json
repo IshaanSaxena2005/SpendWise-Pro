@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "lint": "eslint .",
-    "test": "cross-env NODE_ENV=test node test-phase13.js",
+    "test": "cross-env NODE_ENV=test node scripts/test-phase13.js",
     "start": "node server.js"
   },
   "dependencies": {
