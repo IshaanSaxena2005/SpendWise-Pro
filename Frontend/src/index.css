@@ -17,16 +17,20 @@
 }
 
 @theme {
-  --font-sans: 'TT Norms Pro', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'TT Norms Pro', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', ui-sans-serif, system-ui, sans-serif;
   --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 html, body {
-  font-family: 'TT Norms Pro', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'TT Norms Pro', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', ui-sans-serif, system-ui, sans-serif;
 }
 
-* {
-  font-family: inherit;
+/* Emoji must use system emoji fonts — TT Norms Pro has no emoji glyphs */
+.category-emoji {
+  font-family: 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
 }
 
 @keyframes marquee {

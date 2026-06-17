@@ -74,16 +74,23 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/anomaly', anomalyRoutes);
 
-if (process.env.NODE_ENV !== 'production') {
-  app.get('/test-db', async (req, res) => {
-    try {
-      const [rows] = await pool.query('SELECT NOW() AS now');
-      res.json(rows[0]);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-}
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.status(200).json({ success: true, status: 'healthy', db: 'connected' });
+  } catch (err) {
+    res.status(503).json({ success: false, status: 'unhealthy', db: 'disconnected', error: err.message });
+  }
+});
+
+app.get('/test-db', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT NOW() AS now');
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 async function start() {
   await fs.mkdir(path.join(__dirname, 'uploads', 'avatars'), { recursive: true });
@@ -99,6 +106,13 @@ async function start() {
         ON DELETE CASCADE
     ) ENGINE=InnoDB
   `);
+  try {
+    await pool.query('ALTER TABLE categories ADD COLUMN icon VARCHAR(16) NULL AFTER name');
+  } catch (err) {
+    if (err.code !== 'ER_DUP_FIELDNAME') {
+      throw err;
+    }
+  }
   await pool.query('SELECT 1');
   if (process.env.NODE_ENV !== 'production') {
     console.warn('Database connection verified');

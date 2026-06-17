@@ -13,16 +13,15 @@ import { AuthModal }         from './components/AuthModal';
 
 // Dashboard layout
 import { DashboardLayout }   from './components/dashboard/DashboardLayout';
-import { ProtectedRoute }    from './components/ProtectedRoute';
 
 // Dashboard pages
 import { DashboardOverview } from './components/dashboard/DashboardOverview';
-import { ExpensesPage }      from './components/dashboard/ExpensesPage';
-import { BudgetsPage }       from './components/dashboard/BudgetsPage';
-import { AnalyticsPage }     from './components/dashboard/AnalyticsPage';
-import { InsightsPage }      from './components/dashboard/InsightsPage';
-import { ProfilePage }       from './components/dashboard/ProfilePage';
-import { SettingsPage }      from './components/dashboard/SettingsPage';
+import { ExpensesPage } from './components/dashboard/ExpensesPage';
+import { BudgetsPage } from './components/dashboard/BudgetsPage';
+import { AnalyticsPage } from './components/dashboard/AnalyticsPage';
+import { InsightsPage } from './components/dashboard/InsightsPage';
+import { ProfilePage } from './components/dashboard/ProfilePage';
+import { SettingsPage } from './components/dashboard/SettingsPage';
 
 // ─── Landing Page ────────────────────────────────────────────────────────────
 function LandingPage() {
@@ -134,11 +133,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
 
         {/* Dashboard — all inner pages nested under shared layout */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }>
+        <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index                   element={<DashboardOverview />} />
           <Route path="expenses"         element={<ExpensesPage />} />
           <Route path="budgets"          element={<BudgetsPage />} />

@@ -7,6 +7,32 @@ const idParamValidation = [
     .toInt(),
 ];
 
+const normalizeBudgetMonth = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return value;
+  }
+
+  const str = String(value).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-01`;
+  }
+
+  const dmyMatch = str.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2]}-01`;
+  }
+
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  }
+
+  return str;
+};
+
 const categoryExistsForUser = async (categoryId, { req }) => {
   const [rows] = await pool.query(
     'SELECT id FROM categories WHERE id = ? AND user_id = ?',
@@ -46,9 +72,6 @@ const expenseValidation = [
     .optional()
     .trim()
     .isLength({ max: 500 }).withMessage('Note must be 500 characters or fewer'),
-  body('transaction_type')
-    .optional()
-    .isIn(['expense', 'income']).withMessage('Invalid transaction type'),
 ];
 
 const categoryValidation = [
@@ -57,15 +80,9 @@ const categoryValidation = [
     .notEmpty().withMessage('Category name is required')
     .isLength({ min: 1, max: 50 }).withMessage('Category name must be 1-50 characters'),
   body('icon')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .trim()
-    .isLength({ min: 1, max: 20 }).withMessage('Icon must be 1-20 characters'),
-  body('color')
-    .optional()
-    .matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Color must be a valid hex code'),
-  body('bg')
-    .optional()
-    .matches(/^#[0-9A-Fa-f]{6}$/).withMessage('Background must be a valid hex code'),
+    .isLength({ max: 16 }).withMessage('Icon must be 16 characters or fewer'),
 ];
 
 const budgetValidation = [
@@ -73,6 +90,7 @@ const budgetValidation = [
     .isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')
     .toFloat(),
   body('month')
+    .customSanitizer(normalizeBudgetMonth)
     .isISO8601({ strict: true }).withMessage('Invalid month')
     .custom(value => {
       if (!/^\d{4}-\d{2}-01$/.test(value)) {

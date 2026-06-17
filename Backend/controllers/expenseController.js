@@ -4,13 +4,12 @@ const { checkAnomaly } = require('../services/anomalyService');
 const addExpense = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { category_id, amount, expense_date, note, title, transaction_type = 'expense' } = req.body;
+    const { category_id, amount, expense_date, note, title } = req.body;
     const expenseNote = note || title;
-    const type = transaction_type === 'income' ? 'income' : 'expense';
 
-    const [result] = await pool.query(
-      'INSERT INTO expenses (user_id, category_id, amount, transaction_type, expense_date, note) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, category_id, amount, type, expense_date, expenseNote]
+    await pool.query(
+      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
+      [userId, category_id, amount, expense_date, expenseNote]
     );
 
     const anomaly = await checkAnomaly(userId, amount, category_id);
@@ -21,12 +20,13 @@ const addExpense = async (req, res) => {
       );
       const categoryName = categories[0]?.name || 'Unknown';
       await pool.query(
-        `INSERT INTO notifications (user_id, title, description, type, read_status)
-         VALUES (?, ?, ?, 'anomaly', FALSE)`,
+        `INSERT INTO notifications (user_id, title, description, type, category_id, read_status) 
+         VALUES (?, ?, ?, 'anomaly', ?, FALSE)`,
         [
           userId,
           'Unusual spending detected',
           `Your transaction of ₹${amount} in ${categoryName} is unusually high.`,
+          category_id
         ]
       );
     }
@@ -34,7 +34,6 @@ const addExpense = async (req, res) => {
     res.json({
       success: true,
       message: 'Expense added',
-      id: result.insertId,
       is_anomaly: anomaly.is_anomaly
     });
   } catch (err) {
@@ -56,7 +55,6 @@ const getExpenses = async (req, res) => {
         e.category_id,
         c.name AS category_name,
         e.amount,
-        e.transaction_type,
         e.expense_date,
         e.note,
         e.created_at,
@@ -84,13 +82,12 @@ const updateExpense = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { amount, category_id, expense_date, note, title, transaction_type = 'expense' } = req.body;
+    const { amount, category_id, expense_date, note, title } = req.body;
     const expenseNote = note || title;
-    const type = transaction_type === 'income' ? 'income' : 'expense';
 
     const [result] = await pool.query(
-      'UPDATE expenses SET amount = ?, category_id = ?, transaction_type = ?, expense_date = ?, note = ? WHERE id = ? AND user_id = ?',
-      [amount, category_id, type, expense_date, expenseNote, id, userId]
+      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ? WHERE id = ? AND user_id = ?',
+      [amount, category_id, expense_date, expenseNote, id, userId]
     );
 
     if (result.affectedRows === 0) {

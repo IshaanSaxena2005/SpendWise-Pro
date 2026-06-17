@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Brain, X, Send, Sparkles, User } from 'lucide-react';
-import api from '../../lib/api';
+import { aiAPI } from '../../lib/api';
 
 interface Message {
   id: string;
@@ -45,7 +45,7 @@ export function AskSpendWiseAI() {
     setIsTyping(true);
 
     try {
-      const response = await api.post('/ai/chat', { query: text });
+      const response = await aiAPI.chat(text);
       const aiMsg: Message = { 
         id: crypto.randomUUID(), 
         role: 'ai', 

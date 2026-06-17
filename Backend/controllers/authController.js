@@ -31,10 +31,30 @@ const signup = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    await pool.query(
+    const [result] = await pool.query(
       'INSERT INTO users (full_name, email, password_hash, is_verified, verification_token) VALUES (?, ?, ?, ?, ?)',
       [full_name, email, passwordHash, false, verificationToken]
     );
+    const userId = result.insertId;
+
+    // Create default categories for new user
+    const defaultCategories = [
+      'Food',
+      'Shopping',
+      'Travel',
+      'Entertainment',
+      'Bills',
+      'Health',
+      'Salary',
+      'Freelance'
+    ];
+
+    for (const categoryName of defaultCategories) {
+      await pool.query(
+        'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
+        [userId, categoryName]
+      );
+    }
 
     // Send verification email
     await sendVerificationEmail(email, verificationToken);
@@ -96,7 +116,7 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
+      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
@@ -147,7 +167,7 @@ const updateProfile = async (req, res) => {
     const user = rows[0];
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
+      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

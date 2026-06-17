@@ -3,13 +3,14 @@ const pool = require('../config/db');
 const getNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query(
-      'SELECT id, title, description, type, read_status, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
-      [userId]
-    );
-    res.json({ success: true, notifications: rows });
+    const [rows] = await pool.query('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+    const notifications = rows.map(row => ({
+      ...row,
+      read: row.read_status
+    }));
+    res.json({ success: true, data: notifications });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ message: err.message });
   }
 };
 

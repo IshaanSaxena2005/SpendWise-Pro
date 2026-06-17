@@ -26,9 +26,7 @@ CREATE TABLE categories (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,
     name VARCHAR(60) NOT NULL,
-    icon VARCHAR(20) NOT NULL DEFAULT '📁',
-    color VARCHAR(20) NOT NULL DEFAULT '#6B7280',
-    bg VARCHAR(20) NOT NULL DEFAULT '#F3F4F6',
+    icon VARCHAR(16) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_categories_user
         FOREIGN KEY (user_id) REFERENCES users (id)
@@ -43,7 +41,6 @@ CREATE TABLE expenses (
     user_id BIGINT UNSIGNED NOT NULL,
     category_id BIGINT UNSIGNED NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
-    transaction_type ENUM('expense', 'income') NOT NULL DEFAULT 'expense',
     expense_date DATE NOT NULL,
     note VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -1,22 +1,59 @@
 import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useExpenses } from '../../lib/expenses';
-import { useBudgets } from '../../lib/budgets';
-import { getUser } from '../../lib/auth';
+import { expenseAPI, budgetAPI, analyticsAPI, getUser } from '../../lib/api';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
+import { useState, useEffect } from 'react';
+import type { Transaction, Budget } from '../../lib/api';
 
 function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { transactions } = useExpenses();
-  const { budgets } = useBudgets();
   const user = getUser();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    totalBalance: 0,
+    activeBudgets: 0,
+    transactionCount: 0,
+  });
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  const totalBalance = totalIncome - totalExpenses;
-  const activeBudgets = budgets.filter(b => b.monthly_limit > 0).length;
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [txRes, budRes, analyticsRes] = await Promise.all([
+          expenseAPI.getAllExpenses(),
+          budgetAPI.getAllBudgets(),
+          analyticsAPI.getDashboardSummary(),
+        ]);
+        const transactions: Transaction[] = txRes.data.expenses || [];
+        const budgets: Budget[] = budRes.data.budgets || [];
+        const totalExpenses = transactions.reduce((a, b) => a + b.amount, 0);
+        setStats({
+          totalIncome: 0,
+          totalExpenses,
+          totalBalance: analyticsRes.data.summary.total_spending || 0,
+          activeBudgets: budgets.length,
+          transactionCount: transactions.length,
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg text-black/60">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto pb-12 space-y-6">
@@ -25,7 +62,7 @@ export function ProfilePage() {
         <p className="text-sm text-black/50">Manage your personal information and view your activity</p>
       </div>
 
-      {/* 1. Personal Information */}
+      {/* Personal Information */}
       <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-48 h-48 bg-violet-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-700"></div>
         <div className="relative z-10">
@@ -43,7 +80,7 @@ export function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* 2. Financial Overview */}
+        {/* Financial Overview */}
         <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -54,29 +91,17 @@ export function ProfilePage() {
           <div className="space-y-5">
             <div className="flex justify-between items-end border-b border-black/5 pb-4">
               <div>
-                <span className="text-[10px] font-bold text-black/40 uppercase tracking-widest block mb-1">Total Balance</span>
-                <span className="text-xl font-bold text-black tracking-tight">{fmt(totalBalance)}</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-end border-b border-black/5 pb-4">
-              <div>
-                <span className="text-[10px] font-bold text-black/40 uppercase tracking-widest block mb-1">Total Income</span>
-                <span className="text-lg font-bold text-emerald-600 tracking-tight">{fmt(totalIncome)}</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-end border-b border-black/5 pb-4">
-              <div>
-                <span className="text-[10px] font-bold text-black/40 uppercase tracking-widest block mb-1">Total Expenses</span>
-                <span className="text-lg font-bold text-rose-500 tracking-tight">{fmt(totalExpenses)}</span>
+                <span className="text-[10px] font-bold text-black/40 uppercase tracking-widest block mb-1">Total Spending</span>
+                <span className="text-xl font-bold text-black tracking-tight">{fmt(stats.totalExpenses)}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-2">
               <div className="bg-[#F5F5F5] rounded-xl p-3 border border-black/5">
-                <div className="text-lg font-bold text-black tracking-tight">{activeBudgets}</div>
+                <div className="text-lg font-bold text-black tracking-tight">{stats.activeBudgets}</div>
                 <span className="text-[10px] font-bold text-black/50 uppercase tracking-widest">Budgets</span>
               </div>
               <div className="bg-[#F5F5F5] rounded-xl p-3 border border-black/5">
-                <div className="text-lg font-bold text-black tracking-tight">{transactions.length}</div>
+                <div className="text-lg font-bold text-black tracking-tight">{stats.transactionCount}</div>
                 <span className="text-[10px] font-bold text-black/50 uppercase tracking-widest">Transactions</span>
               </div>
             </div>
@@ -84,7 +109,7 @@ export function ProfilePage() {
         </div>
 
         <div className="space-y-6">
-          {/* 3. Activity */}
+          {/* Activity */}
           <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -99,7 +124,7 @@ export function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-black">Last Login</p>
-                  <p className="text-xs text-black/50 mt-0.5">Today at 09:42 AM from Windows PC</p>
+                  <p className="text-xs text-black/50 mt-0.5">Today from Windows PC</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -108,13 +133,13 @@ export function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-black">Recent Activity</p>
-                  <p className="text-xs text-black/50 mt-0.5">Added a new transaction "Uber Ride" 2 hours ago.</p>
+                  <p className="text-xs text-black/50 mt-0.5">View your transaction history in Expenses page.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 4. Account Actions */}
+          {/* Account Actions */}
           <div className="bg-white rounded-3xl border border-black/5 shadow-sm p-6 md:p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">

@@ -1,6 +1,18 @@
 # SpendWise Pro 💰🤖
 
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js)
+![Python](https://img.shields.io/badge/Python-Flask-3776AB?logo=python)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 **AI-powered Personal Finance Management Platform** with expense tracking, budgeting, machine-learning forecasts, anomaly detection, and intelligent financial insights.
+
+---
+
+## 🚀 Live Demo
+
+- Frontend: Coming Soon
+- Backend API: Coming Soon
 
 ---
 
@@ -11,11 +23,10 @@
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Screenshots](#screenshots)
-- [Quick Start (Docker)](#quick-start-docker)
 - [Local Development](#local-development)
 - [Environment Variables](#environment-variables)
 - [API Overview](#api-overview)
-- [Project Status](#project-status)
+- [Author](#author)
 - [License](#license)
 
 ---
@@ -43,30 +54,36 @@
 ## Tech Stack
 
 ### Frontend
-- **React 19** + **TypeScript**
-- **Vite** — fast dev server and production builds
-- **Tailwind CSS 4** — utility-first styling
-- **Recharts** — interactive charts and analytics
-- **React Router** — client-side routing
-- **Axios** — API communication
+- React 19 + TypeScript
+- Vite
+- Tailwind CSS 4
+- Recharts
+- React Router
+- Axios
 
 ### Backend
-- **Node.js** + **Express.js**
-- **MySQL 8** — relational data store
-- **JWT** — stateless authentication
-- **bcrypt** — password hashing
-- **Multer** — avatar file uploads
-- **Nodemailer** — email verification and password reset
-- **Helmet** + **express-rate-limit** + **express-validator** — security layer
+- Node.js + Express.js
+- MySQL 8
+- JWT Authentication
+- bcrypt
+- Multer
+- Nodemailer
+- Helmet
+- express-rate-limit
+- express-validator
 
 ### Machine Learning
-- **Flask** — lightweight ML microservice
-- **Scikit-learn** — Linear Regression (forecasting) & Isolation Forest (anomalies)
-- **Pandas** & **NumPy** — data processing
+- Flask
+- Scikit-learn
+  - Linear Regression (Forecasting)
+  - Isolation Forest (Anomaly Detection)
+- Pandas
+- NumPy
 
 ### DevOps
-- **Docker** & **Docker Compose** — containerized deployment
-- **Nginx** — production frontend serving
+- Docker
+- Docker Compose
+- Nginx
 
 ---
 
@@ -104,23 +121,20 @@ flowchart TB
 ## Project Structure
 
 ```
-spendwise-pro/
+SpendWise-Pro/
 ├── Backend/
-│   ├── controllers/       # Route handlers
-│   ├── routes/            # Express route definitions
-│   ├── services/          # AI chat, anomaly, email logic
-│   ├── middleware/        # Auth, rate limiting, validation
-│   ├── schema/            # MySQL schema (auto-loaded in Docker)
-│   └── uploads/           # User avatar storage
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   ├── middleware/
+│   ├── schema/
+│   └── uploads/
 ├── Frontend/
 │   └── src/
-│       ├── components/    # UI components & dashboard pages
-│       ├── lib/           # API client
-│       └── pages/         # Standalone pages (e.g. forgot password)
 ├── ML-Service/
-│   ├── app.py             # Flask API (/health, /forecast, /anomaly)
-│   ├── model.py           # Linear Regression forecaster
-│   └── anomaly.py         # Isolation Forest detector
+│   ├── app.py
+│   ├── model.py
+│   └── anomaly.py
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
@@ -130,52 +144,53 @@ spendwise-pro/
 
 ## Screenshots
 
-> Add screenshots to the `screenshots/` folder when available.
-
-### Dashboard
-![Dashboard](./screenshots/dashboard.png)
-
-### AI Chat
-![AI Chat](./screenshots/ai-chat.png)
-
-### Analytics
-![Analytics](./screenshots/analytics.png)
+🚧 Screenshots coming soon.
 
 ---
 
 ## Quick Start (Docker)
 
-**Prerequisites:** [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/)
+### Prerequisites
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd spendwise-pro
-   ```
+- Docker Desktop
+- Docker Compose
 
-2. **Configure environment**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and set a strong `JWT_SECRET` and SMTP credentials for email features.
+### Clone Repository
 
-3. **Build and run all services**
-   ```bash
-   docker compose up --build
-   ```
+```bash
+git clone https://github.com/IshaanSaxena2005/SpendWise-Pro.git
+cd SpendWise-Pro
+```
 
-4. **Access the application**
+### Configure Environment
 
-   | Service | URL |
-   |---------|-----|
-   | Frontend | http://localhost |
-   | Backend API | http://localhost:5000 |
-   | ML Service Health | http://localhost:5001/health |
-   | MySQL (from host) | `localhost:3307` |
+```bash
+cp .env.example .env
+```
 
-The database schema is automatically applied on first startup via `Backend/schema/schema.sql`.
+Update `.env` with:
 
-To stop all services:
+- JWT_SECRET
+- SMTP_USER
+- SMTP_PASS
+
+### Start All Services
+
+```bash
+docker compose up --build
+```
+
+### Access Application
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost |
+| Backend API | http://localhost:5000 |
+| ML Health | http://localhost:5001/health |
+| MySQL | localhost:3307 |
+
+Stop services:
+
 ```bash
 docker compose down
 ```
@@ -184,47 +199,22 @@ docker compose down
 
 ## Local Development
 
-**Prerequisites:** Node.js 20+, Python 3.10+, MySQL 8
-
-### 1. Database
-
-Create a MySQL database and import the schema:
+### Database
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE spendwise;"
 mysql -u root -p spendwise < Backend/schema/schema.sql
 ```
 
-### 2. Backend
+### Backend
 
 ```bash
 cd Backend
 npm install
-```
-
-Create `Backend/.env`:
-
-```env
-PORT=5000
-JWT_SECRET=your-secret-key
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your-password
-DB_NAME=spendwise
-ML_SERVICE_URL=http://localhost:5001
-FRONTEND_URL=http://localhost:5173
-BACKEND_URL=http://localhost:5000
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-smtp-password
-NODE_ENV=development
-```
-
-```bash
 npm start
 ```
 
-### 3. ML Service
+### ML Service
 
 ```bash
 cd ML-Service
@@ -232,9 +222,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Runs on http://localhost:5001
+Runs on: `http://localhost:5001`
 
-### 4. Frontend
+### Frontend
 
 ```bash
 cd Frontend
@@ -242,83 +232,63 @@ npm install
 npm run dev
 ```
 
-Runs on http://localhost:5173
-
-Optionally create `Frontend/.env`:
-
-```env
-VITE_API_BASE_URL=http://localhost:5000/api
-```
+Runs on: `http://localhost:5173`
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` at the project root for Docker, or configure per-service `.env` files for local development.
+Create `.env` files using `.env.example`.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MYSQL_ROOT_PASSWORD` | Docker | MySQL root password |
-| `DB_NAME` | Yes | Database name (default: `spendwise`) |
-| `DB_USER` | Yes | MySQL application user |
-| `DB_PASSWORD` | Yes | MySQL application password |
-| `DB_HOST` | Local | Database host (use `mysql` in Docker) |
-| `DB_PORT` | Local | Database port (default: `3306`) |
-| `JWT_SECRET` | Yes | Secret key for signing JWT tokens |
-| `PORT` | Backend | API port (default: `5000` in Docker) |
-| `ML_SERVICE_URL` | Backend | ML service URL (default: `http://ml-service:5001`) |
-| `FRONTEND_URL` | Yes | Frontend origin for CORS and email links |
-| `BACKEND_URL` | Yes | Backend URL for verification email links |
-| `SMTP_USER` | Email | SMTP account username |
-| `SMTP_PASS` | Email | SMTP account password |
-| `SMTP_HOST` | Optional | SMTP server (default: `smtp.gmail.com`) |
-| `SMTP_PORT` | Optional | SMTP port (default: `587`) |
-| `NODE_ENV` | Optional | `development` or `production` |
-| `VITE_API_BASE_URL` | Frontend | API base URL (default: `http://localhost:5000/api`) |
+Important variables:
 
-> Email verification and password reset require valid `SMTP_USER` and `SMTP_PASS`. Without them, auth still works but emails are skipped in development.
+```env
+JWT_SECRET=
+DB_HOST=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=spendwise
+ML_SERVICE_URL=http://ml-service:5001
+SMTP_USER=
+SMTP_PASS=
+VITE_API_BASE_URL=http://localhost:5000/api
+```
 
 ---
 
 ## API Overview
 
-All authenticated routes require a `Authorization: Bearer <token>` header.
+| Prefix | Purpose |
+|--------|---------|
+| `/api/auth` | Authentication |
+| `/api/expenses` | Expense CRUD |
+| `/api/categories` | Category CRUD |
+| `/api/budgets` | Budget CRUD |
+| `/api/analytics` | Dashboard analytics |
+| `/api/forecast` | ML forecasting |
+| `/api/anomaly` | Anomaly detection |
+| `/api/ai` | AI assistant |
+| `/api/intelligence` | Recommendations |
+| `/api/notifications` | Notifications |
+| `/api/user` | Avatar management |
 
-| Prefix | Endpoints |
-|--------|-----------|
-| `/api/auth` | Signup, login, profile, email verification, password reset |
-| `/api/expenses` | CRUD expense records |
-| `/api/categories` | CRUD spending categories |
-| `/api/budgets` | CRUD monthly budgets |
-| `/api/analytics` | Dashboard summary, trends, category breakdown |
-| `/api/forecast` | Next-month spending forecast (ML) |
-| `/api/anomaly` | Unusual spending detection (ML) |
-| `/api/ai` | AI financial assistant chat |
-| `/api/intelligence` | Insights and recommendations |
-| `/api/health` | Financial health score |
-| `/api/predictions` | Budget breach prediction |
-| `/api/notifications` | User notifications |
-| `/api/user` | Avatar upload and management |
+### ML Service Endpoints
 
-**ML Service endpoints:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Service health check |
-| `POST` | `/forecast` | Predict next month's spending from history |
-| `POST` | `/anomaly` | Detect anomalous expense against history |
+| Method | Endpoint |
+|--------|----------|
+| GET | `/health` |
+| POST | `/forecast` |
+| POST | `/anomaly` |
 
 ---
 
-## Project Status
+## Author
 
-| Phase | Status |
-|-------|--------|
-| Phase 10: ML Forecasting | ✅ Complete |
-| Phase 11: Anomaly Detection | ✅ Complete |
-| Phase 14: Security Hardening | ✅ Complete |
-| Phase 15: Dockerization | ✅ Complete |
-| Phase 16: Deployment | 🚀 Upcoming |
+**Ishaan Saxena**
+
+- GitHub: https://github.com/IshaanSaxena2005
+- Project: SpendWise Pro
+- Full-stack AI-powered personal finance platform
 
 ---
 
