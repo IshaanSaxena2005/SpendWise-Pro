@@ -26,6 +26,7 @@
 - [Local Development](#local-development)
 - [Environment Variables](#environment-variables)
 - [API Overview](#api-overview)
+- [Deployment](#deployment)
 - [Author](#author)
 - [License](#license)
 
@@ -33,35 +34,37 @@
 
 ## Features
 
-| Area | Capabilities |
-|------|-------------|
-| **Expense Tracking** | Add, update, and delete expenses with categories, notes, and dates |
-| **Budget Management** | Set overall or per-category monthly budgets and track utilization |
-| **Analytics Dashboard** | Monthly trends, category breakdowns, top spending categories, and summaries |
-| **AI Financial Assistant** | Natural-language queries about spending, budgets, forecasts, and profile |
-| **Spending Forecasting** | Linear Regression–based next-month spending predictions with MAE, RMSE, and R² |
-| **Anomaly Detection** | Isolation Forest flags unusual transactions against spending history |
-| **Intelligent Insights** | Auto-generated insights and savings recommendations |
-| **Financial Health** | Health score, budget-breach predictions, and overspending alerts |
-| **Notifications** | In-app alerts for budget and spending events |
-| **Authentication** | JWT-based auth with email verification and password reset |
-| **Profile & Avatar** | Profile management with secure avatar upload (Multer) |
-| **Security** | Helmet, rate limiting, input validation, and CORS hardening |
-| **DevOps** | Fully Dockerized multi-service architecture |
+| Area                       | Capabilities                                                                |
+| -------------------------- | --------------------------------------------------------------------------- |
+| **Expense Tracking**       | Add, update, and delete expenses with categories, notes, and dates          |
+| **Budget Management**      | Set overall and category budgets with real-time utilization tracking        |
+| **Analytics Dashboard**    | Monthly trends, category breakdowns, top spending categories, and summaries |
+| **AI Financial Assistant** | Natural-language queries about spending, budgets, forecasts, and profile    |
+| **Spending Forecasting**   | ML-powered next-month spending predictions                                  |
+| **Anomaly Detection**      | Detect unusual spending behavior using Isolation Forest                     |
+| **Intelligent Insights**   | Auto-generated insights and savings recommendations                         |
+| **Financial Health**       | Dynamic health score with personalized recommendations                      |
+| **Notifications**          | In-app alerts for budget and spending events                                |
+| **Authentication**         | JWT-based authentication with email verification and password reset         |
+| **Profile & Avatar**       | Profile management with secure avatar upload                                |
+| **Security**               | Helmet, rate limiting, input validation, and CORS hardening                 |
+| **Deployment**             | Production-ready cloud deployment using Vercel and Railway                  |
 
 ---
 
 ## Tech Stack
 
 ### Frontend
+
 - React 19 + TypeScript
 - Vite
-- Tailwind CSS 4
-- Recharts
+- Tailwind CSS
 - React Router
 - Axios
+- Recharts
 
 ### Backend
+
 - Node.js + Express.js
 - MySQL 8
 - JWT Authentication
@@ -73,17 +76,13 @@
 - express-validator
 
 ### Machine Learning
+
 - Flask
 - Scikit-learn
-  - Linear Regression (Forecasting)
-  - Isolation Forest (Anomaly Detection)
+  - Linear Regression
+  - Isolation Forest
 - Pandas
 - NumPy
-
-### DevOps
-- Docker
-- Docker Compose
-- Nginx
 
 ---
 
@@ -92,7 +91,7 @@
 ```mermaid
 flowchart TB
     subgraph Client
-        FE["Frontend<br/>React + Vite + Nginx"]
+        FE["Frontend<br/>React + Vite"]
     end
 
     subgraph Server
@@ -101,26 +100,26 @@ flowchart TB
     end
 
     subgraph Data
-        DB[("MySQL 8")]
+        DB[("Railway MySQL")]
     end
 
     FE -->|REST /api| BE
     BE --> DB
-    BE -->|/forecast, /anomaly| ML
+    BE -->|Forecast & Anomaly APIs| ML
 ```
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | `80` | React SPA served via Nginx |
-| Backend | `5000` | REST API and business logic |
-| ML Service | `5001` | Forecasting and anomaly detection |
-| MySQL | `3307` (host) → `3306` (container) | Persistent data storage |
+| Service     | Platform         |
+| ----------- | ---------------- |
+| Frontend    | Vercel           |
+| Backend API | Railway          |
+| ML Service  | Railway / Render |
+| Database    | Railway MySQL    |
 
 ---
 
 ## Project Structure
 
-```
+```text
 SpendWise-Pro/
 ├── Backend/
 │   ├── controllers/
@@ -135,7 +134,6 @@ SpendWise-Pro/
 │   ├── app.py
 │   ├── model.py
 │   └── anomaly.py
-├── docker-compose.yml
 ├── .env.example
 └── README.md
 ```
@@ -145,55 +143,6 @@ SpendWise-Pro/
 ## Screenshots
 
 🚧 Screenshots coming soon.
-
----
-
-## Quick Start (Docker)
-
-### Prerequisites
-
-- Docker Desktop
-- Docker Compose
-
-### Clone Repository
-
-```bash
-git clone https://github.com/IshaanSaxena2005/SpendWise-Pro.git
-cd SpendWise-Pro
-```
-
-### Configure Environment
-
-```bash
-cp .env.example .env
-```
-
-Update `.env` with:
-
-- JWT_SECRET
-- SMTP_USER
-- SMTP_PASS
-
-### Start All Services
-
-```bash
-docker compose up --build
-```
-
-### Access Application
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost |
-| Backend API | http://localhost:5000 |
-| ML Health | http://localhost:5001/health |
-| MySQL | localhost:3307 |
-
-Stop services:
-
-```bash
-docker compose down
-```
 
 ---
 
@@ -213,6 +162,8 @@ cd Backend
 npm install
 npm start
 ```
+
+Runs on: `http://localhost:5000`
 
 ### ML Service
 
@@ -238,47 +189,59 @@ Runs on: `http://localhost:5173`
 
 ## Environment Variables
 
-Create `.env` files using `.env.example`.
-
-Important variables:
-
 ```env
 JWT_SECRET=
 DB_HOST=
+DB_PORT=
 DB_USER=
 DB_PASSWORD=
 DB_NAME=spendwise
-ML_SERVICE_URL=http://ml-service:5001
+
 SMTP_USER=
 SMTP_PASS=
-VITE_API_BASE_URL=http://localhost:5000/api
+
+FRONTEND_URL=
+ML_SERVICE_URL=
+
+VITE_API_BASE_URL=<BACKEND_API_URL>/api
 ```
 
 ---
 
 ## API Overview
 
-| Prefix | Purpose |
-|--------|---------|
-| `/api/auth` | Authentication |
-| `/api/expenses` | Expense CRUD |
-| `/api/categories` | Category CRUD |
-| `/api/budgets` | Budget CRUD |
-| `/api/analytics` | Dashboard analytics |
-| `/api/forecast` | ML forecasting |
-| `/api/anomaly` | Anomaly detection |
-| `/api/ai` | AI assistant |
-| `/api/intelligence` | Recommendations |
-| `/api/notifications` | Notifications |
-| `/api/user` | Avatar management |
+| Prefix               | Purpose             |
+| -------------------- | ------------------- |
+| `/api/auth`          | Authentication      |
+| `/api/expenses`      | Expense CRUD        |
+| `/api/categories`    | Category CRUD       |
+| `/api/budgets`       | Budget CRUD         |
+| `/api/analytics`     | Dashboard analytics |
+| `/api/forecast`      | ML forecasting      |
+| `/api/anomaly`       | Anomaly detection   |
+| `/api/ai`            | AI assistant        |
+| `/api/intelligence`  | Recommendations     |
+| `/api/notifications` | Notifications       |
+| `/api/user`          | Avatar management   |
 
 ### ML Service Endpoints
 
-| Method | Endpoint |
-|--------|----------|
-| GET | `/health` |
-| POST | `/forecast` |
-| POST | `/anomaly` |
+| Method | Endpoint    |
+| ------ | ----------- |
+| GET    | `/health`   |
+| POST   | `/forecast` |
+| POST   | `/anomaly`  |
+
+---
+
+## Deployment
+
+The application is deployed using modern cloud infrastructure:
+
+- **Frontend:** Vercel
+- **Backend API:** Railway
+- **ML Service:** Railway / Render
+- **Database:** Railway MySQL
 
 ---
 
