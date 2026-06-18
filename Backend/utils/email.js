@@ -5,7 +5,7 @@ dns.setDefaultResultOrder('ipv4first');
 
 // Set up the transporter using SMTP credentials from environment variables
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com', // default to Gmail if not provided
+  host: 'smtp-relay.gmail.com',
   port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
   secure: process.env.SMTP_PORT === '465' || !process.env.SMTP_PORT, // true for 465, false for other ports
   family: 4,
