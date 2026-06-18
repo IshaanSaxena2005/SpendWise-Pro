@@ -20,6 +20,7 @@ const aiRoutes = require('./routes/ai');
 const anomalyRoutes = require('./routes/anomaly');
 
 const app = express();
+app.set('trust proxy', 1);
 const devOrigins = process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173'];
 const allowedOrigins = [
   process.env.FRONTEND_URL,
