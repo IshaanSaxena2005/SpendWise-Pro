@@ -1,4 +1,7 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+dns.setDefaultResultOrder('ipv4first');
 
 // Set up the transporter using SMTP credentials from environment variables
 const transporter = nodemailer.createTransport({
