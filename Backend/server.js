@@ -94,6 +94,14 @@ app.get('/test-db', async (req, res) => {
 
 async function start() {
   await fs.mkdir(path.join(__dirname, 'uploads', 'avatars'), { recursive: true });
+  
+  const [usersCheck] = await pool.query("SHOW TABLES LIKE 'users'");
+  if (usersCheck.length === 0) {
+    const schemaSql = await fs.readFile(path.join(__dirname, 'schema', 'schema.sql'), 'utf8');
+    await pool.query(schemaSql);
+    console.log('Database schema initialized');
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS profile_photos (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
