@@ -6,6 +6,11 @@ const transporter = nodemailer.createTransport({
   port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
   secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
   family: 4,
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  logger: true,
+  debug: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -60,7 +65,9 @@ const sendVerificationEmail = async (toEmail, token) => {
       return true;
     }
 
+    console.log("Attempting to send verification email to:", toEmail);
     const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully");
     if (process.env.NODE_ENV !== 'production') {
       console.log(`Verification email sent: ${info.messageId}`);
     }
