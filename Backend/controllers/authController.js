@@ -57,7 +57,11 @@ const signup = async (req, res) => {
     }
 
     // Send verification email
-    await sendVerificationEmail(email, verificationToken);
+    try {
+      await sendVerificationEmail(email, verificationToken);
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr.message);
+    }
 
     res.status(201).json({
       success: true,
