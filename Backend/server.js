@@ -97,9 +97,10 @@ async function start() {
   
   const [usersCheck] = await pool.query("SHOW TABLES LIKE 'users'");
   if (usersCheck.length === 0) {
+    console.log('Schema initialization started');
     const schemaSql = await fs.readFile(path.join(__dirname, 'schema', 'schema.sql'), 'utf8');
     await pool.query(schemaSql);
-    console.log('Database schema initialized');
+    console.log('Schema initialization completed');
   }
 
   await pool.query(`
