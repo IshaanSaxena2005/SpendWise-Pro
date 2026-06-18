@@ -93,6 +93,7 @@ app.get('/test-db', async (req, res) => {
 });
 
 async function start() {
+  console.log("Before schema initialization");
   await fs.mkdir(path.join(__dirname, 'uploads', 'avatars'), { recursive: true });
   
   const [usersCheck] = await pool.query("SHOW TABLES LIKE 'users'");
@@ -103,6 +104,7 @@ async function start() {
     console.log('Schema initialization completed');
   }
 
+  console.log("After schema initialization");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS profile_photos (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -127,7 +129,9 @@ async function start() {
     console.warn('Database connection verified');
   }
 
+  console.log("Before app.listen");
   app.listen(PORT, () => {
+    console.log("Server listening on", PORT);
     if (process.env.NODE_ENV !== 'production') {
       console.warn(`Server listening on http://localhost:${PORT}`);
     }
