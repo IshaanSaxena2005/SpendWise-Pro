@@ -33,7 +33,7 @@ const signup = async (req, res) => {
 
     const [result] = await pool.query(
       'INSERT INTO users (full_name, email, password_hash, is_verified, verification_token) VALUES (?, ?, ?, ?, ?)',
-      [full_name, email, passwordHash, false, verificationToken]
+      [full_name, email, passwordHash, true, verificationToken]
     );
     const userId = result.insertId;
 
@@ -111,13 +111,13 @@ const login = async (req, res) => {
       });
     }
 
-    if (!user.is_verified) {
-      return res.status(403).json({
-        success: false,
-        errorType: 'unverified',
-        message: 'Please verify your email before logging in.',
-      });
-    }
+    // if (!user.is_verified) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     errorType: 'unverified',
+    //     message: 'Please verify your email before logging in.',
+    //   });
+    // }
 
     const token = jwt.sign(
       { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
