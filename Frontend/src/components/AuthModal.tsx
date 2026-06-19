@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { GoogleLogin } from '@react-oauth/google';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -127,6 +128,27 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
       } else {
         setError('Authentication failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await api.post('/auth/google', { token: credentialResponse.credential });
+      
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+        onClose();
+        navigate('/dashboard');
+      } else {
+        throw new Error('No token received from server.');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Google authentication failed.');
     } finally {
       setLoading(false);
     }
@@ -305,6 +327,31 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
             {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
+
+        {(view === 'login' || view === 'signup') && (
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-black/10"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-black/40">Or continue with</span>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError('Google authentication failed.')}
+                useOneTap={false}
+                shape="rectangular"
+                theme="outline"
+                size="large"
+                text="continue_with"
+              />
+            </div>
+          </div>
+        )}
 
         {(view === 'forgot-password' || view === 'reset-password') ? (
           <div className="mt-7 text-center text-sm text-black/60">

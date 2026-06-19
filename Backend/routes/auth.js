@@ -10,6 +10,7 @@ const {
   resetPasswordValidation,
   profileValidation,
   deleteAccountValidation,
+  googleAuthValidation,
 } = require('../validators/authValidators');
 
 const router = express.Router();
@@ -22,5 +23,9 @@ router.post('/resend-verification', forgotPasswordValidation, validateRequest, r
 router.delete('/delete-account', authMiddleware, deleteAccountValidation, validateRequest, deleteAccount);
 router.post('/forgot-password', authLimiter, forgotPasswordValidation, validateRequest, forgotPassword);
 router.post('/reset-password', authLimiter, resetPasswordValidation, validateRequest, resetPassword);
+
+// Google Sign-In
+const { googleLogin } = require('../controllers/authController');
+router.post('/google', authLimiter, googleAuthValidation, validateRequest, googleLogin);
 
 module.exports = router;

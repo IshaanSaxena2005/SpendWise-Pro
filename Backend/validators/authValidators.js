@@ -41,6 +41,12 @@ const resetPasswordValidation = [
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
 ];
 
+const googleAuthValidation = [
+  body('token')
+    .trim()
+    .notEmpty().withMessage('Google ID token is required'),
+];
+
 const profileValidation = [
   body('full_name')
     .trim()
@@ -60,4 +66,5 @@ module.exports = {
   resetPasswordValidation,
   profileValidation,
   deleteAccountValidation,
+  googleAuthValidation,
 };

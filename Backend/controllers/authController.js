@@ -3,6 +3,9 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../config/db');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
+const { OAuth2Client } = require('google-auth-library');
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const signup = async (req, res) => {
   try {
@@ -390,6 +393,72 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const googleLogin = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Google token is required.' });
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { email, name } = payload;
+
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    
+    let user;
+    if (rows.length > 0) {
+      user = rows[0];
+      // Note: we could also optionally update is_verified to true here if not already verified
+    } else {
+      // Create new user securely bypassing NOT NULL password_hash constraint
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
+      
+      const [result] = await pool.query(
+        'INSERT INTO users (full_name, email, password_hash, is_verified) VALUES (?, ?, ?, ?)',
+        [name, email, passwordHash, true]
+      );
+      
+      user = {
+        id: result.insertId,
+        email,
+        full_name: name,
+        role: 'Member'
+      };
+
+      const defaultCategories = [
+        'Food', 'Shopping', 'Travel', 'Entertainment',
+        'Bills', 'Health', 'Salary', 'Freelance'
+      ];
+
+      for (const categoryName of defaultCategories) {
+        await pool.query(
+          'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
+          [user.id, categoryName]
+        );
+      }
+    }
+
+    const appToken = jwt.sign(
+      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Google login successful.',
+      token: appToken,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   signup,
   login,
@@ -399,4 +468,5 @@ module.exports = {
   deleteAccount,
   forgotPassword,
   resetPassword,
+  googleLogin,
 };
