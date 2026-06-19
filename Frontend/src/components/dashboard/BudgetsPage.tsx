@@ -15,6 +15,8 @@ import {
 } from '../../lib/budgetUtils';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 
+const INCOME_CATEGORIES = ['Salary', 'Freelance'];
+
 export function BudgetsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -81,14 +83,22 @@ export function BudgetsPage() {
     };
   }, [fetchFinanceData]);
 
+  const expenseOnly = useMemo(
+    () => expenses.filter((t) => {
+      const cat = categories.find((c) => c.id === t.category_id);
+      return !cat || !INCOME_CATEGORIES.includes(cat.name);
+    }),
+    [expenses, categories]
+  );
+
   const summary = useMemo(
-    () => computeBudgetSummary(budgets, expenses),
-    [budgets, expenses]
+    () => computeBudgetSummary(budgets, expenseOnly),
+    [budgets, expenseOnly]
   );
 
   const alerts = useMemo(
-    () => computeBudgetAlerts(budgets, expenses, categories),
-    [budgets, expenses, categories]
+    () => computeBudgetAlerts(budgets, expenseOnly, categories),
+    [budgets, expenseOnly, categories]
   );
 
   useEffect(() => {
@@ -297,16 +307,16 @@ export function BudgetsPage() {
       {/* Budgets Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {budgets.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm p-8 text-center">
-            <p className="text-base font-semibold text-black mb-1.5">No budgets found</p>
-            <p className="text-sm text-black/40">Create a budget to start tracking spending!</p>
-          </div>
-        ) : (
-          budgets.map((b) => {
-            const cat = categories.find((c) => c.id === b.category_id) || { name: 'Overall' };
-            const { spent, limit: budgetLimit, pct, rawPct, isOver, remaining } = computeBudgetUtilization(b, expenses);
-            const status = getBudgetStatus(rawPct);
-            const isEditing = editingId === b.id;
+            <div className="col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm p-8 text-center">
+              <p className="text-base font-semibold text-black mb-1.5">No budgets found</p>
+              <p className="text-sm text-black/40">Create a budget to start tracking spending!</p>
+            </div>
+          ) : (
+            budgets.map((b) => {
+              const cat = categories.find((c) => c.id === b.category_id) || { name: 'Overall' };
+              const { spent, limit: budgetLimit, pct, rawPct, isOver, remaining } = computeBudgetUtilization(b, expenseOnly);
+              const status = getBudgetStatus(rawPct);
+              const isEditing = editingId === b.id;
 
             return (
               <div key={b.id} className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">

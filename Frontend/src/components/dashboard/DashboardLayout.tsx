@@ -124,7 +124,10 @@ export function DashboardLayout() {
   const [hasUnread,   setHasUnread]   = useState(() => {
     return localStorage.getItem('sw_notif_read') !== 'true';
   });
+  
   const user = getUser();
+
+  if (!user) return null;
 
   const isProfileOrSettings = location.pathname.includes('/profile') || location.pathname.includes('/settings');
 

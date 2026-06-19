@@ -5,28 +5,43 @@ export interface User {
   joined: string;
 }
 
-export function getUser(): User {
-  const defaultUser: User = {
-    full_name: 'Guest User',
-    email: 'guest@spendwisepro.com',
-    role: 'Member',
-    joined: 'Recently',
-  };
+function decodeToken(token: string): Record<string, unknown> {
+  return JSON.parse(atob(token.split('.')[1]));
+}
 
+function isTokenValid(token: string): boolean {
+  try {
+    const payload = decodeToken(token);
+    const exp = payload.exp;
+    if (typeof exp === 'number' && exp * 1000 <= Date.now()) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isAuthenticated(): boolean {
   const token = localStorage.getItem('token');
-  if (!token) return defaultUser;
+  if (!token) return false;
+  return isTokenValid(token);
+}
+
+export function getUser(): User | null {
+  const token = localStorage.getItem('token');
+  if (!token || !isTokenValid(token)) return null;
 
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    
+    const payload = decodeToken(token);
+
     return {
-      full_name: payload.full_name || defaultUser.full_name,
-      email: payload.email || defaultUser.email,
-      role: payload.role || 'Member',
-      // We don't have joined date in JWT, but we can default it gracefully
+      full_name: (payload.full_name as string) || 'User',
+      email: (payload.email as string) || '',
+      role: (payload.role as string) || 'Member',
       joined: 'Joined recently',
     };
   } catch {
-    return defaultUser;
+    return null;
   }
 }

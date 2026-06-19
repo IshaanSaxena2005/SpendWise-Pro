@@ -13,6 +13,7 @@ import { AuthModal }         from './components/AuthModal';
 
 // Dashboard layout
 import { DashboardLayout }   from './components/dashboard/DashboardLayout';
+import { ProtectedRoute }    from './components/ProtectedRoute';
 
 // Dashboard pages
 import { DashboardOverview } from './components/dashboard/DashboardOverview';
@@ -133,7 +134,11 @@ function App() {
         <Route path="/" element={<LandingPage />} />
 
         {/* Dashboard — all inner pages nested under shared layout */}
-        <Route path="/dashboard" element={<DashboardLayout />}>
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }>
           <Route index                   element={<DashboardOverview />} />
           <Route path="expenses"         element={<ExpensesPage />} />
           <Route path="budgets"          element={<BudgetsPage />} />
