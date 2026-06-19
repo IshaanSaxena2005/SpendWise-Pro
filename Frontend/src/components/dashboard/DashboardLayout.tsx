@@ -57,9 +57,18 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-black/5">
-        <img src="/logo2.png" alt="SpendWise Pro" className="w-8 h-8 object-contain rounded-lg shadow-sm border border-black/5" />
-        <span className="text-base font-bold text-black tracking-tight">SpendWise Pro</span>
+      <div className="flex items-center gap-4 px-5 py-5 border-b border-black/5">
+        <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 flex items-center justify-center overflow-hidden shrink-0">
+          <img
+            src="/logo2.png"
+            alt="SpendWise Pro"
+            className="w-full h-full object-contain"
+          />
+        </div>
+
+        <span className="text-lg font-extrabold text-black tracking-tight whitespace-nowrap">
+          SpendWise Pro
+        </span>
       </div>
 
       {/* Nav */}

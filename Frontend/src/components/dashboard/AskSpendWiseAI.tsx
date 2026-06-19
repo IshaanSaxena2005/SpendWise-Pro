@@ -69,9 +69,9 @@ export function AskSpendWiseAI() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-all duration-300 ${isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
+        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center w-16 h-16 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-all duration-300 ${isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
       >
-        <Sparkles className="w-6 h-6" />
+        <img src="/chatbot.png" alt="Chatbot" className="w-full h-full object-cover rounded-full" />
       </button>
 
       {/* Chat Window */}
