@@ -11,7 +11,7 @@
 
 ## 🚀 Live Demo
 
-- 🌐 Live Application: [Live Demo](https://spendwise-pro-nu.vercel.app)
+- 🌐 Live Application: [SpenWuse Pro](https://spendwise-pro-nu.vercel.app)
 
 ---
 
@@ -133,7 +133,6 @@ SpendWise-Pro/
 │   ├── app.py
 │   ├── model.py
 │   └── anomaly.py
-│
 ├── screenshots/
 │   ├── landing-page.png
 │   ├── dashboard.png
