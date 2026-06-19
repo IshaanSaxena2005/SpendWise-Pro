@@ -28,28 +28,29 @@ interface SidebarProps {
 function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const fetchAvatar = async () => {
+    try {
+      const url = await fetchProfileAvatar();
+      setAvatarUrl(url);
+    } catch {
+      setAvatarUrl(null);
+    }
+  };
 
-    fetchProfileAvatar()
-      .then(url => {
-        if (mounted) setAvatarUrl(url);
-      })
-      .catch(() => {
-        if (mounted) setAvatarUrl(null);
-      });
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchAvatar();
 
     const handleAvatarUpdated = (event: Event) => {
-      setAvatarUrl((event as CustomEvent<{ url: string | null }>).detail.url);
+      setAvatarUrl((event as CustomEvent<{ url: string | null }>).detail.url;
     };
 
     window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
 
     return () => {
-      mounted = false;
       window.removeEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
     };
-  }, []);
+  }, [user.email]); // Re-fetch when user's email changes (i.e., new login)
 
   return (
     <div className="flex flex-col h-full">
