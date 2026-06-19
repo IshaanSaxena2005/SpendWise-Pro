@@ -42,7 +42,9 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
     void fetchAvatar();
 
     const handleAvatarUpdated = (event: Event) => {
-      setAvatarUrl((event as CustomEvent<{ url: string | null }>).detail.url;
+      setAvatarUrl(
+        (event as CustomEvent<{ url: string | null }>).detail.url
+      );
     };
 
     window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
