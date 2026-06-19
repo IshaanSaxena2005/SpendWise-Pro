@@ -11,8 +11,8 @@
 
 ## 🚀 Live Demo
 
-- Frontend: Coming Soon
-- Backend API: Coming Soon
+- Frontend: [Frontend](https://spendwise-pro-nu.vercel.app)
+- Backend API: [Backend](https://spendwise-pro-production.up.railway.app)
 
 ---
 

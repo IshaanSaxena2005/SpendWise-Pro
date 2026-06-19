@@ -190,7 +190,7 @@ export function ExpensesPage() {
             label: 'TOTAL EXPENSES',
             value: fmt(filtered.reduce((s, t) => {
               const cat = categories.find((c) => c.id === t.category_id);
-              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + t.amount;
+              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
             }, 0)),
             color: 'text-rose-500',
           },
@@ -198,7 +198,7 @@ export function ExpensesPage() {
             label: 'TOTAL INCOME',
             value: fmt(filtered.reduce((s, t) => {
               const cat = categories.find((c) => c.id === t.category_id);
-              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + t.amount : s;
+              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
             }, 0)),
             color: 'text-green-600',
           },
@@ -207,11 +207,11 @@ export function ExpensesPage() {
             value: (() => {
               const income = filtered.reduce((s, t) => {
                 const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + t.amount : s;
+                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
               }, 0);
               const expense = filtered.reduce((s, t) => {
                 const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + t.amount;
+                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
               }, 0);
               const net = income - expense;
               return (net >= 0 ? '+' : '-') + fmt(Math.abs(net));
@@ -219,11 +219,11 @@ export function ExpensesPage() {
             color: (() => {
               const income = filtered.reduce((s, t) => {
                 const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + t.amount : s;
+                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
               }, 0);
               const expense = filtered.reduce((s, t) => {
                 const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + t.amount;
+                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
               }, 0);
               return income - expense >= 0 ? 'text-violet-600' : 'text-rose-500';
             })(),
