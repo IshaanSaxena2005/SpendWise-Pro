@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Brain, X, Send, Sparkles, User } from 'lucide-react';
+import { Brain, X, Send, User } from 'lucide-react';
 import { aiAPI } from '../../lib/api';
 
 interface Message {
