@@ -20,14 +20,15 @@ export const CATEGORY_EMOJI_OPTIONS = [
 
 // Map category names to soft background colors for UI circles
 export const CATEGORY_BG_CLASSES: Record<string, string> = {
-  Food: 'bg-orange-100',
-  Travel: 'bg-blue-100',
+  Food: 'bg-yellow-100',
+  Travel: 'bg-purple-100',
   Shopping: 'bg-pink-100',
-  Bills: 'bg-yellow-100',
+  Bills: 'bg-blue-100',
   Health: 'bg-red-100',
-  Entertainment: 'bg-purple-100',
-  Salary: 'bg-green-100',
-  Freelance: 'bg-cyan-100',
+  Entertainment: 'bg-indigo-100',
+  Salary: 'bg-emerald-100',
+  Freelance: 'bg-teal-100',
+  Petrol: 'bg-orange-100',
 };
 
 /**
@@ -37,6 +38,23 @@ export const CATEGORY_BG_CLASSES: Record<string, string> = {
 export function getCategoryBg(name?: string): string {
   if (!name) return 'bg-gray-100';
   return CATEGORY_BG_CLASSES[name] || 'bg-gray-100';
+}
+
+export const CATEGORY_BADGE_CLASSES: Record<string, string> = {
+  Food: 'bg-yellow-100 text-yellow-800',
+  Travel: 'bg-purple-100 text-purple-800',
+  Shopping: 'bg-pink-100 text-pink-800',
+  Bills: 'bg-blue-100 text-blue-800',
+  Health: 'bg-red-100 text-red-800',
+  Entertainment: 'bg-indigo-100 text-indigo-800',
+  Salary: 'bg-green-100 text-green-800',
+  Freelance: 'bg-teal-100 text-teal-800',
+  Petrol: 'bg-orange-100 text-orange-800',
+};
+
+export function getCategoryBadgeClasses(name?: string): string {
+  if (!name) return 'bg-gray-100 text-gray-800';
+  return CATEGORY_BADGE_CLASSES[name] || 'bg-gray-100 text-gray-800';
 }
 
 type CategoryLike = { name: string; icon?: string | null };

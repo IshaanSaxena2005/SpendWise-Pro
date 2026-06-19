@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus } from 'lucide-react';
 import { expenseAPI, categoryAPI, type Transaction, type Category } from '../../lib/api';
-import { formatCategoryLabel, getCategoryIcon } from '../../lib/categoryIcons';
+import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
@@ -282,8 +282,7 @@ export function ExpensesPage() {
                       </td>
                       <td className="px-5 py-3">
                         <span
-                          className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-                          style={{ backgroundColor: '#F3F4F6' }}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${getCategoryBadgeClasses(cat?.name)}`}
                         >
                           <CategoryEmoji icon={getCategoryIcon(cat)} />
                           {cat?.name || 'Unknown'}

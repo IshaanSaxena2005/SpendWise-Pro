@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check } from 'lucide-react';
 import { budgetAPI, categoryAPI, expenseAPI, type Budget, type Category, type Transaction } from '../../lib/api';
-import { formatCategoryLabel, getCategoryIcon } from '../../lib/categoryIcons';
+import { formatCategoryLabel, getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import {
   normalizeBudgetMonth,
@@ -386,7 +386,7 @@ export function BudgetsPage() {
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm" style={{ backgroundColor: '#F3F4F6' }}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm ${getCategoryBg(cat?.name)}`}>
                           <CategoryEmoji icon={getCategoryIcon(cat)} className="text-xl" />
                         </div>
                         <div>
