@@ -11,8 +11,7 @@
 
 ## 🚀 Live Demo
 
-- Frontend: [Frontend](https://spendwise-pro-nu.vercel.app)
-- Backend API: [Backend](https://spendwise-pro-production.up.railway.app)
+- 🌐 Live Application: [Live Demo](https://spendwise-pro-nu.vercel.app)
 
 ---
 
@@ -134,6 +133,14 @@ SpendWise-Pro/
 │   ├── app.py
 │   ├── model.py
 │   └── anomaly.py
+│
+├── screenshots/
+│   ├── landing-page.png
+│   ├── dashboard.png
+│   ├── transactions.png
+│   ├── budgets.png
+│   ├── analytics.png
+│   └── chatbot.png
 ├── .env.example
 └── README.md
 ```
@@ -142,7 +149,29 @@ SpendWise-Pro/
 
 ## Screenshots
 
-🚧 Screenshots coming soon.
+### Landing Page
+
+![Landing Page](screenshots/landing-page.png)
+
+### Dashboard Overview
+
+![Dashboard](screenshots/dashboard.png)
+
+### Transactions Management
+
+![Transactions](screenshots/transactions.png)
+
+### Budget Tracking
+
+![Budgets](screenshots/budgets.png)
+
+### Analytics Dashboard
+
+![Analytics](screenshots/analytics.png)
+
+### AI Financial Assistant
+
+![Chatbot](screenshots/chatbot.png)
 
 ---
 
@@ -249,7 +278,7 @@ The application is deployed using modern cloud infrastructure:
 
 **Ishaan Saxena**
 
-- GitHub: https://github.com/IshaanSaxena2005
+- GitHub: [IshaanSaxena2005](https://github.com/IshaanSaxena2005)
 - Project: SpendWise Pro
 - Full-stack AI-powered personal finance platform
 
