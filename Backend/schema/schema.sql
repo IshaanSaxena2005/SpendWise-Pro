@@ -14,6 +14,7 @@ CREATE TABLE profile_photos (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL UNIQUE,
     file_path VARCHAR(255) NOT NULL,
+    public_id VARCHAR(255) NULL,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_profile_photo_user
         FOREIGN KEY (user_id)
