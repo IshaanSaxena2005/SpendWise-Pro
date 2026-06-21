@@ -9,7 +9,8 @@ const getDashboardSummary = async (req, res) => {
         COALESCE(SUM(amount), 0) AS total_spending,
         COUNT(*) AS total_expenses
       FROM expenses
-      WHERE user_id = ?`,
+      WHERE user_id = ?
+        AND transaction_type = 'expense'`,
       [userId]
     );
 
@@ -19,6 +20,7 @@ const getDashboardSummary = async (req, res) => {
         COUNT(*) AS current_month_expenses
       FROM expenses
       WHERE user_id = ?
+        AND transaction_type = 'expense'
         AND MONTH(expense_date) = MONTH(CURDATE())
         AND YEAR(expense_date) = YEAR(CURDATE())`,
       [userId]
@@ -71,6 +73,7 @@ const getCategoryBreakdown = async (req, res) => {
       LEFT JOIN expenses e
         ON e.category_id = c.id
         AND e.user_id = ?
+        AND e.transaction_type = 'expense'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())
       WHERE c.user_id = ?
@@ -113,6 +116,7 @@ const getMonthlyTrend = async (req, res) => {
         COALESCE(SUM(amount), 0) AS total_amount
       FROM expenses
       WHERE user_id = ?
+        AND transaction_type = 'expense'
         AND expense_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
       GROUP BY DATE_FORMAT(expense_date, '%Y-%m')
       ORDER BY month ASC`,
@@ -148,6 +152,7 @@ const getTopSpendingCategory = async (req, res) => {
       FROM expenses e
       JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
+        AND e.transaction_type = 'expense'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())
       GROUP BY c.id, c.name

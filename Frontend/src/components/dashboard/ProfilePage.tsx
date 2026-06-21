@@ -5,7 +5,11 @@ import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 import { useState, useEffect } from 'react';
 import type { Transaction, Budget } from '../../lib/api';
 
-function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
+function fmt(n: any) { 
+  const val = Number(n);
+  if (isNaN(val) || !val) return '₹0';
+  return '₹' + Math.floor(val).toLocaleString('en-IN'); 
+}
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -28,13 +32,13 @@ export function ProfilePage() {
           budgetAPI.getAllBudgets(),
           analyticsAPI.getDashboardSummary(),
         ]);
-        const transactions: Transaction[] = txRes.data.expenses || [];
-        const budgets: Budget[] = budRes.data.budgets || [];
-        const totalExpenses = transactions.reduce((a, b) => a + b.amount, 0);
+        const transactions: Transaction[] = txRes?.data?.expenses || [];
+        const budgets: Budget[] = budRes?.data?.budgets || [];
+        const totalExpenses = transactions.reduce((a, b) => a + Number(b?.amount || 0), 0);
         setStats({
           totalIncome: 0,
           totalExpenses,
-          totalBalance: analyticsRes.data.summary.total_spending || 0,
+          totalBalance: Number(analyticsRes?.data?.summary?.total_spending) || 0,
           activeBudgets: budgets.length,
           transactionCount: transactions.length,
         });
