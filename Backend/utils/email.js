@@ -7,7 +7,7 @@ if (!process.env.RESEND_API_KEY) {
   console.warn('RESEND_API_KEY not set. Email functions will be no-ops.');
 }
 const resend = new Resend(process.env.RESEND_API_KEY);
-
+console.log('RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
 // Sends verification email
 const sendVerificationEmail = async (toEmail, token) => {
   const backendUrl = process.env.BACKEND_URL;
@@ -38,13 +38,15 @@ const sendVerificationEmail = async (toEmail, token) => {
   };
 
   try {
-    await resend.emails.send(mailOptions);
+    console.log('Sending email via Resend to:', toEmail);
+    const response = await resend.emails.send(mailOptions);
+    console.log('Resend response:', response);
     if (process.env.NODE_ENV !== 'production') {
       console.log(`Verification email sent to ${toEmail}`);
     }
     return true;
   } catch (error) {
-    console.error('Error sending verification email:', error);
+    console.error('Resend full error:', error);
     throw new Error('Failed to send verification email. Please try again later.');
   }
 };
@@ -80,13 +82,15 @@ const sendPasswordResetEmail = async (toEmail, token) => {
   };
 
   try {
-    await resend.emails.send(mailOptions);
+    console.log('Sending email via Resend to:', toEmail);
+    const response = await resend.emails.send(mailOptions);
+    console.log('Resend response:', response);
     if (process.env.NODE_ENV !== 'production') {
       console.log(`Password reset email sent to ${toEmail}`);
     }
     return true;
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error('Resend full error:', error);
     throw new Error('Failed to send password reset email. Please try again later.');
   }
 };
