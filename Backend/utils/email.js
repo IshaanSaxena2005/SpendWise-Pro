@@ -7,7 +7,11 @@ if (!process.env.RESEND_API_KEY) {
   console.warn('RESEND_API_KEY not set. Email functions will be no-ops.');
 }
 const resend = new Resend(process.env.RESEND_API_KEY);
+console.log('=== EMAIL CONFIG DEBUG ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
+console.log('RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.substring(0, 3));
+console.log('=========================');
 // Sends verification email
 const sendVerificationEmail = async (toEmail, token) => {
   const backendUrl = process.env.BACKEND_URL;
