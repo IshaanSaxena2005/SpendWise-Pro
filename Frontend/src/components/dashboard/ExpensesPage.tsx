@@ -175,9 +175,9 @@ export function ExpensesPage() {
           </div>
           <button
             onClick={exportCSV}
-            className="flex items-center gap-1.5 border border-black/10 text-black/60 text-sm font-medium px-3 py-2 rounded-xl hover:bg-black/5 transition-colors"
+            className="group flex items-center gap-1.5 bg-black/5 border border-transparent text-black text-sm font-medium px-4 py-2 rounded-xl hover:bg-black hover:text-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-md active:scale-95"
           >
-            <Download className="w-3.5 h-3.5" /> Export CSV
+            <Download className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" /> Export CSV
           </button>
         </div>
       </div>

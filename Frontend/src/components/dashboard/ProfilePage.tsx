@@ -11,6 +11,8 @@ function fmt(n: any) {
   return '₹' + Math.floor(val).toLocaleString('en-IN'); 
 }
 
+const INCOME_CATEGORIES = ['Salary', 'Freelance'];
+
 export function ProfilePage() {
   const navigate = useNavigate();
   const user = getUser();
@@ -34,7 +36,10 @@ export function ProfilePage() {
         ]);
         const transactions: Transaction[] = txRes?.data?.expenses || [];
         const budgets: Budget[] = budRes?.data?.budgets || [];
-        const totalExpenses = transactions.reduce((a, b) => a + Number(b?.amount || 0), 0);
+        const totalExpenses = transactions.reduce((a, b) => {
+          if (INCOME_CATEGORIES.includes(b?.category_name || '')) return a;
+          return a + Number(b?.amount || 0);
+        }, 0);
         setStats({
           totalIncome: 0,
           totalExpenses,
