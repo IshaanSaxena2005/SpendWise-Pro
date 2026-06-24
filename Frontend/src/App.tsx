@@ -114,6 +114,7 @@ function LandingPage() {
           // Clean up reset_token from URL on close if present
           if (searchParams.has('reset_token')) {
             searchParams.delete('reset_token');
+            searchParams.delete('email');
             setSearchParams(searchParams, { replace: true });
           }
         }}

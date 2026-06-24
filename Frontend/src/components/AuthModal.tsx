@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -22,6 +22,8 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const emailFromUrl = searchParams.get('email');
 
   // Sync view when parent changes initialView
   useEffect(() => {
@@ -58,8 +60,16 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
       setError('Please enter your full name.');
       return;
     }
-    if (!email.trim()) {
+    if (view !== 'reset-password' && !email.trim()) {
       setError('Please enter your email address.');
+      return;
+    }
+    if (view === 'reset-password' && !resetToken) {
+      setError('Invalid or expired reset link. Please request a new one.');
+      return;
+    }
+    if (view === 'reset-password' && !emailFromUrl) {
+      setError('Invalid or expired reset link. Please request a new one.');
       return;
     }
     if (view === 'reset-password' && password.length < 6) {
@@ -77,10 +87,10 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
       }
 
       if (view === 'reset-password') {
-        const response = await api.post('/auth/reset-password', { 
-          email: email.trim(), 
-          token: resetToken, 
-          newPassword: password 
+        const response = await api.post('/auth/reset-password', {
+          email: emailFromUrl,
+          token: resetToken,
+          newPassword: password,
         });
         setSuccess(response.data.message);
         setTimeout(() => switchView('login'), 3000);

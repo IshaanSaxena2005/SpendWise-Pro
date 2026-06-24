@@ -113,7 +113,7 @@ const sendPasswordResetEmail = async (toEmail, token) => {
     throw new Error('FRONTEND_URL is required to send password reset emails.');
   }
 
-  const resetLink = `${frontendUrl}/?reset_token=${token}`;
+  const resetLink = `${frontendUrl}/?reset_token=${token}&email=${encodeURIComponent(toEmail)}`;
 
   const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
