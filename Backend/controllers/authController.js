@@ -354,7 +354,7 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
 
-    const [users] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [users] = await pool.query('SELECT id, password_hash FROM users WHERE email = ?', [email]);
     if (users.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
     }
@@ -378,6 +378,14 @@ const resetPassword = async (req, res) => {
     const isValidToken = await bcrypt.compare(token, resetRecord.token);
     if (!isValidToken) {
       return res.status(400).json({ success: false, message: 'Invalid or expired token.' });
+    }
+
+    const isSamePassword = await bcrypt.compare(newPassword, users[0].password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from your current password.',
+      });
     }
 
     // Update password
