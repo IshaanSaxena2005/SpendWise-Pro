@@ -17,7 +17,9 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +50,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
         setEmail('');
     }
     setPassword('');
+    setConfirmPassword('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,6 +77,14 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
     }
     if (view === 'reset-password' && password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (view === 'reset-password' && !confirmPassword) {
+      setError('Please confirm your password.');
+      return;
+    }
+    if (view === 'reset-password' && password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
@@ -330,6 +341,37 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
               {(view === 'signup' || view === 'reset-password') && (
                 <p className="text-xs text-black/40 mt-1.5 ml-1">Minimum 6 characters</p>
               )}
+            </div>
+          )}
+
+          {view === 'reset-password' && (
+            <div>
+              <label className="block text-sm font-medium text-black/80 mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-[#F5F5F5] border border-black/5 rounded-xl pl-11 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-transparent transition-all disabled:opacity-60"
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-black/40 hover:text-black transition-colors"
+                  disabled={loading}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           )}
 
