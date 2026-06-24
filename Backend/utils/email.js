@@ -1,34 +1,61 @@
-const nodemailer = require('nodemailer');
-const dns = require('dns');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-dns.setDefaultResultOrder('ipv4first');
+const SENDER_NAME = 'SpendWise Pro';
+const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'spendwisepro5@gmail.com';
 
-// Set up the transporter using SMTP credentials from environment variables
-const transporter = nodemailer.createTransport({
-  host: '64.233.190.108', // IPv4 address of smtp.gmail.com
-  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
-  secure: process.env.SMTP_PORT === '465' || !process.env.SMTP_PORT, // true for 465, false for other ports
-  family: 4,
-  tls: { servername: 'smtp.gmail.com' }, // ensure proper TLS validation
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-  logger: true,
-  debug: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const hasBrevoApiKey = Boolean(process.env.BREVO_API_KEY);
+console.log(`BREVO_API_KEY exists: ${hasBrevoApiKey}`);
 
-// Verify SMTP connection on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('SMTP VERIFY FAILED:', error);
-  } else {
-    console.log('SMTP VERIFY SUCCESS');
+let brevoClient = null;
+
+function getBrevoClient() {
+  if (!process.env.BREVO_API_KEY) {
+    return null;
   }
-});
+  if (!brevoClient) {
+    brevoClient = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
+  }
+  return brevoClient;
+}
+
+/**
+ * @param {{ toEmail: string, subject: string, htmlContent: string, logLabel: string }} options
+ */
+async function sendBrevoEmail({ toEmail, subject, htmlContent, logLabel }) {
+  const client = getBrevoClient();
+
+  if (!client) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('----------------------------------------------------');
+      console.log(`BREVO_API_KEY not configured. ${logLabel} was not sent.`);
+      console.log('----------------------------------------------------');
+      return true;
+    }
+    throw new Error('BREVO_API_KEY is not configured.');
+  }
+
+  console.log(`Sending ${logLabel} to:`, toEmail);
+
+  try {
+    const response = await client.transactionalEmails.sendTransacEmail({
+      sender: { name: SENDER_NAME, email: SENDER_EMAIL },
+      to: [{ email: toEmail }],
+      subject,
+      htmlContent,
+    });
+
+    console.log('Brevo response:', JSON.stringify(response, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Brevo error:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      body: error.body,
+      raw: error,
+    });
+    throw error;
+  }
+}
 
 /**
  * Sends an email verification link to the user
@@ -40,15 +67,10 @@ const sendVerificationEmail = async (toEmail, token) => {
   if (!backendUrl) {
     throw new Error('BACKEND_URL is required to send verification emails.');
   }
-  // Use the backend API to verify the token so we don't have to build frontend routes explicitly
-  // We'll create a GET endpoint that verifies the token and then redirects to the frontend with a success flag
+
   const verificationLink = `${backendUrl.replace(/\/$/, '')}/api/auth/verify-email/${token}`;
-  
-  const mailOptions = {
-    from: `"SpendWise Pro" <${process.env.SMTP_USER || 'noreply@spendwisepro.com'}>`,
-    to: toEmail,
-    subject: 'Verify Your Email Address - SpendWise Pro',
-    html: `
+
+  const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <h2 style="color: #6d28d9; text-align: center;">Welcome to SpendWise Pro!</h2>
         <p>Thank you for signing up. Please verify your email address to complete your registration and activate your account.</p>
@@ -64,26 +86,15 @@ const sendVerificationEmail = async (toEmail, token) => {
           If you did not create an account with us, please ignore this email.
         </p>
       </div>
-    `,
-  };
+    `;
 
   try {
-    // Check if SMTP credentials are provided, otherwise log to console for development
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('----------------------------------------------------');
-        console.log('SMTP credentials not configured. Verification email was not sent.');
-        console.log('----------------------------------------------------');
-      }
-      return true;
-    }
-
-    console.log("Attempting to send verification email to:", toEmail);
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully");
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Verification email sent: ${info.messageId}`);
-    }
+    await sendBrevoEmail({
+      toEmail,
+      subject: 'Verify Your Email Address - SpendWise Pro',
+      htmlContent,
+      logLabel: 'verification email',
+    });
     return true;
   } catch (error) {
     console.error('Error sending verification email:', error);
@@ -101,13 +112,10 @@ const sendPasswordResetEmail = async (toEmail, token) => {
   if (!frontendUrl) {
     throw new Error('FRONTEND_URL is required to send password reset emails.');
   }
+
   const resetLink = `${frontendUrl}/?reset_token=${token}`;
-  
-  const mailOptions = {
-    from: `"SpendWise Pro" <${process.env.SMTP_USER || 'noreply@spendwisepro.com'}>`,
-    to: toEmail,
-    subject: 'Reset Your Password - SpendWise Pro',
-    html: `
+
+  const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
         <h2 style="color: #6d28d9; text-align: center;">Password Reset Request</h2>
         <p>We received a request to reset your SpendWise Pro password. Click the button below to choose a new one:</p>
@@ -124,23 +132,15 @@ const sendPasswordResetEmail = async (toEmail, token) => {
           If you did not request a password reset, please ignore this email or contact support if you have concerns.
         </p>
       </div>
-    `,
-  };
+    `;
 
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('----------------------------------------------------');
-        console.log('SMTP credentials not configured. Password reset email was not sent.');
-        console.log('----------------------------------------------------');
-      }
-      return true;
-    }
-
-    const info = await transporter.sendMail(mailOptions);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Password reset email sent: ${info.messageId}`);
-    }
+    await sendBrevoEmail({
+      toEmail,
+      subject: 'Reset Your Password - SpendWise Pro',
+      htmlContent,
+      logLabel: 'password reset email',
+    });
     return true;
   } catch (error) {
     console.error('Error sending password reset email:', error);
