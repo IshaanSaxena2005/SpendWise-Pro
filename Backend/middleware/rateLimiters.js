@@ -22,7 +22,7 @@ function createLimiter(options) {
 
 const authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 5,
 });
 
 const aiChatLimiter = createLimiter({

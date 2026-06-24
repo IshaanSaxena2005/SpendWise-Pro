@@ -1,27 +1,51 @@
-// utils/email.js
-// Resend email utility for transactional emails
+const nodemailer = require('nodemailer');
+const dns = require('dns');
 
-const { Resend } = require('resend');
+dns.setDefaultResultOrder('ipv4first');
 
-if (!process.env.RESEND_API_KEY) {
-  console.warn('RESEND_API_KEY not set. Email functions will be no-ops.');
-}
-const resend = new Resend(process.env.RESEND_API_KEY);
-console.log('=== EMAIL CONFIG DEBUG ===');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
-console.log('RESEND_API_KEY prefix:', process.env.RESEND_API_KEY?.substring(0, 3));
-console.log('=========================');
-// Sends verification email
+// Set up the transporter using SMTP credentials from environment variables
+const transporter = nodemailer.createTransport({
+  host: '64.233.190.108', // IPv4 address of smtp.gmail.com
+  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
+  secure: process.env.SMTP_PORT === '465' || !process.env.SMTP_PORT, // true for 465, false for other ports
+  family: 4,
+  tls: { servername: 'smtp.gmail.com' }, // ensure proper TLS validation
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  logger: true,
+  debug: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+// Verify SMTP connection on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP VERIFY FAILED:', error);
+  } else {
+    console.log('SMTP VERIFY SUCCESS');
+  }
+});
+
+/**
+ * Sends an email verification link to the user
+ * @param {string} toEmail - Recipient email address
+ * @param {string} token - Verification token
+ */
 const sendVerificationEmail = async (toEmail, token) => {
   const backendUrl = process.env.BACKEND_URL;
   if (!backendUrl) {
     throw new Error('BACKEND_URL is required to send verification emails.');
   }
+  // Use the backend API to verify the token so we don't have to build frontend routes explicitly
+  // We'll create a GET endpoint that verifies the token and then redirects to the frontend with a success flag
   const verificationLink = `${backendUrl.replace(/\/$/, '')}/api/auth/verify-email/${token}`;
-
+  
   const mailOptions = {
-    from: 'SpendWise Pro <onboarding@resend.dev>',
+    from: `"SpendWise Pro" <${process.env.SMTP_USER || 'noreply@spendwisepro.com'}>`,
     to: toEmail,
     subject: 'Verify Your Email Address - SpendWise Pro',
     html: `
@@ -32,7 +56,9 @@ const sendVerificationEmail = async (toEmail, token) => {
           <a href="${verificationLink}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Verify My Email</a>
         </div>
         <p>If the button above does not work, you can copy and paste the following link into your browser:</p>
-        <p style="word-break: break-all; color: #666; font-size: 14px;"><a href="${verificationLink}">${verificationLink}</a></p>
+        <p style="word-break: break-all; color: #666; font-size: 14px;">
+          <a href="${verificationLink}">${verificationLink}</a>
+        </p>
         <hr style="border: 1px solid #eee; margin: 30px 0;" />
         <p style="font-size: 12px; color: #999; text-align: center;">
           If you did not create an account with us, please ignore this email.
@@ -42,29 +68,43 @@ const sendVerificationEmail = async (toEmail, token) => {
   };
 
   try {
-    console.log('Sending email via Resend to:', toEmail);
-    const response = await resend.emails.send(mailOptions);
-    console.log('Resend response:', response);
+    // Check if SMTP credentials are provided, otherwise log to console for development
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('----------------------------------------------------');
+        console.log('SMTP credentials not configured. Verification email was not sent.');
+        console.log('----------------------------------------------------');
+      }
+      return true;
+    }
+
+    console.log("Attempting to send verification email to:", toEmail);
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully");
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`Verification email sent to ${toEmail}`);
+      console.log(`Verification email sent: ${info.messageId}`);
     }
     return true;
   } catch (error) {
-    console.error('Resend full error:', error);
+    console.error('Error sending verification email:', error);
     throw new Error('Failed to send verification email. Please try again later.');
   }
 };
 
-// Sends password reset email
+/**
+ * Sends a password reset link to the user
+ * @param {string} toEmail - Recipient email address
+ * @param {string} token - Reset token
+ */
 const sendPasswordResetEmail = async (toEmail, token) => {
   const frontendUrl = process.env.FRONTEND_URL;
   if (!frontendUrl) {
     throw new Error('FRONTEND_URL is required to send password reset emails.');
   }
   const resetLink = `${frontendUrl}/?reset_token=${token}`;
-
+  
   const mailOptions = {
-    from: 'SpendWise Pro <onboarding@resend.dev>',
+    from: `"SpendWise Pro" <${process.env.SMTP_USER || 'noreply@spendwisepro.com'}>`,
     to: toEmail,
     subject: 'Reset Your Password - SpendWise Pro',
     html: `
@@ -75,7 +115,9 @@ const sendPasswordResetEmail = async (toEmail, token) => {
           <a href="${resetLink}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Reset Password</a>
         </div>
         <p>If the button above does not work, you can copy and paste the following link into your browser:</p>
-        <p style="word-break: break-all; color: #666; font-size: 14px;"><a href="${resetLink}">${resetLink}</a></p>
+        <p style="word-break: break-all; color: #666; font-size: 14px;">
+          <a href="${resetLink}">${resetLink}</a>
+        </p>
         <p style="color: #d97706; font-weight: bold;">This link will expire in 30 minutes.</p>
         <hr style="border: 1px solid #eee; margin: 30px 0;" />
         <p style="font-size: 12px; color: #999; text-align: center;">
@@ -86,15 +128,22 @@ const sendPasswordResetEmail = async (toEmail, token) => {
   };
 
   try {
-    console.log('Sending email via Resend to:', toEmail);
-    const response = await resend.emails.send(mailOptions);
-    console.log('Resend response:', response);
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('----------------------------------------------------');
+        console.log('SMTP credentials not configured. Password reset email was not sent.');
+        console.log('----------------------------------------------------');
+      }
+      return true;
+    }
+
+    const info = await transporter.sendMail(mailOptions);
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`Password reset email sent to ${toEmail}`);
+      console.log(`Password reset email sent: ${info.messageId}`);
     }
     return true;
   } catch (error) {
-    console.error('Resend full error:', error);
+    console.error('Error sending password reset email:', error);
     throw new Error('Failed to send password reset email. Please try again later.');
   }
 };
