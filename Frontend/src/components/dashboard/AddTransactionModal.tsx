@@ -73,7 +73,6 @@ function TransactionForm({
           note: notes || title,
           frequency,
           next_due_date: nextDue,
-          is_active: true,
         });
       }
       onTransactionChanged?.();
