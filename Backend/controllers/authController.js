@@ -265,24 +265,12 @@ const resendVerification = async (req, res) => {
 const deleteAccount = async (req, res) => {
   let connection;
   try {
-    const { password } = req.body;
     const userId = req.user.id;
 
-    if (!password) {
-      return res.status(400).json({ success: false, message: 'Password is required to delete your account.' });
-    }
-
-    // Verify user and password
+    // Verify user exists
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    const user = rows[0];
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({ success: false, message: 'Incorrect password.' });
     }
 
     connection = await pool.getConnection();

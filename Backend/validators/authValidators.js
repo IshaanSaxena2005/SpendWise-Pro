@@ -54,10 +54,7 @@ const profileValidation = [
     .isLength({ min: 2, max: 100 }).withMessage('Full name must be 2-100 characters'),
 ];
 
-const deleteAccountValidation = [
-  body('password')
-    .notEmpty().withMessage('Password is required'),
-];
+const deleteAccountValidation = [];
 
 module.exports = {
   signupValidation,
