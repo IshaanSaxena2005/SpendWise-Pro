@@ -296,7 +296,11 @@ const deleteAccount = async (req, res) => {
       await connection.query('DELETE FROM users WHERE id = ?', [userId]);
 
       await connection.commit();
-      res.json({ success: true, message: 'Account deleted successfully.' });
+      // No additional session or token tables exist, so no extra cleanup is required here
+      res.json({
+        success: true,
+        message: "Your account and all associated data have been permanently deleted."
+      });
     } catch (dbErr) {
       await connection.rollback();
       throw dbErr;

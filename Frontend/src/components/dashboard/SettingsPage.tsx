@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react';
+// Updated SettingsPage component to remove password requirement for account deletion
+// Adjusted state and handlers accordingly
+// The delete flow now directly calls the API without password verification.
+// Confirmation dialog remains unchanged.
 import { Bell, Shield, Database, AlertTriangle, Save, LogOut, Download, Eye, EyeOff, User as UserIcon, X, AlertCircle } from 'lucide-react';
 import { getUser, expenseAPI, budgetAPI, categoryAPI, type Transaction, type Budget, type Category } from '../../lib/api';
 import api from '../../lib/api';
@@ -84,8 +87,6 @@ export function SettingsPage() {
 
   // Delete Account State
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
