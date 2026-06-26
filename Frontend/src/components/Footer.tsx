@@ -1,4 +1,5 @@
 import { Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const stats = [
   { value: '6+',  label: 'Core Features' },
@@ -12,6 +13,8 @@ const quickLinks = [
   { name: 'Dashboard Preview',  href: '#preview' },
   { name: 'AI Insights',        href: '#ai-insights' },
   { name: 'About',              href: '#about' },
+  { name: 'Privacy Policy',     href: '/privacy', isRoute: true },
+  { name: 'Terms of Service',   href: '/terms', isRoute: true },
 ];
 
 const techStack = ['React', 'Node.js', 'MySQL', 'Python', 'Flask', 'Scikit-Learn'];
@@ -67,18 +70,27 @@ export function Footer() {
           <ul className="flex flex-col gap-3">
             {quickLinks.map((link) => (
               <li key={link.name}>
-                <a
-                  href={link.href}
-                  onClick={(e) => {
-                    if (link.href.startsWith('#')) {
-                      e.preventDefault();
-                      handleScroll(link.href);
-                    }
-                  }}
-                  className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
-                >
-                  {link.name}
-                </a>
+                {link.isRoute ? (
+                  <Link
+                    to={link.href}
+                    className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
+                  >
+                    {link.name}
+                  </Link>
+                ) : (
+                  <a
+                    href={link.href}
+                    onClick={(e) => {
+                      if (link.href.startsWith('#')) {
+                        e.preventDefault();
+                        handleScroll(link.href);
+                      }
+                    }}
+                    className="text-sm font-medium text-black/55 hover:text-black transition-colors duration-200"
+                  >
+                    {link.name}
+                  </a>
+                )}
               </li>
             ))}
           </ul>

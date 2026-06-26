@@ -24,6 +24,11 @@ import { InsightsPage } from './components/dashboard/InsightsPage';
 import { ProfilePage } from './components/dashboard/ProfilePage';
 import { SettingsPage } from './components/dashboard/SettingsPage';
 
+// Legal pages
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+
+
 // ─── Landing Page ────────────────────────────────────────────────────────────
 function LandingPage() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -133,6 +138,10 @@ function App() {
       <Routes>
         {/* Landing page */}
         <Route path="/" element={<LandingPage />} />
+
+        {/* Legal pages */}
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
 
         {/* Dashboard — all inner pages nested under shared layout */}
         <Route path="/dashboard" element={
