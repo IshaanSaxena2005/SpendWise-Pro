@@ -1,5 +1,18 @@
-import { BrowserRouter as Router, Routes, Route, useSearchParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { trackPageView } from './lib/analytics';
+
+// Component to handle tracking page views on route change
+function AnalyticsTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
+  return null;
+}
+
 
 // Landing page components
 import { Navbar }            from './components/Navbar';
@@ -135,6 +148,7 @@ function LandingPage() {
 function App() {
   return (
     <Router>
+      <AnalyticsTracker />
       <Routes>
         {/* Landing page */}
         <Route path="/" element={<LandingPage />} />
