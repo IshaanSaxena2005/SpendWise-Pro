@@ -152,17 +152,6 @@ export const expenseAPI = {
   deleteExpense: (id: number) => api.delete<{ success: boolean; message?: string }>(`/expenses/delete/${id}`),
 };
 
-// Recurring Transactions API
-export const recurringAPI = {
-  getAll: () => api.get<{ success: boolean; data: any[] }>('/recurring'),
-  create: (data: { category_id: number; amount: number; note?: string; frequency: string; next_due_date: string }) =>
-    api.post<{ success: boolean; message?: string }>('/recurring', data),
-  update: (id: number, data: any) =>
-    api.put<{ success: boolean; message?: string }>(`/recurring/${id}`, data),
-  delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/recurring/${id}`),
-  pause: (id: number) => api.patch<{ success: boolean; message?: string }>(`/recurring/${id}/pause`),
-  resume: (id: number) => api.patch<{ success: boolean; message?: string }>(`/recurring/${id}/resume`),
-};
 export const categoryAPI = {
   getAllCategories: () => api.get<{ success: boolean; categories: Category[] }>('/categories/all'),
   addCategory: (data: { name: string; icon?: string; color?: string }) =>

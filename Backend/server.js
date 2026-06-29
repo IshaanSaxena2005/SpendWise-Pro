@@ -131,8 +131,7 @@ async function start() {
   }
 
   console.log("Before app.listen");
-  const recurringRoutes = require('./routes/recurring');
-  app.use('/api/recurring', recurringRoutes);
+
 
   // Start server
   app.listen(PORT, '0.0.0.0', () => {

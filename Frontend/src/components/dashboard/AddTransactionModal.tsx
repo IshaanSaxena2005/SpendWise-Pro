@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, ArrowRight } from 'lucide-react';
-import { expenseAPI, categoryAPI, recurringAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, type Transaction, type Category } from '../../lib/api';
 import { AddCategoryModal } from './AddCategoryModal';
 import { CategorySelect } from './CategorySelect';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
@@ -39,9 +39,7 @@ function TransactionForm({
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
   const [date, setDate] = useState(() => editTxn?.expense_date || getDefaultDate());
   const [notes, setNotes] = useState(() => editTxn?.note || '');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [frequency, setFrequency] = useState<'weekly'|'monthly'|'yearly'>('monthly');
-  const [nextDue, setNextDue] = useState('');
+
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,16 +63,7 @@ function TransactionForm({
           note: notes || title,
         });
       }
-      // After the normal expense creation, optionally create a recurring template
-      if (isRecurring) {
-        await recurringAPI.create({
-          category_id: Number(catId),
-          amount: Number(amount),
-          note: notes || title,
-          frequency,
-          next_due_date: nextDue,
-        });
-      }
+
       onTransactionChanged?.();
       notifyFinanceDataChanged();
       onClose();
@@ -139,41 +128,7 @@ function TransactionForm({
           onChange={(e) => setNotes(e.target.value)}
         />
       </div>
-      <div className="flex items-center mt-2">
-        <input
-          type="checkbox"
-          id="makeRecurring"
-          checked={isRecurring}
-          onChange={e => setIsRecurring(e.target.checked)}
-          className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-        />
-        <label htmlFor="makeRecurring" className="ml-2 text-sm font-medium text-gray-700">Make this recurring</label>
-      </div>
-      {isRecurring && (
-        <div className="mt-3 space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700">Frequency</label>
-            <select
-              value={frequency}
-              onChange={e => setFrequency(e.target.value as any)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700">Next Due Date</label>
-            <input
-              type="date"
-              value={nextDue}
-              onChange={e => setNextDue(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-            />
-          </div>
-        </div>
-      )}
+
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-black/60 hover:bg-black/5 transition-colors">
           Cancel
