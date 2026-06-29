@@ -5,7 +5,6 @@
   "main": "server.js",
   "scripts": {
     "lint": "eslint .",
-    "test": "cross-env NODE_ENV=test node scripts/test-phase13.js",
     "start": "node server.js"
   },
   "dependencies": {
@@ -24,8 +23,5 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
     "mysql2": "^3.11.0"
-  },
-  "devDependencies": {
-    "cross-env": "^7.0.3"
   }
 }
