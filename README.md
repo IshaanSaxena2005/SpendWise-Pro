@@ -12,7 +12,6 @@
 ## 🚀 Live Demo
 
 - Frontend: https://spendwise-pro-nu.vercel.app/
-- Backend API: Coming Soon
 
 ---
 
@@ -134,15 +133,41 @@ SpendWise-Pro/
 │   ├── app.py
 │   ├── model.py
 │   └── anomaly.py
+├── screenshots/
+│   ├── app.py
+│   ├── model.py
+│   └── anomaly.py
 ├── .env.example
 └── README.md
 ```
 
 ---
 
-## Screenshots
+## 📸 Screenshots
 
-🚧 Screenshots coming soon.
+### 🏠 Landing Page
+![Landing Page](screenshots/home.png)
+
+### 🔐 Login
+![Login](screenshots/login.png)
+
+### 📊 Dashboard
+![Dashboard](screenshots/dashboard.png)
+
+### 💰 Expense Management
+![Expense Management](screenshots/transactions.png)
+
+### 🎯 Budget Management
+![Budget Management](screenshots/budgets.png)
+
+### 📈 Analytics Dashboard
+![Analytics Dashboard](screenshots/analytics.png)
+
+### 🤖 AI Financial Assistant
+![AI Financial Assistant](screenshots/chatbot.png)
+
+### 👤 User Profile
+![User Profile](screenshots/profile.png)
 
 ---
 
