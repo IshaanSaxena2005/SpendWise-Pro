@@ -3,7 +3,6 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
 ![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js)
 ![Python](https://img.shields.io/badge/Python-Flask-3776AB?logo=python)
-![License](https://img.shields.io/badge/License-MIT-yellow)
 
 **AI-powered Personal Finance Management Platform** with expense tracking, budgeting, machine-learning forecasts, anomaly detection, and intelligent financial insights.
 
@@ -27,7 +26,6 @@
 - [API Overview](#api-overview)
 - [Deployment](#deployment)
 - [Author](#author)
-- [License](#license)
 
 ---
 
@@ -134,14 +132,18 @@ SpendWise-Pro/
 │   ├── model.py
 │   └── anomaly.py
 ├── screenshots/
-│   ├── app.py
-│   ├── model.py
-│   └── anomaly.py
+├   ├── home.png
+├   ├── login.png
+├   ├── dashboard.png
+├   ├── transactions.png
+├   ├── budgets.png
+├   ├── analytics.png
+├   ├── chatbot.png
+├   └── profile.png
 ├── .env.example
 └── README.md
-```
 
----
+```
 
 ## 📸 Screenshots
 
@@ -215,20 +217,37 @@ Runs on: `http://localhost:5173`
 ## Environment Variables
 
 ```env
-JWT_SECRET=
-DB_HOST=
-DB_PORT=
+MYSQL_ROOT_PASSWORD=
+DB_NAME=
 DB_USER=
 DB_PASSWORD=
-DB_NAME=spendwise
+DB_HOST=
+DB_PORT=
 
-SMTP_USER=
-SMTP_PASS=
+JWT_SECRET=
 
+NODE_ENV=
+
+BACKEND_URL=
 FRONTEND_URL=
 ML_SERVICE_URL=
 
-VITE_API_BASE_URL=<BACKEND_API_URL>/api
+CORS_ORIGIN=
+
+RESEND_API_KEY=
+
+GOOGLE_CLIENT_ID=
+
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+```
+
+### Frontend
+
+```env
+VITE_API_BASE_URL=
+VITE_GOOGLE_CLIENT_ID=
 ```
 
 ---
@@ -265,7 +284,7 @@ The application is deployed using modern cloud infrastructure:
 
 - **Frontend:** Vercel
 - **Backend API:** Railway
-- **ML Service:** Railway / Render
+- **ML Service:** Railway
 - **Database:** Railway MySQL
 
 ---
@@ -279,7 +298,3 @@ The application is deployed using modern cloud infrastructure:
 - Full-stack AI-powered personal finance platform
 
 ---
-
-## License
-
-This project is licensed under the **MIT License**.
