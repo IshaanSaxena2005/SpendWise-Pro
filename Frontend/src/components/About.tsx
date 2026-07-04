@@ -36,7 +36,7 @@ export function About() {
   }, []);
 
   return (
-    <section id="about" className="bg-white px-6 py-24 border-y border-black/5">
+    <section id="about" className="bg-white px-6 py-16 md:py-24 border-y border-black/5">
       <div className="max-w-[1400px] mx-auto">
         <div className="text-center mb-16 max-w-2xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-medium text-black mb-4" style={{ letterSpacing: '-0.02em' }}>
@@ -53,7 +53,7 @@ export function About() {
             <div
               key={i}
               data-delay={String(i * 110)}
-              className="reveal-card bg-[#F5F5F5] rounded-3xl p-8 border border-black/5 hover:border-black/20 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col items-start relative overflow-hidden cursor-default"
+              className="reveal-card bg-[#F5F5F5] rounded-3xl p-6 md:p-8 border border-black/5 hover:border-black/20 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col items-start relative overflow-hidden cursor-default"
             >
               <div className="absolute top-4 right-6 text-7xl font-extrabold text-black/5 select-none">
                 {step.num}
