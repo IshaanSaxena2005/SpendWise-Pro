@@ -38,7 +38,7 @@ export function DashboardCarousel() {
   }, []);
 
   return (
-    <section id="preview" className="bg-[#1A1A1A] px-6 py-12 relative overflow-hidden">
+    <section id="preview" className="bg-[#1A1A1A] px-3 sm:px-6 py-8 md:py-12 relative overflow-hidden">
       <div className="max-w-[88rem] mx-auto">
         <div className="text-center mb-8">
           <h2 className="text-3xl md:text-4xl font-medium text-white mb-3" style={{ letterSpacing: '-0.02em' }}>
@@ -49,12 +49,12 @@ export function DashboardCarousel() {
           </p>
         </div>
 
-        <div className="flex justify-center gap-3 mb-6 flex-wrap">
+        <div className="flex justify-start md:justify-center gap-3 mb-6 overflow-x-auto flex-nowrap md:flex-wrap [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           {mockups.map((m, i) => (
             <button
               key={i}
               onClick={() => setActive(i)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+              className={`px-3 md:px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 shrink-0 ${
                 active === i
                   ? 'bg-white text-black shadow-lg shadow-white/10'
                   : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
