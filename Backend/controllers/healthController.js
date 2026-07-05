@@ -101,11 +101,13 @@ async function calcSpendingConsistency(userId) {
 
   const [rows] = await pool.query(
     `SELECT
-       DATE_FORMAT(expense_date, '%Y-%m') AS ym,
-       SUM(amount) AS monthly_total
-     FROM expenses
-     WHERE user_id = ?
-       AND expense_date >= ?
+       DATE_FORMAT(e.expense_date, '%Y-%m') AS ym,
+       SUM(e.amount) AS monthly_total
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.expense_date >= ?
      GROUP BY ym
      ORDER BY ym`,
     [userId, threeMonthsAgo]
@@ -160,6 +162,7 @@ async function calcCategoryBalance(userId) {
      FROM expenses e
      JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
        AND e.expense_date >= ?
      GROUP BY e.category_id, c.name`,
     [userId, threeMonthsAgo]
@@ -223,10 +226,12 @@ async function calcExpenseActivity(userId) {
 
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS cnt,
-            COUNT(DISTINCT expense_date) AS active_days
-     FROM expenses
-     WHERE user_id = ?
-       AND expense_date >= ?`,
+            COUNT(DISTINCT e.expense_date) AS active_days
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.expense_date >= ?`,
     [userId, since]
   );
 

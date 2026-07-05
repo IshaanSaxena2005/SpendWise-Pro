@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Brain, X, Send, User } from 'lucide-react';
 import { aiAPI } from '../../lib/api';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   id: string;
@@ -105,7 +106,22 @@ export function AskSpendWiseAI() {
                   {msg.role === 'user' ? <User className="w-4 h-4 text-black/50" /> : <Brain className="w-4 h-4" />}
                 </div>
                 <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-black text-white rounded-tr-sm' : 'bg-white border border-black/5 text-black/80 rounded-tl-sm shadow-sm'}`}>
-                  {msg.content}
+                  {msg.role === 'ai' ? (
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-1">{children}</ol>,
+                        li: ({ children }) => <li className="ml-1">{children}</li>,
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             </div>

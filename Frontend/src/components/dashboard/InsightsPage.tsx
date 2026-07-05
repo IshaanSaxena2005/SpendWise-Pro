@@ -33,7 +33,65 @@ const generateDynamicInsights = (
 ) => {
   const insights: { type: InsightType; title: string; text: string }[] = [];
 
-  if (budgets.length === 0 && transactions.length > 0) {
+  // Calculate totals
+  const totalExpenses = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+  const incomeCategories = ['Salary', 'Freelance'];
+  const incomeTransactions = transactions.filter(t => incomeCategories.includes(t.category?.name || ''));
+  const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+  const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
+
+  // 1. Savings Rate Insight
+  if (totalIncome > 0) {
+    if (savingsRate >= 20) {
+      insights.push({
+        type: 'success',
+        title: 'Excellent Savings Rate',
+        text: `You're saving ${savingsRate.toFixed(1)}% of your income. This is above the recommended 20% threshold!`,
+      });
+    } else if (savingsRate >= 10) {
+      insights.push({
+        type: 'info',
+        title: 'Moderate Savings Rate',
+        text: `Your savings rate is ${savingsRate.toFixed(1)}%. Aim to increase it to 20% for better financial security.`,
+      });
+    } else if (savingsRate < 0) {
+      insights.push({
+        type: 'danger',
+        title: 'Negative Savings Rate',
+        text: `You're spending more than you earn by ${Math.abs(savingsRate).toFixed(1)}%. Review your expenses urgently.`,
+      });
+    }
+  }
+
+  // 2. Budget Adherence Insight
+  if (budgets.length > 0) {
+    const overBudgetCount = budgets.filter(b => {
+      const spent = transactions
+        .filter(t => t.category_id === b.category_id)
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      return spent > Number(b.amount_limit);
+    }).length;
+
+    if (overBudgetCount === 0) {
+      insights.push({
+        type: 'success',
+        title: 'Perfect Budget Adherence',
+        text: `All ${budgets.length} budgets are within limits. Great discipline in managing your spending!`,
+      });
+    } else if (overBudgetCount === 1) {
+      insights.push({
+        type: 'warning',
+        title: 'Budget Exceeded',
+        text: `One budget has been exceeded. Review that category to get back on track.`,
+      });
+    } else {
+      insights.push({
+        type: 'danger',
+        title: 'Multiple Budgets Exceeded',
+        text: `${overBudgetCount} budgets have been exceeded. Prioritize reviewing your spending habits.`,
+      });
+    }
+  } else if (transactions.length > 0) {
     insights.push({
       type: 'warning',
       title: 'No Budgets Set',
@@ -41,29 +99,119 @@ const generateDynamicInsights = (
     });
   }
 
+  // 3. Highest Spending Category
   if (categoryBreakdown.length > 0) {
     const topCategory = categoryBreakdown[0];
+    const totalSpending = categoryBreakdown.reduce((sum, c) => sum + c.total, 0);
+    const percentage = totalSpending > 0 ? (topCategory.total / totalSpending) * 100 : 0;
+    
     insights.push({
       type: 'info',
-      title: 'Spending Concentration',
-      text: `${getCategoryIcon(topCategory.category)} ${topCategory.category} is your top spending category, accounting for ₹${Math.round(topCategory.total).toLocaleString('en-IN')} of your expenses.`,
+      title: 'Top Spending Category',
+      text: `${getCategoryIcon(topCategory.category)} ${topCategory.category} accounts for ${percentage.toFixed(1)}% of your spending (₹${Math.round(topCategory.total).toLocaleString('en-IN')}).`,
     });
   }
 
+  // 4. Income Stability
+  if (incomeTransactions.length >= 2) {
+    const monthlyIncome: Record<string, number> = {};
+    incomeTransactions.forEach(t => {
+      const month = t.expense_date?.substring(0, 7) || 'unknown';
+      monthlyIncome[month] = (monthlyIncome[month] || 0) + Number(t.amount);
+    });
+    
+    const incomeValues = Object.values(monthlyIncome);
+    const avgIncome = incomeValues.reduce((a, b) => a + b, 0) / incomeValues.length;
+    const variance = incomeValues.reduce((sum, val) => sum + Math.pow(val - avgIncome, 2), 0) / incomeValues.length;
+    const cv = avgIncome > 0 ? Math.sqrt(variance) / avgIncome : 0;
+
+    if (cv < 0.1) {
+      insights.push({
+        type: 'success',
+        title: 'Stable Income',
+        text: 'Your income is very stable month-to-month. This consistency helps with financial planning.',
+      });
+    } else if (cv < 0.25) {
+      insights.push({
+        type: 'info',
+        title: 'Moderate Income Variation',
+        text: 'Your income varies moderately. Consider building an emergency fund for stability.',
+      });
+    } else {
+      insights.push({
+        type: 'warning',
+        title: 'Variable Income',
+        text: 'Your income fluctuates significantly. Build a larger emergency buffer (3-6 months expenses).',
+      });
+    }
+  }
+
+  // 5. Monthly Spending Trend
+  if (transactions.length >= 2) {
+    const monthlySpending: Record<string, number> = {};
+    transactions
+      .filter(t => !incomeCategories.includes(t.category?.name || ''))
+      .forEach(t => {
+        const month = t.expense_date?.substring(0, 7) || 'unknown';
+        monthlySpending[month] = (monthlySpending[month] || 0) + Number(t.amount);
+      });
+
+    const months = Object.keys(monthlySpending).sort();
+    if (months.length >= 2) {
+      const lastMonth = monthlySpending[months[months.length - 1]] || 0;
+      const prevMonth = monthlySpending[months[months.length - 2]] || 0;
+      const trend = prevMonth > 0 ? ((lastMonth - prevMonth) / prevMonth) * 100 : 0;
+
+      if (trend > 10) {
+        insights.push({
+          type: 'warning',
+          title: 'Spending Increasing',
+          text: `Your spending increased by ${trend.toFixed(1)}% compared to last month. Review discretionary expenses.`,
+        });
+      } else if (trend < -10) {
+        insights.push({
+          type: 'success',
+          title: 'Spending Decreased',
+          text: `Great job! Your spending decreased by ${Math.abs(trend).toFixed(1)}% compared to last month.`,
+        });
+      } else {
+        insights.push({
+          type: 'info',
+          title: 'Stable Spending',
+          text: 'Your spending is relatively stable month-to-month, indicating good financial discipline.',
+        });
+      }
+    }
+  }
+
+  // 6. Financial Health Score
   if (healthScore >= 80) {
     insights.push({
       type: 'success',
-      title: 'Great Financial Health!',
-      text: 'Your financial health score is excellent! Keep up the great work with budgeting and saving.',
+      title: 'Excellent Financial Health',
+      text: `Your financial health score is ${healthScore}/100. Keep up the great work with budgeting and saving!`,
     });
-  } else if (healthScore < 60) {
+  } else if (healthScore >= 60) {
+    insights.push({
+      type: 'info',
+      title: 'Good Financial Health',
+      text: `Your financial health score is ${healthScore}/100. Small improvements could push it to excellent.`,
+    });
+  } else if (healthScore >= 40) {
     insights.push({
       type: 'warning',
+      title: 'Fair Financial Health',
+      text: `Your financial health score is ${healthScore}/100. Focus on budget adherence and spending consistency.`,
+    });
+  } else {
+    insights.push({
+      type: 'danger',
       title: 'Financial Health Needs Attention',
-      text: 'Your financial health score could be improved. Consider adding budgets and tracking expenses more closely.',
+      text: `Your financial health score is ${healthScore}/100. Prioritize setting budgets and tracking expenses.`,
     });
   }
 
+  // 7. Data Volume Reminder
   if (transactions.length < 5) {
     insights.push({
       type: 'info',
@@ -72,7 +220,7 @@ const generateDynamicInsights = (
     });
   }
 
-  return insights.length > 0 ? insights : [];
+  return insights.length > 0 ? insights.slice(0, 8) : [];
 };
 
 export function InsightsPage() {
@@ -81,6 +229,7 @@ export function InsightsPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<{ category: string; total: number }[]>([]);
   const [aiScore, setAiScore] = useState(0);
+  const [healthFactors, setHealthFactors] = useState<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +262,7 @@ export function InsightsPage() {
         setBudgets(budData);
         setCategoryBreakdown(byCategory);
         setAiScore(healthRes.data.score || 0);
+        setHealthFactors(healthRes.data.factors || null);
       } catch (err) {
         console.error(err);
       } finally {
@@ -158,7 +308,7 @@ export function InsightsPage() {
             const Icon = style.Icon;
             return (
               <div
-                key={i}
+                key={`${ins.type}-${ins.title}-${i}`}
                 className={`rounded-2xl border p-5 flex flex-col md:flex-row items-start gap-4 ${style.bg} ${style.border} group transition-all hover:shadow-md`}
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white shadow-sm border border-black/5">
@@ -231,9 +381,58 @@ export function InsightsPage() {
               </div>
             </div>
 
-            <p className="text-xs text-black/40 leading-relaxed">
+            <p className="text-xs text-black/40 leading-relaxed mb-4">
               Based on your budget adherence, spending consistency, and activity.
             </p>
+
+            {/* Health Score Breakdown */}
+            {healthFactors && (
+              <div className="space-y-3 pt-3 border-t border-black/5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-black/60 font-medium">Budget Adherence</span>
+                  <span className="text-black font-semibold">{healthFactors.budgetAdherence.score}/{healthFactors.budgetAdherence.maxScore}</span>
+                </div>
+                <div className="h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${(healthFactors.budgetAdherence.score / healthFactors.budgetAdherence.maxScore) * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-black/60 font-medium">Spending Control</span>
+                  <span className="text-black font-semibold">{healthFactors.spendingConsistency.score}/{healthFactors.spendingConsistency.maxScore}</span>
+                </div>
+                <div className="h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${(healthFactors.spendingConsistency.score / healthFactors.spendingConsistency.maxScore) * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-black/60 font-medium">Category Balance</span>
+                  <span className="text-black font-semibold">{healthFactors.categoryBalance.score}/{healthFactors.categoryBalance.maxScore}</span>
+                </div>
+                <div className="h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 rounded-full transition-all duration-500"
+                    style={{ width: `${(healthFactors.categoryBalance.score / healthFactors.categoryBalance.maxScore) * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-black/60 font-medium">Expense Activity</span>
+                  <span className="text-black font-semibold">{healthFactors.expenseActivity.score}/{healthFactors.expenseActivity.maxScore}</span>
+                </div>
+                <div className="h-1.5 bg-[#F5F5F5] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                    style={{ width: `${(healthFactors.expenseActivity.score / healthFactors.expenseActivity.maxScore) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Top Spending Categories */}

@@ -20,7 +20,13 @@ const generateIntelligence = async (userId) => {
 
     // 1. Fetch raw data
     const [categories] = await connection.query('SELECT * FROM categories WHERE user_id = ?', [userId]);
-    const [expenses] = await connection.query('SELECT * FROM expenses WHERE user_id = ? ORDER BY expense_date DESC', [userId]);
+    const [expenses] = await connection.query(
+      `SELECT e.* FROM expenses e
+       JOIN categories c ON c.id = e.category_id
+       WHERE e.user_id = ? AND c.name NOT IN ('Salary', 'Freelance')
+       ORDER BY e.expense_date DESC`,
+      [userId]
+    );
     const [budgets] = await connection.query('SELECT * FROM budgets WHERE user_id = ?', [userId]);
 
     // Clear old dynamically generated insights and recommendations (we want fresh ones)
@@ -49,6 +55,9 @@ const generateIntelligence = async (userId) => {
       return expArray.filter(e => e.category_id === catId).reduce((sum, e) => sum + parseFloat(e.amount), 0);
     };
 
+    // Filter out income categories from category list for spending analysis
+    const expenseCategories = categories.filter(c => !['Salary', 'Freelance'].includes(c.name));
+
     // --- A. BUDGET RISK DETECTION ---
     for (const budget of budgets) {
       const budgetMonthStr = budget.month; // e.g., '2026-06-01'
@@ -76,7 +85,7 @@ const generateIntelligence = async (userId) => {
     }
 
     // --- B. SPENDING TRENDS & SAVINGS OPPORTUNITIES ---
-    for (const cat of categories) {
+    for (const cat of expenseCategories) {
       const currentTotal = getCategoryTotal(currentMonthExpenses, cat.id);
       const lastTotal = getCategoryTotal(lastMonthExpenses, cat.id);
 

@@ -320,14 +320,21 @@ export function DashboardOverview() {
             </div>
             {loadingForecast ? (
               <div className="text-sm opacity-80">Loading forecast...</div>
-            ) : forecast?.message ? (
+            ) : forecast?.message && !forecast.predicted_spending ? (
               <div className="text-sm opacity-80">{forecast.message}</div>
             ) : (
               <>
                 <div className="text-3xl font-bold mb-1 tracking-tight">
                   {forecast?.predicted_spending ? fmt(forecast.predicted_spending) : '—'}
                 </div>
-                <div className="text-xs font-medium opacity-80 mb-5">Predicted Spending</div>
+                <div className="text-xs font-medium opacity-80 mb-2">
+                  {forecast?.is_low_confidence ? 'Low-Confidence Estimate' : 'Predicted Spending'}
+                </div>
+                {forecast?.is_low_confidence && (
+                  <div className="text-[10px] opacity-70 mb-3">
+                    Confidence: {forecast.confidence}% • {forecast.message}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
                     <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>

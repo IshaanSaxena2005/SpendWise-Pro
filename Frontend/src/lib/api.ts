@@ -107,6 +107,8 @@ export interface Forecast {
   rmse?: number;
   r2_score?: number;
   message?: string;
+  confidence?: number;
+  is_low_confidence?: boolean;
 }
 
 export interface Prediction {

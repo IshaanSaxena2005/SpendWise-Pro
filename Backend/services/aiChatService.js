@@ -29,19 +29,19 @@ const SUPPORTED_QUERIES = {
 async function getThisMonthSpending(userId) {
   const [[currentMonth]] = await pool.query(
     `SELECT
-      COALESCE(SUM(amount), 0) AS current_month_spending
-    FROM expenses
-    WHERE user_id = ?
-      AND MONTH(expense_date) = MONTH(CURDATE())
-      AND YEAR(expense_date) = YEAR(CURDATE())`,
+      COALESCE(SUM(e.amount), 0) AS current_month_spending
+    FROM expenses e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
+      AND MONTH(e.expense_date) = MONTH(CURDATE())
+      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
     [userId]
   );
   return `You have spent ₹${Number(currentMonth.current_month_spending).toFixed(2)} this month.`;
 }
 
 async function getTopSpendingCategory(userId) {
-  console.log("AI User ID:", userId);
-
   const [rows] = await pool.query(
     `SELECT
       c.name AS category_name,
@@ -49,6 +49,7 @@ async function getTopSpendingCategory(userId) {
     FROM expenses e
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
       AND MONTH(e.expense_date) = MONTH(CURDATE())
       AND YEAR(e.expense_date) = YEAR(CURDATE())
     GROUP BY c.id, c.name
@@ -56,8 +57,6 @@ async function getTopSpendingCategory(userId) {
     LIMIT 1`,
     [userId]
   );
-
-  console.log("Top Category Query Result:", rows);
 
   if (rows.length === 0) {
     return "You don't have any spending data yet.";
@@ -95,11 +94,13 @@ async function getCategoryNeedingAttention(userId) {
 async function checkOverspending(userId) {
   const [[currentMonth]] = await pool.query(
     `SELECT
-      COALESCE(SUM(amount), 0) AS current_month_spending
-    FROM expenses
-    WHERE user_id = ?
-      AND MONTH(expense_date) = MONTH(CURDATE())
-      AND YEAR(expense_date) = YEAR(CURDATE())`,
+      COALESCE(SUM(e.amount), 0) AS current_month_spending
+    FROM expenses e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
+      AND MONTH(e.expense_date) = MONTH(CURDATE())
+      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
     [userId]
   );
   
@@ -208,21 +209,25 @@ async function showBudgetStatus(userId) {
 async function compareThisVsLastMonth(userId) {
   const [[thisMonth]] = await pool.query(
     `SELECT
-      COALESCE(SUM(amount), 0) AS total
-    FROM expenses
-    WHERE user_id = ?
-      AND MONTH(expense_date) = MONTH(CURDATE())
-      AND YEAR(expense_date) = YEAR(CURDATE())`,
+      COALESCE(SUM(e.amount), 0) AS total
+    FROM expenses e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
+      AND MONTH(e.expense_date) = MONTH(CURDATE())
+      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
     [userId]
   );
 
   const [[lastMonth]] = await pool.query(
     `SELECT
-      COALESCE(SUM(amount), 0) AS total
-    FROM expenses
-    WHERE user_id = ?
-      AND MONTH(expense_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-      AND YEAR(expense_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)`,
+      COALESCE(SUM(e.amount), 0) AS total
+    FROM expenses e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
+      AND MONTH(e.expense_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
+      AND YEAR(e.expense_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)`,
     [userId]
   );
 
