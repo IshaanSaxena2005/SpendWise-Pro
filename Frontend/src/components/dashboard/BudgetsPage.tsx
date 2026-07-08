@@ -14,6 +14,7 @@ import {
   getBudgetStatus,
 } from '../../lib/budgetUtils';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
+import { getCurrentMonthForInput } from '../../lib/dateUtils';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance'];
 
@@ -50,9 +51,7 @@ export function BudgetsPage() {
       setCatId((prev) => prev || String(categoriesData[0].id));
     }
 
-    const now = new Date();
-    const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    setMonth((prev) => prev || defaultMonth);
+    setMonth((prev) => prev || getCurrentMonthForInput());
   }, []);
 
   useEffect(() => {

@@ -4,16 +4,13 @@ import { expenseAPI, categoryAPI, type Transaction, type Category } from '../../
 import { AddCategoryModal } from './AddCategoryModal';
 import { CategorySelect } from './CategorySelect';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
+import { formatDateForInput, getCurrentDateForInput } from '../../lib/dateUtils';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   editTxn?: Transaction | null;
   onTransactionChanged?: () => void;
-}
-
-function getDefaultDate() {
-  return new Date().toISOString().split('T')[0];
 }
 
 interface FormProps {
@@ -37,7 +34,7 @@ function TransactionForm({
 }: FormProps) {
   const [title, setTitle] = useState(() => editTxn?.note || '');
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
-  const [date, setDate] = useState(() => editTxn?.expense_date || getDefaultDate());
+  const [date, setDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
   const [notes, setNotes] = useState(() => editTxn?.note || '');
 
   const [loading, setLoading] = useState(false);

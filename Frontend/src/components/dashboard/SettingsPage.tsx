@@ -4,6 +4,7 @@ import { Bell, Database, AlertTriangle, Shield, Save, LogOut, Download, User as 
 import { getUser, expenseAPI, budgetAPI, categoryAPI, type Transaction, type Budget, type Category } from '../../lib/api';
 import api from '../../lib/api';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
+import { formatDate } from '../../lib/dateUtils';
 
 // Types for JSZip dynamic loading
 interface JSZipInstance {
@@ -107,7 +108,7 @@ export function SettingsPage() {
       ['Date', 'Description', 'Category', 'Amount', 'Notes'],
       ...transactions.map(t => {
         const cat = categories.find(c => c.id === t.category_id);
-        return [t.expense_date, t.note || '', cat?.name || '', t.amount, t.note];
+        return [formatDate(t.expense_date), t.note || '', cat?.name || '', t.amount, t.note];
       })
     ];
     const csv = rows.map(r => r.join(',')).join('\n');

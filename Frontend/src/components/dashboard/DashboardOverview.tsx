@@ -6,16 +6,13 @@ import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount, computeBudgetSummary, computeBudgetUtilization, getBudgetBarColor } from '../../lib/budgetUtils';
+import { formatDate } from '../../lib/dateUtils';
 
 function fmt(n: number | string) {
   return '₹' + Math.floor(toAmount(n)).toLocaleString('en-IN');
 }
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance'];
-
-function fmtDate(d: string) {
-  return d ? d.slice(0, 10) : '';
-}
 
 export function DashboardOverview() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
@@ -237,7 +234,7 @@ export function DashboardOverview() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-black leading-none mb-1 group-hover:text-violet-600 transition-colors">{t.note || 'Expense'}</p>
-                        <p className="text-[11px] text-black/50 font-medium">{cat?.name || 'Unknown'} <span className="opacity-50 mx-1">•</span> {fmtDate(t.expense_date)}</p>
+                        <p className="text-[11px] text-black/50 font-medium">{cat?.name || 'Unknown'} <span className="opacity-50 mx-1">•</span> {formatDate(t.expense_date)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -378,7 +375,7 @@ export function DashboardOverview() {
                   <div key={idx} className="p-3 border border-amber-100 bg-amber-50 rounded-xl">
                     <div className="text-sm font-medium text-amber-900">{anomaly.title}</div>
                     <div className="text-xs text-amber-700 mt-1">{anomaly.description}</div>
-                    <div className="text-[10px] text-amber-600 mt-1">{new Date(anomaly.created_at).toLocaleDateString()}</div>
+                    <div className="text-[10px] text-amber-600 mt-1">{formatDate(anomaly.created_at)}</div>
                   </div>
                 ))}
               </div>

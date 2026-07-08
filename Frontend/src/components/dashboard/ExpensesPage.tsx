@@ -6,6 +6,7 @@ import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount } from '../../lib/budgetUtils';
+import { formatDate } from '../../lib/dateUtils';
 
 const PAGE_SIZE = 10;
 
@@ -92,7 +93,7 @@ export function ExpensesPage() {
       ['Date', 'Description', 'Category', 'Amount', 'Notes'],
       ...filtered.map((t) => {
         const cat = categories.find((c) => c.id === t.category_id);
-        return [t.expense_date, t.note || 'Expense', cat?.name || '', t.amount, t.note];
+        return [formatDate(t.expense_date), t.note || 'Expense', cat?.name || '', t.amount, t.note];
       }),
     ];
     const csv = rows.map((r) => r.join(',')).join('\n');
@@ -275,7 +276,7 @@ export function ExpensesPage() {
                   const cat = categories.find((c) => c.id === t.category_id);
                   return (
                     <tr key={t.id} className="hover:bg-[#F5F5F5]/50 transition-colors group">
-                      <td className="px-5 py-3 text-sm text-black/50">{t.expense_date.slice(0, 10)}</td>
+                      <td className="px-5 py-3 text-sm text-black/50">{formatDate(t.expense_date)}</td>
                       <td className="px-5 py-3 text-sm font-medium text-black">
                         <CategoryEmoji icon={getCategoryIcon(cat)} className="mr-1.5" />
                         {t.note || 'Expense'}
