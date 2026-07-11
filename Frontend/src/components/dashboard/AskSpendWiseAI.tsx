@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Brain, X, Send, User } from 'lucide-react';
+import { X, Send, User } from 'lucide-react';
 import { aiAPI } from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
 
@@ -81,8 +81,8 @@ export function AskSpendWiseAI() {
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-600 to-violet-800 p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-              <Brain className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm overflow-hidden shrink-0">
+              <img src="/chatbot.png" alt="SpendWise AI" className="w-full h-full object-cover rounded-xl" />
             </div>
             <div>
               <h3 className="font-bold text-white tracking-tight">Ask SpendWise AI</h3>
@@ -102,8 +102,8 @@ export function AskSpendWiseAI() {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-[#F5F5F5] border border-black/5' : 'bg-violet-100 text-violet-600'}`}>
-                  {msg.role === 'user' ? <User className="w-4 h-4 text-black/50" /> : <Brain className="w-4 h-4" />}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-[#F5F5F5] border border-black/5' : 'bg-violet-100 text-violet-600 overflow-hidden'}`}>
+                  {msg.role === 'user' ? <User className="w-4 h-4 text-black/50" /> : <img src="/chatbot.png" alt="SpendWise AI" className="w-full h-full object-cover rounded-full" />}
                 </div>
                 <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-black text-white rounded-tr-sm' : 'bg-white border border-black/5 text-black/80 rounded-tl-sm shadow-sm'}`}>
                   {msg.role === 'ai' ? (
@@ -130,8 +130,8 @@ export function AskSpendWiseAI() {
           {isTyping && (
             <div className="flex justify-start">
               <div className="flex gap-3 max-w-[85%] flex-row">
-                <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
-                  <Brain className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img src="/chatbot.png" alt="SpendWise AI" className="w-full h-full object-cover rounded-full" />
                 </div>
                 <div className="p-4 rounded-2xl bg-white border border-black/5 rounded-tl-sm shadow-sm flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-black/30 rounded-full animate-bounce"></span>
