@@ -1,8 +1,16 @@
 const pool = require('../config/db');
 const { checkAnomaly } = require('../services/anomalyService');
+const { DEMO_EMAIL } = require('../config/constants');
 
 const addExpense = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { category_id, amount, expense_date, note, title } = req.body;
     const expenseNote = note || title;
@@ -80,6 +88,13 @@ const getExpenses = async (req, res) => {
 
 const updateExpense = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { id } = req.params;
     const { amount, category_id, expense_date, note, title } = req.body;
@@ -111,6 +126,13 @@ const updateExpense = async (req, res) => {
 
 const deleteExpense = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { id } = req.params;
 

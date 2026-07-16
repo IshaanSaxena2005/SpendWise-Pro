@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { DEMO_EMAIL } = require('../config/constants');
 
 function normalizeBudgetMonth(value) {
   if (value === null || value === undefined || value === '') {
@@ -28,6 +29,13 @@ function normalizeBudgetMonth(value) {
 
 const createBudget = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { category_id, amount_limit } = req.body;
     const categoryId = category_id ?? null;
@@ -118,6 +126,13 @@ const getBudgets = async (req, res) => {
 
 const updateBudget = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { id } = req.params;
     const { category_id, amount_limit } = req.body;
@@ -183,6 +198,13 @@ const updateBudget = async (req, res) => {
 
 const deleteBudget = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
     const { id } = req.params;
 

@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus } from 'lucide-react';
-import { expenseAPI, categoryAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, analyticsAPI, type Transaction, type Category } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
+import { getUser } from '../../lib/auth';
+import { DEMO_EMAIL } from '../../lib/constants';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 30;
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance'];
 
@@ -17,22 +19,36 @@ function fmt(n: number) { return '₹' + Math.floor(toAmount(n)).toLocaleString(
 export function ExpensesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dashboardSummary, setDashboardSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+  });
   const [page, setPage] = useState(1);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [readOnlyMessage, setReadOnlyMessage] = useState(false);
+
+  const user = getUser();
+  const isDemoUser = user?.email === DEMO_EMAIL;
 
   const fetchFinanceData = useCallback(async () => {
-    const [txRes, catRes] = await Promise.all([
+    const [txRes, catRes, summaryRes] = await Promise.all([
       expenseAPI.getAllExpenses(),
       categoryAPI.getAllCategories(),
+      analyticsAPI.getDashboardSummary(),
     ]);
     setTransactions(txRes.data.expenses || []);
     setCategories(catRes.data.categories || []);
+    setDashboardSummary(summaryRes.data.summary || null);
   }, []);
 
   useEffect(() => {
@@ -74,10 +90,24 @@ export function ExpensesPage() {
     });
   }, [transactions, search, catFilter, dateFrom, dateTo]);
 
+  // For summary cards, only use date filters (not search/category) to match Dashboard
+  const summaryFiltered = useMemo(() => {
+    return transactions.filter((t) => {
+      const matchFrom = !dateFrom || t.expense_date >= dateFrom;
+      const matchTo = !dateTo || t.expense_date <= dateTo;
+      return matchFrom && matchTo;
+    });
+  }, [transactions, dateFrom, dateTo]);
+
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleDelete = async (id: number) => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
     if (confirm('Delete this transaction?')) {
       try {
         await expenseAPI.deleteExpense(id);
@@ -111,6 +141,24 @@ export function ExpensesPage() {
     );
   }
 
+  const handleAdd = () => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
+    setModalOpen(true);
+  };
+
+  const handleEdit = (txn: Transaction) => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
+    setEditTxn(txn);
+  };
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
@@ -119,12 +167,19 @@ export function ExpensesPage() {
           <p className="text-sm text-black/50">Manage and track every transaction</p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors"
+          onClick={handleAdd}
+          disabled={isDemoUser}
+          className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" /> Add
         </button>
       </div>
+
+      {readOnlyMessage && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium">
+          Demo mode is read-only. Create your own account to manage personal finances.
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
@@ -186,46 +241,28 @@ export function ExpensesPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'TOTAL TRANSACTIONS', value: filtered.length, color: 'text-black' },
+          { label: 'TRANSACTIONS THIS MONTH', value: summaryFiltered.length, color: 'text-black' },
           {
-            label: 'TOTAL EXPENSES',
-            value: fmt(filtered.reduce((s, t) => {
-              const cat = categories.find((c) => c.id === t.category_id);
-              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
-            }, 0)),
+            label: 'EXPENSES THIS MONTH',
+            value: fmt(dashboardSummary?.current_month_spending || 0),
             color: 'text-rose-500',
           },
           {
-            label: 'TOTAL INCOME',
-            value: fmt(filtered.reduce((s, t) => {
-              const cat = categories.find((c) => c.id === t.category_id);
-              return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
-            }, 0)),
+            label: 'INCOME THIS MONTH',
+            value: fmt(dashboardSummary?.current_month_income || 0),
             color: 'text-green-600',
           },
           {
-            label: 'NET FLOW',
+            label: 'MONTHLY SAVINGS',
             value: (() => {
-              const income = filtered.reduce((s, t) => {
-                const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
-              }, 0);
-              const expense = filtered.reduce((s, t) => {
-                const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
-              }, 0);
+              const income = dashboardSummary?.current_month_income || 0;
+              const expense = dashboardSummary?.current_month_spending || 0;
               const net = income - expense;
               return (net >= 0 ? '+' : '-') + fmt(Math.abs(net));
             })(),
             color: (() => {
-              const income = filtered.reduce((s, t) => {
-                const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s + toAmount(t.amount) : s;
-              }, 0);
-              const expense = filtered.reduce((s, t) => {
-                const cat = categories.find((c) => c.id === t.category_id);
-                return INCOME_CATEGORIES.includes(cat?.name ?? '') ? s : s + toAmount(t.amount);
-              }, 0);
+              const income = dashboardSummary?.current_month_income || 0;
+              const expense = dashboardSummary?.current_month_spending || 0;
               return income - expense >= 0 ? 'text-violet-600' : 'text-rose-500';
             })(),
           },
@@ -299,14 +336,16 @@ export function ExpensesPage() {
                       <td className="px-5 py-3">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setEditTxn(t)}
-                            className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                            onClick={() => handleEdit(t)}
+                            disabled={isDemoUser}
+                            className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDelete(t.id)}
-                            className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                            disabled={isDemoUser}
+                            className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

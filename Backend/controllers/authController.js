@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 const { OAuth2Client } = require('google-auth-library');
+const { DEMO_EMAIL } = require('../config/constants');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -143,6 +144,13 @@ const login = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const { full_name } = req.body;
     const userId = req.user.id;
 
@@ -265,6 +273,13 @@ const resendVerification = async (req, res) => {
 const deleteAccount = async (req, res) => {
   let connection;
   try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
+
     const userId = req.user.id;
 
     // Verify user exists
@@ -341,6 +356,14 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
+
+    // Check if demo user is trying to reset password
+    if (email === DEMO_EMAIL) {
+      return res.status(403).json({
+        success: false,
+        message: 'Demo mode is read-only. Create your own account to manage personal finances.'
+      });
+    }
 
     if (!email || !token || !newPassword) {
       return res.status(400).json({ success: false, message: 'Missing required fields.' });

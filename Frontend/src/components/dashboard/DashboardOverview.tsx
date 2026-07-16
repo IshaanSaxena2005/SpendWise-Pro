@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Wallet, Brain, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly } from '../../lib/api';
+import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly } from '../../lib/api';
 import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
@@ -25,6 +25,7 @@ export function DashboardOverview() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loadingAnomalies, setLoadingAnomalies] = useState<boolean>(true);
   const [aiScore, setAiScore] = useState<number>(0);
+  const [dashboardSummary, setDashboardSummary] = useState<any>(null);
 
 
   // ──────────────────────────────────────────────────────
@@ -33,16 +34,18 @@ export function DashboardOverview() {
   async function loadData() {
     try {
       setLoading(true);
-      const [txRes, catRes, budRes, healthRes] = await Promise.all([
+      const [txRes, catRes, budRes, healthRes, summaryRes] = await Promise.all([
         expenseAPI.getAllExpenses(),
         categoryAPI.getAllCategories(),
         budgetAPI.getAllBudgets(),
         healthAPI.getHealthScore(),
+        analyticsAPI.getDashboardSummary(),
       ]);
       setTransactions(txRes.data.expenses || []);
       setCategories(catRes.data.categories || []);
       setBudgets(budRes.data.budgets || []);
       setAiScore(healthRes.data.score || 0);
+      setDashboardSummary(summaryRes.data.summary || null);
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     } finally {
@@ -56,11 +59,12 @@ export function DashboardOverview() {
     void (async () => {
       try {
         setLoading(true);
-        const [txRes, catRes, budRes, healthRes] = await Promise.all([
+        const [txRes, catRes, budRes, healthRes, summaryRes] = await Promise.all([
           expenseAPI.getAllExpenses(),
           categoryAPI.getAllCategories(),
           budgetAPI.getAllBudgets(),
           healthAPI.getHealthScore(),
+          analyticsAPI.getDashboardSummary(),
         ]);
 
         if (cancelled) return;
@@ -69,6 +73,7 @@ export function DashboardOverview() {
         setCategories(catRes.data.categories || []);
         setBudgets(budRes.data.budgets || []);
         setAiScore(healthRes.data.score || 0);
+        setDashboardSummary(summaryRes.data.summary || null);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
       } finally {
@@ -162,28 +167,30 @@ export function DashboardOverview() {
   }
 
   const incomeCategories = INCOME_CATEGORIES;
-  // Compute totals
-  const totalIncome = transactions.reduce((sum, t) => {
-    const cat = categories.find((c) => c.id === t.category_id);
-    return cat && incomeCategories.includes(cat.name) ? sum + toAmount(t.amount) : sum;
-  }, 0);
-  const totalExpenses = transactions.reduce((sum, t) => {
-    const cat = categories.find((c) => c.id === t.category_id);
-    return cat && incomeCategories.includes(cat.name) ? sum : sum + toAmount(t.amount);
-  }, 0);
-  const totalBalance = totalIncome - totalExpenses;
-  const expenseOnly = transactions.filter((t) => {
+  // Use dashboard summary for current month totals (consistent with Budgets/Forecast)
+  const currentMonthIncome = dashboardSummary?.current_month_income || 0;
+  const currentMonthExpenses = dashboardSummary?.current_month_spending || 0;
+  const currentMonthBalance = dashboardSummary?.current_month_balance || 0;
+  const currentMonthBudgetLeft = dashboardSummary?.budget_remaining || 0;
+  
+  // For recent transactions and budget utilization, use current month data
+  const currentMonthTransactions = transactions.filter((t) => {
+    const isCurrentMonth = new Date(t.expense_date).getMonth() === new Date().getMonth() &&
+                          new Date(t.expense_date).getFullYear() === new Date().getFullYear();
+    return isCurrentMonth;
+  });
+
+  const expenseOnly = currentMonthTransactions.filter((t) => {
     const cat = categories.find((c) => c.id === t.category_id);
     return !cat || !incomeCategories.includes(cat.name);
   });
-  const budgetSummary = computeBudgetSummary(budgets, expenseOnly);
-  const totalBudgetLeft = budgetSummary.remaining;
-  // Metric cards data
+  
+  // Metric cards data - using current month totals for consistency
   const metricCards = [
-    { label: 'TOTAL INCOME', value: fmt(totalIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
-    { label: 'TOTAL EXPENSES', value: fmt(totalExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
-    { label: 'BALANCE', value: fmt(totalBalance), sub: '', icon: Target, color: 'text-violet-600' },
-    { label: 'BUDGET LEFT', value: fmt(totalBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
+    { label: 'MONTHLY INCOME', value: fmt(currentMonthIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
+    { label: 'MONTHLY EXPENSES', value: fmt(currentMonthExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
+    { label: 'MONTHLY SAVINGS', value: fmt(currentMonthBalance), sub: '', icon: Target, color: 'text-violet-600' },
+    { label: 'BUDGET LEFT', value: fmt(currentMonthBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
   ];
 
   return (
@@ -219,12 +226,12 @@ export function DashboardOverview() {
             <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
           </div>
           <div className="divide-y divide-black/5 flex-1">
-            {transactions.length === 0 ? (
+            {currentMonthTransactions.length === 0 ? (
               <div className="px-5 py-12 text-center">
-                <p className="text-sm text-black/60">No expenses found. Create your first expense.</p>
+                <p className="text-sm text-black/60">No expenses found this month. Create your first expense.</p>
               </div>
             ) : (
-              transactions.slice(0, 8).map((t) => {
+              currentMonthTransactions.slice(0, 8).map((t) => {
                 const cat = categories.find((c) => c.id === t.category_id);
                 return (
                   <div key={t.id} className="flex items-center justify-between px-5 py-3 hover:bg-[#F5F5F5]/60 transition-colors group">

@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const getDashboardSummary = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(`[getDashboardSummary] userId: ${userId}`);
 
     const [[totals]] = await pool.query(
       `SELECT
@@ -14,6 +15,7 @@ const getDashboardSummary = async (req, res) => {
         AND c.name NOT IN ('Salary', 'Freelance')`,
       [userId]
     );
+    console.log(`[getDashboardSummary] totals query result:`, totals);
 
     const [[currentMonth]] = await pool.query(
       `SELECT
@@ -27,6 +29,20 @@ const getDashboardSummary = async (req, res) => {
         AND YEAR(e.expense_date) = YEAR(CURDATE())`,
       [userId]
     );
+    console.log(`[getDashboardSummary] currentMonth query result:`, currentMonth);
+
+    const [[currentMonthIncome]] = await pool.query(
+      `SELECT
+        COALESCE(SUM(e.amount), 0) AS current_month_income
+      FROM expenses e
+      JOIN categories c ON c.id = e.category_id
+      WHERE e.user_id = ?
+        AND c.name IN ('Salary', 'Freelance')
+        AND MONTH(e.expense_date) = MONTH(CURDATE())
+        AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+      [userId]
+    );
+    console.log(`[getDashboardSummary] currentMonthIncome query result:`, currentMonthIncome);
 
     const [[budget]] = await pool.query(
       `SELECT amount_limit
@@ -37,24 +53,32 @@ const getDashboardSummary = async (req, res) => {
       LIMIT 1`,
       [userId]
     );
+    console.log(`[getDashboardSummary] budget query result:`, budget);
 
     const monthlyBudget = budget ? Number(budget.amount_limit) : null;
     const currentMonthSpending = Number(currentMonth.current_month_spending);
+    const currentMonthIncomeValue = Number(currentMonthIncome.current_month_income);
+    const currentMonthBalance = currentMonthIncomeValue - currentMonthSpending;
     const budgetRemaining =
       monthlyBudget !== null ? monthlyBudget - currentMonthSpending : null;
 
-    res.json({
+    const response = {
       success: true,
       summary: {
         total_spending: Number(totals.total_spending),
         total_expenses: totals.total_expenses,
         current_month_spending: currentMonthSpending,
         current_month_expenses: currentMonth.current_month_expenses,
+        current_month_income: currentMonthIncomeValue,
+        current_month_balance: currentMonthBalance,
         monthly_budget: monthlyBudget,
         budget_remaining: budgetRemaining,
       },
-    });
+    };
+    console.log(`[getDashboardSummary] JSON response:`, JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (err) {
+    console.error(`[getDashboardSummary] Error:`, err);
     res.status(500).json({
       success: false,
       message: err.message,
@@ -65,6 +89,7 @@ const getDashboardSummary = async (req, res) => {
 const getCategoryBreakdown = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(`[getCategoryBreakdown] userId: ${userId}`);
 
     const [rows] = await pool.query(
       `SELECT
@@ -84,6 +109,8 @@ const getCategoryBreakdown = async (req, res) => {
       ORDER BY total_amount DESC`,
       [userId, userId]
     );
+    console.log(`[getCategoryBreakdown] SQL result count: ${rows.length}`);
+    console.log(`[getCategoryBreakdown] SQL rows:`, rows);
 
     const total = rows.reduce((sum, row) => sum + Number(row.total_amount), 0);
 
@@ -94,13 +121,16 @@ const getCategoryBreakdown = async (req, res) => {
       percentage: total > 0 ? Number(((row.total_amount / total) * 100).toFixed(2)) : 0,
     }));
 
-    res.json({
+    const response = {
       success: true,
       labels: breakdown.map((item) => item.category_name),
       values: breakdown.map((item) => item.total_amount),
       breakdown,
-    });
+    };
+    console.log(`[getCategoryBreakdown] JSON response:`, JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (err) {
+    console.error(`[getCategoryBreakdown] Error:`, err);
     res.status(500).json({
       success: false,
       message: err.message,
@@ -111,6 +141,8 @@ const getCategoryBreakdown = async (req, res) => {
 const getMonthlyTrend = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(`[getMonthlyTrend] userId: ${userId}`);
+    console.log(`[getMonthlyTrend] Current date: ${new Date().toISOString()}`);
 
     const [rows] = await pool.query(
       `SELECT
@@ -125,8 +157,10 @@ const getMonthlyTrend = async (req, res) => {
       ORDER BY month ASC`,
       [userId]
     );
+    console.log(`[getMonthlyTrend] SQL result count: ${rows.length}`);
+    console.log(`[getMonthlyTrend] SQL rows:`, rows);
 
-    res.json({
+    const response = {
       success: true,
       labels: rows.map((row) => row.month),
       values: rows.map((row) => Number(row.total_amount)),
@@ -134,8 +168,11 @@ const getMonthlyTrend = async (req, res) => {
         month: row.month,
         total_amount: Number(row.total_amount),
       })),
-    });
+    };
+    console.log(`[getMonthlyTrend] JSON response:`, JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (err) {
+    console.error(`[getMonthlyTrend] Error:`, err);
     res.status(500).json({
       success: false,
       message: err.message,

@@ -5,6 +5,7 @@ import { getUser, expenseAPI, budgetAPI, categoryAPI, type Transaction, type Bud
 import api from '../../lib/api';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 import { formatDate } from '../../lib/dateUtils';
+import { DEMO_EMAIL } from '../../lib/constants';
 
 // Types for JSZip dynamic loading
 interface JSZipInstance {
@@ -36,6 +37,9 @@ export function SettingsPage() {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
   });
   const [saveToast, setSaveToast] = useState<'idle' | 'success' | 'error'>('idle');
+  const [readOnlyMessage, setReadOnlyMessage] = useState(false);
+
+  const isDemoUser = currentUser.email === DEMO_EMAIL;
 
   // Notifications
   const [notifs, setNotifs] = useState(() => {
@@ -74,6 +78,11 @@ export function SettingsPage() {
   }, []);
 
   const handleSave = async () => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
     try {
       if (!name.trim()) throw new Error('Name cannot be empty');
       const res = await api.put('/auth/profile', { full_name: name.trim() });
@@ -91,6 +100,11 @@ export function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
+    if (isDemoUser) {
+      setDeleteLoading(false);
+      setDeleteError('Demo account cannot be deleted. Create your own account to manage personal finances.');
+      return;
+    }
     setDeleteLoading(true);
     setDeleteError(null);
     try {
@@ -146,6 +160,12 @@ export function SettingsPage() {
         <h1 className="text-xl font-semibold text-black tracking-tight">Settings</h1>
         <p className="text-sm text-black/50">Manage your preferences and account settings</p>
       </div>
+
+      {readOnlyMessage && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium mb-6">
+          Demo mode is read-only. Create your own account to manage personal finances.
+        </div>
+      )}
       <div className="flex flex-col md:flex-row gap-8">
         <aside className="w-full md:w-64 shrink-0">
           <nav className="flex flex-col gap-1">
@@ -169,7 +189,11 @@ export function SettingsPage() {
               <div className="space-y-5 max-w-md">
                 <div className="pb-5 border-b border-black/5">
                   <label className="block text-xs font-bold text-black/40 uppercase tracking-widest mb-3">Profile Photo</label>
-                  <ProfilePhotoUploader userName={name || currentUser.full_name} variant="settings" />
+                  {!isDemoUser ? (
+                    <ProfilePhotoUploader userName={name || currentUser.full_name} variant="settings" />
+                  ) : (
+                    <div className="text-sm text-black/50 italic">Profile photo cannot be changed in demo mode</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-black/40 uppercase tracking-widest mb-2">Full Name</label>
@@ -177,7 +201,8 @@ export function SettingsPage() {
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5 transition-all"
+                    disabled={isDemoUser}
+                    className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -216,7 +241,8 @@ export function SettingsPage() {
                 <div className="flex items-center gap-4 mt-6">
                   <button
                     onClick={handleSave}
-                    className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-gray-800 transition-colors"
+                    disabled={isDemoUser}
+                    className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Save className="w-4 h-4" /> Save Changes
                   </button>
@@ -293,7 +319,11 @@ export function SettingsPage() {
                   <div>
                     <h2 className="text-lg font-bold text-rose-900 mb-1">Danger Zone</h2>
                     <p className="text-sm text-rose-700/80 mb-5">Permanently delete your account and all associated data. This action cannot be undone.</p>
-                    <button onClick={() => setDeleteStep(1)} className="bg-rose-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-rose-700 transition-colors shadow-sm shadow-rose-600/20">
+                    <button 
+                      onClick={() => setDeleteStep(1)} 
+                      disabled={isDemoUser}
+                      className="bg-rose-600 text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-rose-700 transition-colors shadow-sm shadow-rose-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       Delete Account
                     </button>
                   </div>

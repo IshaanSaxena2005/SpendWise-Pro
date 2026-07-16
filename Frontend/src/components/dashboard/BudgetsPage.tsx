@@ -15,6 +15,8 @@ import {
 } from '../../lib/budgetUtils';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { getCurrentMonthForInput } from '../../lib/dateUtils';
+import { getUser } from '../../lib/auth';
+import { DEMO_EMAIL } from '../../lib/constants';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance'];
 
@@ -31,6 +33,10 @@ export function BudgetsPage() {
   const [editForm, setEditForm] = useState({ catId: '', limit: '', month: '' });
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [readOnlyMessage, setReadOnlyMessage] = useState(false);
+
+  const user = getUser();
+  const isDemoUser = user?.email === DEMO_EMAIL;
 
   const fetchFinanceData = useCallback(async () => {
     const [budRes, catRes, expRes] = await Promise.all([
@@ -82,22 +88,46 @@ export function BudgetsPage() {
     };
   }, [fetchFinanceData]);
 
-  const expenseOnly = useMemo(
+  const currentMonthStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }, []);
+
+  const currentMonthBudgets = useMemo(
+    () => budgets.filter((b) => {
+      const budgetMonth = new Date(b.month);
+      const budgetMonthStr = `${budgetMonth.getFullYear()}-${String(budgetMonth.getMonth() + 1).padStart(2, '0')}-01`;
+      return budgetMonthStr === currentMonthStr;
+    }),
+    [budgets, currentMonthStr]
+  );
+
+  const currentMonthExpenses = useMemo(
     () => expenses.filter((t) => {
+      const cat = categories.find((c) => c.id === t.category_id);
+      const expenseMonth = new Date(t.expense_date);
+      const expenseMonthStr = `${expenseMonth.getFullYear()}-${String(expenseMonth.getMonth() + 1).padStart(2, '0')}-01`;
+      return expenseMonthStr === currentMonthStr;
+    }),
+    [expenses, categories, currentMonthStr]
+  );
+
+  const expenseOnly = useMemo(
+    () => currentMonthExpenses.filter((t) => {
       const cat = categories.find((c) => c.id === t.category_id);
       return !cat || !INCOME_CATEGORIES.includes(cat.name);
     }),
-    [expenses, categories]
+    [currentMonthExpenses, categories]
   );
 
   const summary = useMemo(
-    () => computeBudgetSummary(budgets, expenseOnly),
-    [budgets, expenseOnly]
+    () => computeBudgetSummary(currentMonthBudgets, expenseOnly),
+    [currentMonthBudgets, expenseOnly]
   );
 
   const alerts = useMemo(
-    () => computeBudgetAlerts(budgets, expenseOnly, categories),
-    [budgets, expenseOnly, categories]
+    () => computeBudgetAlerts(currentMonthBudgets, expenseOnly, categories),
+    [currentMonthBudgets, expenseOnly, categories]
   );
 
   useEffect(() => {
@@ -106,6 +136,11 @@ export function BudgetsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
     try {
       await budgetAPI.addBudget({
         category_id: catId ? Number(catId) : undefined,
@@ -122,6 +157,11 @@ export function BudgetsPage() {
   };
 
   const startEdit = (budget: Budget) => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
     setEditingId(budget.id);
     setEditError(null);
     setEditForm({
@@ -173,6 +213,11 @@ export function BudgetsPage() {
   };
 
   const deleteBudget = async (id: number) => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
     if (!confirm('Are you sure you want to delete this budget?')) return;
     try {
       await budgetAPI.deleteBudget(id);
@@ -196,6 +241,12 @@ export function BudgetsPage() {
         <h1 className="text-xl font-semibold text-black tracking-tight">Budgets</h1>
         <p className="text-sm text-black/50">Set limits, stay on track</p>
       </div>
+
+      {readOnlyMessage && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium">
+          Demo mode is read-only. Create your own account to manage personal finances.
+        </div>
+      )}
 
       {/* Top Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -305,13 +356,13 @@ export function BudgetsPage() {
 
       {/* Budgets Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {budgets.length === 0 ? (
+        {currentMonthBudgets.length === 0 ? (
             <div className="col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm p-8 text-center">
-              <p className="text-base font-semibold text-black mb-1.5">No budgets found</p>
+              <p className="text-base font-semibold text-black mb-1.5">No budgets found for current month</p>
               <p className="text-sm text-black/40">Create a budget to start tracking spending!</p>
             </div>
           ) : (
-            budgets.map((b) => {
+            currentMonthBudgets.map((b) => {
               const cat = categories.find((c) => c.id === b.category_id) || { name: 'Overall' };
               const { spent, limit: budgetLimit, pct, rawPct, isOver, remaining } = computeBudgetUtilization(b, expenseOnly);
               const status = getBudgetStatus(rawPct);
@@ -400,7 +451,8 @@ export function BudgetsPage() {
                         <button
                           type="button"
                           onClick={() => startEdit(b)}
-                          className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                          disabled={isDemoUser}
+                          className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -408,7 +460,8 @@ export function BudgetsPage() {
                         <button
                           type="button"
                           onClick={() => deleteBudget(b.id)}
-                          className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                          disabled={isDemoUser}
+                          className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -487,7 +540,8 @@ export function BudgetsPage() {
             </div>
             <button
               type="submit"
-              className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+              disabled={isDemoUser}
+              className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitted ? 'Saved!' : 'Set Budget'}
             </button>

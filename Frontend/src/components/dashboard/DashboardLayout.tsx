@@ -9,6 +9,7 @@ import { AskSpendWiseAI } from './AskSpendWiseAI';
 import { getUser, type User as UserType } from '../../lib/auth';
 import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
+import { DEMO_EMAIL } from '../../lib/constants';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -141,6 +142,7 @@ export function DashboardLayout() {
 
   if (!user) return null;
 
+  const isDemoUser = user.email === DEMO_EMAIL;
   const isProfileOrSettings = location.pathname.includes('/profile') || location.pathname.includes('/settings');
 
   const handleLogout = () => {
@@ -202,7 +204,13 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-3 md:gap-4 relative">
-            {!isProfileOrSettings && (
+            {isDemoUser && (
+              <div className="hidden sm:flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold px-3 py-1.5 rounded-full">
+                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                Demo Mode (Read-only)
+              </div>
+            )}
+            {!isProfileOrSettings && !isDemoUser && (
               <button
                 onClick={() => setModalOpen(true)}
                 className="flex items-center gap-1.5 bg-black text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-gray-800 transition-colors shadow-sm"
