@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Wallet, Brain, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly } from '../../lib/api';
 import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
-import { toAmount, computeBudgetUtilization, getBudgetBarColor } from '../../lib/budgetUtils';
+import { toAmount, computeBudgetUtilization } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
 
 function fmt(n: number | string) {
@@ -158,6 +158,73 @@ export function DashboardOverview() {
     }
   };
 
+  const incomeCategories = INCOME_CATEGORIES;
+  // Use dashboard summary for current month totals (consistent with Budgets/Forecast)
+  const currentMonthIncome = dashboardSummary?.current_month_income || 0;
+  const currentMonthExpenses = dashboardSummary?.current_month_spending || 0;
+  const currentMonthBalance = dashboardSummary?.current_month_balance || 0;
+  const currentMonthBudgetLeft = dashboardSummary?.budget_remaining || 0;
+
+  // Current month filtering (same logic as BudgetsPage)
+  const currentMonthStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }, []);
+
+  const currentMonthBudgets = useMemo(
+    () => budgets.filter((b) => {
+      const budgetMonth = new Date(b.month);
+      const budgetMonthStr = `${budgetMonth.getFullYear()}-${String(budgetMonth.getMonth() + 1).padStart(2, '0')}-01`;
+      return budgetMonthStr === currentMonthStr;
+    }),
+    [budgets, currentMonthStr]
+  );
+
+  // Category ordering
+  const categoryOrder = ['Overall', 'Food', 'Shopping', 'Entertainment', 'Travel', 'Bills', 'Medical'];
+
+  const orderedBudgets = useMemo(() => {
+    return [...currentMonthBudgets].sort((a, b) => {
+      const aName = a.category_id ? categories.find((c) => c.id === a.category_id)?.name || 'Overall' : 'Overall';
+      const bName = b.category_id ? categories.find((c) => c.id === b.category_id)?.name || 'Overall' : 'Overall';
+      const aIndex = categoryOrder.indexOf(aName);
+      const bIndex = categoryOrder.indexOf(bName);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+  }, [currentMonthBudgets, categories]);
+
+  // For recent transactions and budget utilization, use current month data
+  const currentMonthTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      const isCurrentMonth = new Date(t.expense_date).getMonth() === new Date().getMonth() &&
+                            new Date(t.expense_date).getFullYear() === new Date().getFullYear();
+      return isCurrentMonth;
+    });
+  }, [transactions]);
+
+  const expenseOnly = useMemo(() => {
+    return currentMonthTransactions.filter((t) => {
+      const cat = categories.find((c) => c.id === t.category_id);
+      return !cat || !incomeCategories.includes(cat.name);
+    });
+  }, [currentMonthTransactions, categories]);
+
+  // Filter out budgets with 0 spent and 0 budget
+  const activeBudgets = useMemo(() => {
+    return orderedBudgets.filter((b: Budget) => {
+      const { spent, limit: budgetLimit } = computeBudgetUtilization(b, expenseOnly);
+      return spent > 0 || budgetLimit > 0;
+    });
+  }, [orderedBudgets, expenseOnly]);
+
+  // Metric cards data - using current month totals for consistency
+  const metricCards = useMemo(() => [
+    { label: 'MONTHLY INCOME', value: fmt(currentMonthIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
+    { label: 'MONTHLY EXPENSES', value: fmt(currentMonthExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
+    { label: 'MONTHLY SAVINGS', value: fmt(currentMonthBalance), sub: '', icon: Target, color: 'text-violet-600' },
+    { label: 'BUDGET LEFT', value: fmt(currentMonthBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
+  ], [currentMonthIncome, currentMonthExpenses, currentMonthBalance, currentMonthBudgetLeft]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -165,33 +232,6 @@ export function DashboardOverview() {
       </div>
     );
   }
-
-  const incomeCategories = INCOME_CATEGORIES;
-  // Use dashboard summary for current month totals (consistent with Budgets/Forecast)
-  const currentMonthIncome = dashboardSummary?.current_month_income || 0;
-  const currentMonthExpenses = dashboardSummary?.current_month_spending || 0;
-  const currentMonthBalance = dashboardSummary?.current_month_balance || 0;
-  const currentMonthBudgetLeft = dashboardSummary?.budget_remaining || 0;
-  
-  // For recent transactions and budget utilization, use current month data
-  const currentMonthTransactions = transactions.filter((t) => {
-    const isCurrentMonth = new Date(t.expense_date).getMonth() === new Date().getMonth() &&
-                          new Date(t.expense_date).getFullYear() === new Date().getFullYear();
-    return isCurrentMonth;
-  });
-
-  const expenseOnly = currentMonthTransactions.filter((t) => {
-    const cat = categories.find((c) => c.id === t.category_id);
-    return !cat || !incomeCategories.includes(cat.name);
-  });
-  
-  // Metric cards data - using current month totals for consistency
-  const metricCards = [
-    { label: 'MONTHLY INCOME', value: fmt(currentMonthIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
-    { label: 'MONTHLY EXPENSES', value: fmt(currentMonthExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
-    { label: 'MONTHLY SAVINGS', value: fmt(currentMonthBalance), sub: '', icon: Target, color: 'text-violet-600' },
-    { label: 'BUDGET LEFT', value: fmt(currentMonthBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
-  ];
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -409,13 +449,14 @@ export function DashboardOverview() {
               <h2 className="font-semibold text-black text-sm">Budget Utilization</h2>
               <a href="/dashboard/budgets" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">Edit →</a>
             </div>
-            <div className="space-y-4">
-              {budgets.length === 0 ? (
-                <p className="text-sm text-black/60">No budgets found. Create a budget to start tracking.</p>
+            <div className="max-h-64 overflow-y-auto space-y-3">
+              {activeBudgets.length === 0 ? (
+                <p className="text-sm text-black/60">No budgets found for current month.</p>
               ) : (
-                budgets.map((b) => {
+                activeBudgets.map((b: Budget) => {
                   const cat = categories.find((c) => c.id === b.category_id);
                   const { spent, limit: budgetLimit, pct, rawPct } = computeBudgetUtilization(b, expenseOnly);
+                  const barColor = rawPct < 70 ? 'bg-emerald-500' : rawPct < 90 ? 'bg-orange-500' : 'bg-rose-500';
                   return (
                     <div key={b.id} className="group cursor-pointer">
                       <div className="flex justify-between text-xs mb-1.5">
@@ -429,10 +470,11 @@ export function DashboardOverview() {
                       </div>
                       <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-700 ease-out ${getBudgetBarColor(rawPct)}`}
-                          style={{ width: `${pct}%` }}
+                          className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
+                          style={{ width: `${Math.min(pct, 100)}%` }}
                         />
                       </div>
+                      <div className="text-[10px] text-black/40 mt-1 text-right">{Math.round(rawPct)}%</div>
                     </div>
                   );
                 })

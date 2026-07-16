@@ -36,17 +36,22 @@ const checkAnomaly = async (userId, amount, categoryId) => {
 };
 
 const getAnomalyHistory = async (userId) => {
-  const [notifications] = await pool.query(
-    `SELECT n.*, c.name AS category_name 
-     FROM notifications n 
-     LEFT JOIN categories c ON n.category_id = c.id 
-     WHERE n.user_id = ? 
-       AND n.type = 'anomaly' 
-     ORDER BY n.created_at DESC 
-     LIMIT 10`,
-    [userId]
-  );
-  return notifications;
+  try {
+    const [notifications] = await pool.query(
+      `SELECT n.*, c.name AS category_name 
+       FROM notifications n 
+       LEFT JOIN categories c ON n.category_id = c.id 
+       WHERE n.user_id = ? 
+         AND n.type = 'anomaly' 
+       ORDER BY n.created_at DESC 
+       LIMIT 10`,
+      [userId]
+    );
+    return notifications;
+  } catch (err) {
+    console.error('Error fetching anomaly history:', err);
+    return [];
+  }
 };
 
 module.exports = { checkAnomaly, getAnomalyHistory };
