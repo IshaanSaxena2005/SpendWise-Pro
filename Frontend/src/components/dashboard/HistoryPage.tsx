@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target,
-  Calendar, DollarSign, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle
+  TrendingUp, Activity, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle
 } from 'lucide-react';
 import {
   BarChart, Bar, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -586,7 +585,7 @@ export function HistoryPage() {
                       paddingAngle={2}
                       dataKey="value"
                     >
-                      {categoryBreakdown.map((entry, index) => (
+                      {categoryBreakdown.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
