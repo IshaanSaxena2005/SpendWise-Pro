@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard, Receipt, Target, BarChart2,
   Lightbulb, LogOut, Menu, X, Bell, Plus, Settings, History
@@ -15,9 +16,10 @@ const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
   { name: 'Transactions', href: '/dashboard/expenses',   icon: Receipt },
   { name: 'Budgets',      href: '/dashboard/budgets',    icon: Target },
-  { name: 'Analytics',    href: '/dashboard/analytics',  icon: BarChart2 },
-  { name: 'Insights',     href: '/dashboard/insights',   icon: Lightbulb },
+  { name: 'Analytics',   href: '/dashboard/analytics',  icon: BarChart2 },
   { name: 'History',      href: '/dashboard/history',    icon: History },
+  { name: 'Insights',     href: '/dashboard/insights',   icon: Lightbulb },
+  { name: 'Goals',        href: '/dashboard/goals',      icon: Target },
 ];
 
 interface SidebarProps {
@@ -146,12 +148,19 @@ export function DashboardLayout() {
   const isDemoUser = user.email === DEMO_EMAIL;
   const isProfileOrSettings = location.pathname.includes('/profile') || location.pathname.includes('/settings');
 
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/');
   };
 
   const handleOpenNotif = () => {
+    if (bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect();
+      setNotifPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
     setNotifOpen(v => !v);
     if (!notifOpen) {
       setHasUnread(false);
@@ -223,7 +232,8 @@ export function DashboardLayout() {
             {!isProfileOrSettings && <div className="w-px h-6 bg-black/10 hidden sm:block mx-1"></div>}
             
             <div className="relative">
-              <button 
+              <button
+                ref={bellRef}
                 onClick={handleOpenNotif}
                 className="relative p-2 text-black/50 hover:text-black hover:bg-black/5 rounded-full transition-colors"
               >
@@ -231,11 +241,14 @@ export function DashboardLayout() {
                 {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />}
               </button>
 
-              {/* Notification Dropdown */}
-              {notifOpen && (
+              {/* Notification Dropdown — rendered via portal so it always floats above every page element */}
+              {notifOpen && notifPos && createPortal(
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setNotifOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-black/5 z-20 overflow-hidden">
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setNotifOpen(false)} />
+                  <div
+                    className="fixed w-80 bg-white rounded-2xl shadow-xl border border-black/5 z-[9999] overflow-hidden"
+                    style={{ top: notifPos.top, right: notifPos.right }}
+                  >
                     <div className="px-4 py-3 border-b border-black/5 flex justify-between items-center">
                       <span className="font-semibold text-black text-sm">Notifications</span>
                       <span className="text-xs font-medium text-violet-600 cursor-pointer">Mark all read</span>
@@ -267,7 +280,8 @@ export function DashboardLayout() {
                       </div>
                     </div>
                   </div>
-                </>
+                </>,
+                document.body,
               )}
             </div>
           </div>

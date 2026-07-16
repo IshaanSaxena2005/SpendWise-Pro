@@ -37,6 +37,7 @@ import { InsightsPage } from './components/dashboard/InsightsPage';
 import { ProfilePage } from './components/dashboard/ProfilePage';
 import { SettingsPage } from './components/dashboard/SettingsPage';
 import { HistoryPage } from './components/dashboard/HistoryPage';
+import { GoalsPage } from './components/dashboard/GoalsPage';
 
 // Legal pages
 import PrivacyPage from './pages/PrivacyPage';
@@ -170,6 +171,7 @@ function App() {
           <Route path="analytics"        element={<AnalyticsPage />} />
           <Route path="insights"         element={<InsightsPage />} />
           <Route path="history"          element={<HistoryPage />} />
+          <Route path="goals"            element={<GoalsPage />} />
           <Route path="profile"          element={<ProfilePage />} />
           <Route path="settings"         element={<SettingsPage />} />
         </Route>

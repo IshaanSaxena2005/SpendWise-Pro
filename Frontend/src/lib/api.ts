@@ -58,6 +58,23 @@ export interface Budget {
   category?: Category;
 }
 
+export interface Goal {
+  id: number;
+  user_id: number;
+  name: string;
+  icon?: string;
+  category?: string;
+  target_amount: number;
+  saved_amount: number;
+  monthly_contribution: number;
+  target_date: string;
+  priority: 'High' | 'Medium' | 'Low';
+  notes?: string;
+  is_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DashboardSummary {
   total_spending: number;
   total_expenses: number;
@@ -218,6 +235,34 @@ export const anomalyAPI = {
 
 export const aiAPI = {
   chat: (query: string) => api.post<{ success: boolean; response: string }>('/ai/chat', { query }),
+};
+
+export const goalsAPI = {
+  getAll: () => api.get<{ success: boolean; goals: Goal[] }>('/goals/all'),
+  add: (data: {
+    name: string;
+    icon?: string;
+    category?: string;
+    target_amount: number;
+    saved_amount?: number;
+    monthly_contribution?: number;
+    target_date: string;
+    priority?: 'High' | 'Medium' | 'Low';
+    notes?: string;
+  }) => api.post<{ success: boolean; message?: string; id?: number }>('/goals/add', data),
+  update: (id: number, data: Partial<{
+    name: string;
+    icon: string;
+    category: string;
+    target_amount: number;
+    saved_amount: number;
+    monthly_contribution: number;
+    target_date: string;
+    priority: 'High' | 'Medium' | 'Low';
+    notes: string;
+    is_completed: boolean;
+  }>) => api.put<{ success: boolean; message?: string }>(`/goals/update/${id}`, data),
+  delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/goals/delete/${id}`),
 };
 
 export const getUser = () => {

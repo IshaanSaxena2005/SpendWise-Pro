@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Wallet, Brain, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly } from '../../lib/api';
+import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, goalsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly, type Goal } from '../../lib/api';
 import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
@@ -26,6 +26,7 @@ export function DashboardOverview() {
   const [loadingAnomalies, setLoadingAnomalies] = useState<boolean>(true);
   const [aiScore, setAiScore] = useState<number>(0);
   const [dashboardSummary, setDashboardSummary] = useState<any>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
 
 
   // ──────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ export function DashboardOverview() {
       setBudgets(budRes.data.budgets || []);
       setAiScore(healthRes.data.score || 0);
       setDashboardSummary(summaryRes.data.summary || null);
+      try { const gRes = await goalsAPI.getAll(); setGoals(gRes.data.goals || []); } catch { /* non-critical */ }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     } finally {
@@ -74,6 +76,7 @@ export function DashboardOverview() {
         setBudgets(budRes.data.budgets || []);
         setAiScore(healthRes.data.score || 0);
         setDashboardSummary(summaryRes.data.summary || null);
+        try { const gRes = await goalsAPI.getAll(); if (!cancelled) setGoals(gRes.data.goals || []); } catch { /* non-critical */ }
       } catch (err) {
         console.error('Error loading dashboard data:', err);
       } finally {
@@ -428,6 +431,40 @@ export function DashboardOverview() {
               </div>
             )}
           </div>
+
+          {/* Goals Progress Widget */}
+          {goals.length > 0 && (
+            <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 hover:border-black/10 transition-colors">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-black text-sm">Goals Progress</h2>
+                <a href="/dashboard/goals" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors flex items-center gap-0.5">View All →</a>
+              </div>
+              <div className="space-y-4">
+                {goals.filter(g => !g.is_completed).slice(0, 3).map(g => {
+                  const p = g.target_amount > 0 ? Math.min(100, (g.saved_amount / g.target_amount) * 100) : 0;
+                  const barColor = p >= 75 ? 'bg-emerald-500' : p >= 50 ? 'bg-violet-500' : p >= 25 ? 'bg-amber-500' : 'bg-rose-500';
+                  return (
+                    <div key={g.id}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="category-emoji text-base">{g.icon || '🎯'}</span>
+                          <span className="text-xs font-semibold text-black/80 truncate max-w-[110px]">{g.name}</span>
+                        </div>
+                        <span className="text-xs font-bold text-black/60">{p.toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${p}%` }} />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[10px] text-black/40">{fmt(g.saved_amount)}</span>
+                        <span className="text-[10px] text-black/40">{fmt(g.target_amount)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Quick Recs */}
           <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 hover:border-black/10 transition-colors">

@@ -18,6 +18,7 @@ const intelligenceRoutes = require('./routes/intelligence');
 const notificationRoutes = require('./routes/notifications');
 const aiRoutes = require('./routes/ai');
 const anomalyRoutes = require('./routes/anomaly');
+const goalRoutes   = require('./routes/goal');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -74,6 +75,7 @@ app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/anomaly', anomalyRoutes);
+app.use('/api/goals',  goalRoutes);
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -125,6 +127,29 @@ async function start() {
       throw err;
     }
   }
+  // ── Goals table (idempotent migration) ────────────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id                   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id              BIGINT UNSIGNED NOT NULL,
+      name                 VARCHAR(255)    NOT NULL,
+      icon                 VARCHAR(10)     NULL,
+      category             VARCHAR(100)    NULL,
+      target_amount        DECIMAL(12,2)   NOT NULL,
+      saved_amount         DECIMAL(12,2)   NOT NULL DEFAULT 0,
+      monthly_contribution DECIMAL(12,2)   NOT NULL DEFAULT 0,
+      target_date          DATE            NOT NULL,
+      priority             ENUM('High','Medium','Low') NOT NULL DEFAULT 'Medium',
+      notes                TEXT            NULL,
+      is_completed         BOOLEAN         NOT NULL DEFAULT FALSE,
+      created_at           TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+      updated_at           TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_goals_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+
   await pool.query('SELECT 1');
   if (process.env.NODE_ENV !== 'production') {
     console.warn('Database connection verified');
