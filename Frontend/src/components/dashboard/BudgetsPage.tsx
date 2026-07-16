@@ -104,12 +104,11 @@ export function BudgetsPage() {
 
   const currentMonthExpenses = useMemo(
     () => expenses.filter((t) => {
-      const cat = categories.find((c) => c.id === t.category_id);
       const expenseMonth = new Date(t.expense_date);
       const expenseMonthStr = `${expenseMonth.getFullYear()}-${String(expenseMonth.getMonth() + 1).padStart(2, '0')}-01`;
       return expenseMonthStr === currentMonthStr;
     }),
-    [expenses, categories, currentMonthStr]
+    [expenses, currentMonthStr]
   );
 
   const expenseOnly = useMemo(

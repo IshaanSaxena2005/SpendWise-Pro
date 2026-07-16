@@ -5,7 +5,7 @@ import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
-import { toAmount, computeBudgetSummary, computeBudgetUtilization, getBudgetBarColor } from '../../lib/budgetUtils';
+import { toAmount, computeBudgetUtilization, getBudgetBarColor } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
 
 function fmt(n: number | string) {
