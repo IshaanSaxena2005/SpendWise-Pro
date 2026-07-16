@@ -176,6 +176,22 @@ export const analyticsAPI = {
   getDashboardSummary: () => api.get<{ success: boolean; summary: DashboardSummary }>('/analytics/dashboard-summary'),
   getCategoryBreakdown: () => api.get<{ success: boolean; labels: string[]; values: number[]; breakdown: CategoryBreakdownItem[] }>('/analytics/category-breakdown'),
   getMonthlyTrend: () => api.get<{ success: boolean; labels: string[]; values: number[]; trend: MonthlyTrendItem[] }>('/analytics/monthly-trend'),
+  getFinancialHistory: () => api.get<{
+    success: boolean;
+    expenses: {
+      id: number;
+      category_id: number;
+      category_name: string;
+      amount: number;
+      expense_date: string;
+      note?: string;
+    }[];
+    budgets: {
+      id: number;
+      month: string;
+      amount_limit: number;
+    }[];
+  }>('/analytics/financial-history'),
 };
 
 export const healthAPI = {

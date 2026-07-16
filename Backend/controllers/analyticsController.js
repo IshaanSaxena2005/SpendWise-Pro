@@ -225,9 +225,56 @@ const getTopSpendingCategory = async (req, res) => {
   }
 };
 
+const getFinancialHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch all user expenses/incomes
+    const [expenses] = await pool.query(
+      `SELECT
+        e.id,
+        e.category_id,
+        c.name AS category_name,
+        e.amount,
+        e.expense_date,
+        e.note
+      FROM expenses e
+      JOIN categories c ON c.id = e.category_id
+      WHERE e.user_id = ?
+      ORDER BY e.expense_date DESC, e.id DESC`,
+      [userId]
+    );
+
+    // Fetch all monthly budgets (where category_id IS NULL)
+    const [budgets] = await pool.query(
+      `SELECT
+        b.id,
+        DATE_FORMAT(b.month, '%Y-%m-%d') AS month,
+        b.amount_limit
+      FROM budgets b
+      WHERE b.user_id = ?
+        AND b.category_id IS NULL
+      ORDER BY b.month DESC`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      expenses,
+      budgets,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 module.exports = {
   getDashboardSummary,
   getCategoryBreakdown,
   getMonthlyTrend,
   getTopSpendingCategory,
+  getFinancialHistory,
 };

@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Receipt, Target, BarChart2,
-  Lightbulb, LogOut, Menu, X, Bell, Plus, Settings
+  Lightbulb, LogOut, Menu, X, Bell, Plus, Settings, History
 } from 'lucide-react';
 import { AddTransactionModal } from './AddTransactionModal';
 import { AskSpendWiseAI } from './AskSpendWiseAI';
@@ -17,6 +17,7 @@ const navItems = [
   { name: 'Budgets',      href: '/dashboard/budgets',    icon: Target },
   { name: 'Analytics',    href: '/dashboard/analytics',  icon: BarChart2 },
   { name: 'Insights',     href: '/dashboard/insights',   icon: Lightbulb },
+  { name: 'History',      href: '/dashboard/history',    icon: History },
 ];
 
 interface SidebarProps {
