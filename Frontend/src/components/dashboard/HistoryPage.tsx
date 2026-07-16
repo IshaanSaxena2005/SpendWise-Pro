@@ -103,38 +103,48 @@ export function HistoryPage() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }))).sort((a, b) => b.localeCompare(a));
 
+  // Period filtration helper for months
+  const isMonthInPeriod = (mStr: string) => {
+    const parts = mStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // 0-indexed
+    const mDate = new Date(year, month, 1);
+    
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    if (period === 'this_month') {
+      return year === currentYear && month === currentMonth;
+    }
+    if (period === 'last_3_months') {
+      const cutDate = new Date(currentYear, currentMonth - 2, 1);
+      return mDate >= cutDate;
+    }
+    if (period === 'last_6_months') {
+      const cutDate = new Date(currentYear, currentMonth - 5, 1);
+      return mDate >= cutDate;
+    }
+    if (period === 'this_year') {
+      return year === currentYear;
+    }
+    return true;
+  };
+
   // Determine if months match the current year/period
   const displayedMonthsOptions = months.filter(m => {
+    if (!isMonthInPeriod(m)) return false;
     if (selectedYear !== 'all') {
       return m.startsWith(selectedYear);
     }
     return true;
   });
 
-  // Period filtration
+  // Period filtration for transactions
   const isTransactionInPeriod = (t: any) => {
     const date = new Date(t.expense_date);
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-
-    if (period === 'this_month') {
-      return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
-    }
-    if (period === 'last_3_months') {
-      const cutDate = new Date();
-      cutDate.setMonth(now.getMonth() - 3);
-      return date >= cutDate;
-    }
-    if (period === 'last_6_months') {
-      const cutDate = new Date();
-      cutDate.setMonth(now.getMonth() - 6);
-      return date >= cutDate;
-    }
-    if (period === 'this_year') {
-      return date.getFullYear() === currentYear;
-    }
-    return true;
+    const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    return isMonthInPeriod(monthStr);
   };
 
   // Main filtration of data
@@ -259,6 +269,23 @@ export function HistoryPage() {
   if (worstSavingMonth.value === Infinity) worstSavingMonth.value = 0;
   if (bestSavingMonth.value === -Infinity) bestSavingMonth.value = 0;
 
+  const getActiveFilterLabel = () => {
+    if (period === 'this_month') {
+      const now = new Date();
+      return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    }
+    if (selectedMonth !== 'all') {
+      const parts = selectedMonth.split('-');
+      return `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+    }
+    if (period === 'last_3_months') return 'Last 3 Months';
+    if (period === 'last_6_months') return 'Last 6 Months';
+    if (period === 'this_year') return `${new Date().getFullYear()}`;
+    if (selectedYear !== 'all') return selectedYear;
+    return 'All Time';
+  };
+  const activeFilterLabel = getActiveFilterLabel();
+
   // Category analysis across the filtered period
   const categorySpendingMap: { [key: string]: number } = {};
   filteredExpenses
@@ -381,7 +408,7 @@ export function HistoryPage() {
             <span className="text-[9px] font-bold text-black/40 uppercase tracking-widest">Month</span>
             <select
               value={selectedMonth}
-              disabled={period === 'all_time' || period === 'this_month'}
+              disabled={period === 'this_month'}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="bg-black/5 border border-black/5 text-xs font-semibold rounded-xl px-3 py-2 text-black/80 focus:outline-none focus:ring-2 focus:ring-violet-600/30 disabled:opacity-50"
             >
@@ -541,7 +568,10 @@ export function HistoryPage() {
 
         {/* Category Analysis */}
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 flex flex-col h-96">
-          <h3 className="font-semibold text-black text-sm mb-2">Category Spending Distribution</h3>
+          <div className="mb-4">
+            <h3 className="font-semibold text-black text-sm">Category Breakdown - {activeFilterLabel}</h3>
+            <p className="text-[10px] text-black/50 font-medium">Aggregated from the selected period</p>
+          </div>
           {categoryBreakdown.length > 0 ? (
             <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-6 w-full h-full">
               <div className="w-44 h-44 shrink-0 flex items-center justify-center relative">
