@@ -1,8 +1,14 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 
+// Normalize the base URL so it always ends with exactly one `/api`,
+// regardless of whether VITE_API_BASE_URL includes it. This prevents both
+// a missing-`/api` 404 and a doubled `/api/api` path.
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const baseURL = rawBaseURL.replace(/\/+$/, '').replace(/\/api$/, '') + '/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL,
 });
 
 // Interceptor: attach JWT token from localStorage on every request
