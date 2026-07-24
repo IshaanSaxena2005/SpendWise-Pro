@@ -93,6 +93,19 @@ const BUDGETS = [
   { month: '2026-07-01', category: 'Entertainment', amount: 4500 }
 ];
 
+// Recurring transactions for demo user
+const RECURRING_TRANSACTIONS = [
+  { type: 'income', amount: 60000, category: 'Salary', note: 'Monthly Salary', frequency: 'monthly', start_day: 1, never_ends: true },
+  { type: 'expense', amount: 18000, category: 'Bills', note: 'Monthly Rent', frequency: 'monthly', start_day: 2, never_ends: true },
+  { type: 'expense', amount: 1600, category: 'Bills', note: 'Electricity Bill', frequency: 'monthly', start_day: 15, never_ends: true },
+  { type: 'expense', amount: 1200, category: 'Bills', note: 'Internet Bill', frequency: 'monthly', start_day: 5, never_ends: true },
+  { type: 'expense', amount: 800, category: 'Bills', note: 'Mobile Recharge', frequency: 'monthly', start_day: 10, never_ends: true },
+  { type: 'expense', amount: 4500, category: 'Shopping', note: 'Monthly Investment/SIP', frequency: 'monthly', start_day: 28, never_ends: true },
+  { type: 'expense', amount: 800, category: 'Entertainment', note: 'Netflix Subscription', frequency: 'monthly', start_day: 20, never_ends: true },
+  { type: 'expense', amount: 600, category: 'Entertainment', note: 'Gaming Subscription', frequency: 'monthly', start_day: 25, never_ends: true },
+  { type: 'income', amount: 5000, category: 'Freelance', note: 'Freelance Income', frequency: 'weekly', start_day: 7, never_ends: true },
+];
+
 async function seedDemoUser() {
   try {
     console.log('Starting demo user seed...');
@@ -227,6 +240,52 @@ async function seedDemoUser() {
     }
 
     console.log(`✅ Created ${BUDGETS.length} budgets for May-July 2026`);
+
+    // Create recurring transactions
+    console.log('Creating recurring transactions...');
+
+    for (const recurring of RECURRING_TRANSACTIONS) {
+      const categoryId = recurring.category ? categoryMap[recurring.category] : null;
+      
+      // Calculate start date
+      const startDate = new Date(2026, 6, recurring.start_day); // July 2026
+      
+      // Calculate next execution date based on frequency
+      let nextExecutionDate = new Date(startDate);
+      switch (recurring.frequency) {
+        case 'daily':
+          nextExecutionDate.setDate(nextExecutionDate.getDate() + 1);
+          break;
+        case 'weekly':
+          nextExecutionDate.setDate(nextExecutionDate.getDate() + 7);
+          break;
+        case 'monthly':
+          nextExecutionDate.setMonth(nextExecutionDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          nextExecutionDate.setFullYear(nextExecutionDate.getFullYear() + 1);
+          break;
+      }
+
+      await pool.query(
+        `INSERT INTO recurring_transactions 
+         (user_id, type, amount, category_id, note, frequency, start_date, next_execution_date, never_ends, is_active) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+        [
+          userId,
+          recurring.type,
+          recurring.amount,
+          categoryId,
+          recurring.note,
+          recurring.frequency,
+          startDate.toISOString().split('T')[0],
+          nextExecutionDate.toISOString().split('T')[0],
+          recurring.never_ends
+        ]
+      );
+    }
+
+    console.log(`✅ Created ${RECURRING_TRANSACTIONS.length} recurring transactions`);
 
     console.log('✅ Demo user seed completed successfully!');
     console.log(`Demo credentials: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);

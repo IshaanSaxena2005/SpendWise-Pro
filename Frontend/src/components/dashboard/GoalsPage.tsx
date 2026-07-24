@@ -136,11 +136,23 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Frontend validation
+    const targetAmount = parseFloat(form.target_amount);
+    if (targetAmount <= 0) {
+      alert('Target amount must be greater than 0');
+      return;
+    }
+    if (targetAmount > 100000000) {
+      alert('Target amount cannot exceed ₹10 Crore');
+      return;
+    }
+    
     await onSave({
       name: form.name,
       icon: form.icon,
       category: form.category || undefined,
-      target_amount: parseFloat(form.target_amount),
+      target_amount: targetAmount,
       saved_amount: parseFloat(form.saved_amount) || 0,
       monthly_contribution: parseFloat(form.monthly_contribution) || 0,
       target_date: form.target_date,

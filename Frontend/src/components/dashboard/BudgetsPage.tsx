@@ -135,6 +135,18 @@ export function BudgetsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Frontend validation
+    const numLimit = Number(limit);
+    if (numLimit <= 0) {
+      alert('Budget amount must be greater than 0');
+      return;
+    }
+    if (numLimit > 100000000) {
+      alert('Budget amount cannot exceed ₹10 Crore');
+      return;
+    }
+    
     if (isDemoUser) {
       setReadOnlyMessage(true);
       setTimeout(() => setReadOnlyMessage(false), 3000);
@@ -143,7 +155,7 @@ export function BudgetsPage() {
     try {
       await budgetAPI.addBudget({
         category_id: catId ? Number(catId) : undefined,
-        amount_limit: Number(limit),
+        amount_limit: numLimit,
         month: normalizeBudgetMonth(month),
       });
       setLimit('');

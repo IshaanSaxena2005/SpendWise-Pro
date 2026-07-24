@@ -12,12 +12,12 @@ const addExpense = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { category_id, amount, expense_date, note, title } = req.body;
+    const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id } = req.body;
     const expenseNote = note || title;
 
     await pool.query(
-      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-      [userId, category_id, amount, expense_date, expenseNote]
+      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null]
     );
 
     const anomaly = await checkAnomaly(userId, amount, category_id);
@@ -65,6 +65,8 @@ const getExpenses = async (req, res) => {
         e.amount,
         e.expense_date,
         e.note,
+        e.is_recurring,
+        e.recurring_transaction_id,
         e.created_at,
         e.updated_at
       FROM expenses e

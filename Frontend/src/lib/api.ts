@@ -38,6 +38,8 @@ export interface Transaction {
   amount: number;
   expense_date: string;
   note?: string;
+  is_recurring?: boolean;
+  recurring_transaction_id?: number | null;
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -170,7 +172,7 @@ export interface Anomaly {
 
 export const expenseAPI = {
   getAllExpenses: () => api.get<{ success: boolean; expenses: Transaction[] }>('/expenses/all'),
-  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string }) =>
+  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null }) =>
     api.post<{ success: boolean; message?: string; is_anomaly?: boolean }>('/expenses/add', data),
   updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string }>) =>
     api.put<{ success: boolean; message?: string }>(`/expenses/update/${id}`, data),
@@ -241,6 +243,19 @@ export const anomalyAPI = {
 
 export const aiAPI = {
   chat: (query: string) => api.post<{ success: boolean; response: string }>('/ai/chat', { query }),
+};
+
+export const recurringAPI = {
+  getAll: () => api.get<{ success: boolean; recurring_transactions: any[] }>('/recurring'),
+  add: (data: { type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date: string; end_date?: string; never_ends: boolean }) =>
+    api.post<{ success: boolean; message?: string; id?: number }>('/recurring', data),
+  update: (id: number, data: Partial<{ amount: number; category_id?: number; note?: string; frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date?: string; end_date?: string; never_ends?: boolean; is_active?: boolean }>) =>
+    api.put<{ success: boolean; message?: string }>(`/recurring/${id}`, data),
+  delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/recurring/${id}`),
+  pause: (id: number) => api.patch<{ success: boolean; message?: string }>(`/recurring/${id}/pause`),
+  resume: (id: number) => api.patch<{ success: boolean; message?: string }>(`/recurring/${id}/resume`),
+  getSummary: () => api.get<{ success: boolean; summary: any }>('/recurring/summary'),
+  getHistory: (id: number) => api.get<{ success: boolean; history: any[] }>(`/recurring/${id}/history`),
 };
 
 export const goalsAPI = {

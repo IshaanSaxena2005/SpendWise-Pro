@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus } from 'lucide-react';
+import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus, Repeat2 } from 'lucide-react';
 import { expenseAPI, categoryAPI, analyticsAPI, type Transaction, type Category } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
+import { RecurringManagementModal } from './RecurringManagementModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
@@ -36,6 +37,8 @@ export function ExpensesPage() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+  const [upcomingRecurring, setUpcomingRecurring] = useState<any[]>([]);
 
   const user = getUser();
   const isDemoUser = user?.email === DEMO_EMAIL;
@@ -51,6 +54,31 @@ export function ExpensesPage() {
     setDashboardSummary(summaryRes.data.summary || null);
   }, []);
 
+  const fetchUpcomingRecurring = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/recurring', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const result = await response.json();
+      const allRecurring = result.recurring_transactions || [];
+      
+      // Filter for active recurring transactions
+      const activeRecurring = allRecurring.filter((r: any) => r.is_active);
+      
+      // Sort by next execution date and take first 5
+      const upcoming = activeRecurring
+        .sort((a: any, b: any) => new Date(a.next_execution_date).getTime() - new Date(b.next_execution_date).getTime())
+        .slice(0, 5);
+      
+      setUpcomingRecurring(upcoming);
+    } catch (err) {
+      console.error('Error fetching upcoming recurring:', err);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -58,6 +86,7 @@ export function ExpensesPage() {
       try {
         setLoading(true);
         await fetchFinanceData();
+        await fetchUpcomingRecurring();
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -71,13 +100,16 @@ export function ExpensesPage() {
       void fetchFinanceData().catch((err) => {
         console.error('Error refreshing data:', err);
       });
+      void fetchUpcomingRecurring().catch((err) => {
+        console.error('Error refreshing recurring:', err);
+      });
     });
 
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [fetchFinanceData]);
+  }, [fetchFinanceData, fetchUpcomingRecurring]);
 
   // --- Filtering ---
   const filtered = useMemo(() => {
@@ -166,18 +198,77 @@ export function ExpensesPage() {
           <h1 className="text-xl font-semibold text-black tracking-tight">Transactions</h1>
           <p className="text-sm text-black/50">Manage and track every transaction</p>
         </div>
-        <button
-          onClick={handleAdd}
-          disabled={isDemoUser}
-          className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="w-4 h-4" /> Add
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRecurringModalOpen(true)}
+            className="flex items-center gap-2 border border-black/10 text-black px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors"
+          >
+            <Repeat2 className="w-4 h-4" /> Manage Recurring
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={isDemoUser}
+            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
       </div>
 
       {readOnlyMessage && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium">
           Demo mode is read-only. Create your own account to manage personal finances.
+        </div>
+      )}
+
+      {/* Upcoming Recurring Section */}
+      {upcomingRecurring.length > 0 && (
+        <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Repeat2 className="w-4 h-4 text-black/60" />
+              <h3 className="text-sm font-semibold text-black">Upcoming Recurring</h3>
+            </div>
+            <button
+              onClick={() => setRecurringModalOpen(true)}
+              className="text-xs font-medium text-black/60 hover:text-black transition-colors"
+            >
+              View all
+            </button>
+          </div>
+          <div className="space-y-2">
+            {upcomingRecurring.map((item) => {
+              const nextDate = new Date(item.next_execution_date);
+              const today = new Date();
+              const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              
+              let timeLabel = '';
+              if (diffDays === 0) timeLabel = 'Today';
+              else if (diffDays === 1) timeLabel = 'Tomorrow';
+              else if (diffDays < 7) timeLabel = `In ${diffDays} days`;
+              else timeLabel = formatDate(item.next_execution_date);
+
+              return (
+                <div key={item.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#F5F5F5]">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.type === 'income' ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                      <Repeat2 className={`w-4 h-4 ${item.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-black">{item.category_name || item.note || 'Transaction'}</div>
+                      <div className="text-xs text-black/60">{item.frequency}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-sm font-semibold ${item.type === 'income' ? 'text-emerald-600' : 'text-black'}`}>
+                      {item.type === 'income' ? '+' : '-'}₹{item.amount.toLocaleString('en-IN')}
+                    </div>
+                    <div className="text-xs text-black/40">{timeLabel}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -315,8 +406,16 @@ export function ExpensesPage() {
                     <tr key={t.id} className="hover:bg-[#F5F5F5]/50 transition-colors group">
                       <td className="px-5 py-3 text-sm text-black/50">{formatDate(t.expense_date)}</td>
                       <td className="px-5 py-3 text-sm font-medium text-black">
-                        <CategoryEmoji icon={getCategoryIcon(cat)} className="mr-1.5" />
-                        {t.note || 'Expense'}
+                        <div className="flex items-center gap-2">
+                          <CategoryEmoji icon={getCategoryIcon(cat)} className="mr-1.5" />
+                          {t.note || 'Expense'}
+                          {(t as any).is_recurring && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100">
+                              <Repeat2 className="w-3 h-3" />
+                              Recurring
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3">
                         <span
@@ -404,6 +503,11 @@ export function ExpensesPage() {
         }}
         editTxn={editTxn}
         onTransactionChanged={notifyFinanceDataChanged}
+      />
+
+      <RecurringManagementModal
+        isOpen={recurringModalOpen}
+        onClose={() => setRecurringModalOpen(false)}
       />
     </div>
   );

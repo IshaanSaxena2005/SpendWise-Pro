@@ -46,7 +46,7 @@ const categoryExistsForUser = async (categoryId, { req }) => {
 
 const expenseValidation = [
   body('amount')
-    .isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')
+    .isFloat({ gt: 0, max: 100000000 }).withMessage('Amount must be greater than 0 and less than ₹10 Crore')
     .toFloat(),
   body('category_id')
     .isInt({ min: 1 }).withMessage('Invalid category')
@@ -87,7 +87,7 @@ const categoryValidation = [
 
 const budgetValidation = [
   body('amount_limit')
-    .isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')
+    .isFloat({ gt: 0, max: 100000000 }).withMessage('Amount must be greater than 0 and less than ₹10 Crore')
     .toFloat(),
   body('month')
     .customSanitizer(normalizeBudgetMonth)
@@ -107,7 +107,7 @@ const budgetValidation = [
 
 const goalValidation = [
   body('target_amount')
-    .isFloat({ gt: 0 }).withMessage('Target amount must be greater than 0')
+    .isFloat({ gt: 0, max: 100000000 }).withMessage('Target amount must be greater than 0 and less than ₹10 Crore')
     .toFloat(),
   body('target_date')
     .isISO8601({ strict: true }).withMessage('Invalid target date')
