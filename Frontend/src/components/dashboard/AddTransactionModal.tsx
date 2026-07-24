@@ -125,7 +125,7 @@ function TransactionForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+    <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain space-y-4 p-6">
         {!editTxn && (
           <div>
@@ -353,7 +353,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
           <TransactionForm
             key={editTxn?.id ?? 'new'}
             editTxn={editTxn}
