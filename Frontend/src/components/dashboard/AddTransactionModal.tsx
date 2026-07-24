@@ -125,160 +125,162 @@ function TransactionForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {!editTxn && (
-        <div>
-          <label className="block text-xs font-medium text-black/60 mb-1.5">Transaction Type</label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setTransactionType('expense')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                transactionType === 'expense' 
-                  ? 'bg-rose-50 text-rose-600 border-2 border-rose-200' 
-                  : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
-              }`}
-            >
-              Expense
-            </button>
-            <button
-              type="button"
-              onClick={() => setTransactionType('income')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                transactionType === 'income' 
-                  ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' 
-                  : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
-              }`}
-            >
-              Income
-            </button>
-          </div>
-        </div>
-      )}
-      <div>
-        <label className="block text-xs font-medium text-black/60 mb-1.5">Description</label>
-        <input
-          className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-          placeholder="e.g. Swiggy Order"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-black/60 mb-1.5">Amount (₹)</label>
-        <input
-          type="number"
-          min="1"
-          step="any"
-          className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-          placeholder="0"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-black/60 mb-1.5">Category</label>
-        <CategorySelect
-          categories={categories}
-          value={catId}
-          onChange={setCatId}
-          onAddCategory={onAddCategory}
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-black/60 mb-1.5">Date</label>
-        <input
-          type="date"
-          className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-black/60 mb-1.5">Notes (optional)</label>
-        <textarea
-          rows={2}
-          className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 resize-none"
-          placeholder="Details..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </div>
-
-      {/* Recurring Transaction Section */}
-      {!editTxn && (
-        <div className="border-t border-black/10 pt-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isRecurring}
-              onChange={(e) => setIsRecurring(e.target.checked)}
-              className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
-            />
-            <span className="text-sm font-medium text-black flex items-center gap-1.5">
-              <Repeat2 className="w-4 h-4" />
-              Make this recurring
-            </span>
-          </label>
-
-          {isRecurring && (
-            <div className="mt-4 space-y-3 pl-6">
-              <div>
-                <label className="block text-xs font-medium text-black/60 mb-1.5">Frequency</label>
-                <select
-                  value={frequency}
-                  onChange={(e) => setFrequency(e.target.value)}
-                  className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black/60 mb-1.5">Start Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer mb-2">
-                  <input
-                    type="checkbox"
-                    checked={neverEnds}
-                    onChange={(e) => setNeverEnds(e.target.checked)}
-                    className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
-                  />
-                  <span className="text-sm text-black">Never Ends</span>
-                </label>
-
-                {!neverEnds && (
-                  <div>
-                    <label className="block text-xs font-medium text-black/60 mb-1.5">End Date</label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
-                    />
-                  </div>
-                )}
-              </div>
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain space-y-4 px-1">
+        {!editTxn && (
+          <div>
+            <label className="block text-xs font-medium text-black/60 mb-1.5">Transaction Type</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTransactionType('expense')}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  transactionType === 'expense' 
+                    ? 'bg-rose-50 text-rose-600 border-2 border-rose-200' 
+                    : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
+                }`}
+              >
+                Expense
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionType('income')}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  transactionType === 'income' 
+                    ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' 
+                    : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
+                }`}
+              >
+                Income
+              </button>
             </div>
-          )}
+          </div>
+        )}
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Description</label>
+          <input
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            placeholder="e.g. Swiggy Order"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
         </div>
-      )}
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Amount (₹)</label>
+          <input
+            type="number"
+            min="1"
+            step="any"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            placeholder="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Category</label>
+          <CategorySelect
+            categories={categories}
+            value={catId}
+            onChange={setCatId}
+            onAddCategory={onAddCategory}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Date</label>
+          <input
+            type="date"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Notes (optional)</label>
+          <textarea
+            rows={2}
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 resize-none"
+            placeholder="Details..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
 
-      <div className="flex gap-3 pt-1">
+        {/* Recurring Transaction Section */}
+        {!editTxn && (
+          <div className="border-t border-black/10 pt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
+              />
+              <span className="text-sm font-medium text-black flex items-center gap-1.5">
+                <Repeat2 className="w-4 h-4" />
+                Make this recurring
+              </span>
+            </label>
+
+            {isRecurring && (
+              <div className="mt-4 space-y-3 pl-6">
+                <div>
+                  <label className="block text-xs font-medium text-black/60 mb-1.5">Frequency</label>
+                  <select
+                    value={frequency}
+                    onChange={(e) => setFrequency(e.target.value)}
+                    className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-black/60 mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer mb-2">
+                    <input
+                      type="checkbox"
+                      checked={neverEnds}
+                      onChange={(e) => setNeverEnds(e.target.checked)}
+                      className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
+                    />
+                    <span className="text-sm text-black">Never Ends</span>
+                  </label>
+
+                  {!neverEnds && (
+                    <div>
+                      <label className="block text-xs font-medium text-black/60 mb-1.5">End Date</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-3 pt-4 border-t border-black/10 shrink-0">
         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-black/60 hover:bg-black/5 transition-colors">
           Cancel
         </button>
@@ -343,24 +345,26 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-5">
+      <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-black/10 shrink-0">
           <h3 className="text-lg font-semibold text-black">{editTxn ? 'Edit Transaction' : 'Add Transaction'}</h3>
           <button onClick={onClose} className="text-black/40 hover:text-black transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <TransactionForm
-          key={editTxn?.id ?? 'new'}
-          editTxn={editTxn}
-          categories={categories}
-          catId={catId}
-          setCatId={setCatId}
-          onClose={onClose}
-          onAddCategory={() => setShowAddCategory(true)}
-          onTransactionChanged={onTransactionChanged}
-        />
+        <div className="p-6 overflow-hidden">
+          <TransactionForm
+            key={editTxn?.id ?? 'new'}
+            editTxn={editTxn}
+            categories={categories}
+            catId={catId}
+            setCatId={setCatId}
+            onClose={onClose}
+            onAddCategory={() => setShowAddCategory(true)}
+            onTransactionChanged={onTransactionChanged}
+          />
+        </div>
       </div>
 
       {showAddCategory && (

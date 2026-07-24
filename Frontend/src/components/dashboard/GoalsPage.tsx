@@ -163,111 +163,113 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-black/5">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100vh-32px)] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-black/5 shrink-0">
           <h2 className="font-bold text-black text-base">{isEdit ? 'Edit Goal' : 'New Goal'}</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors">
             <X className="w-4 h-4 text-black/60" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Icon picker */}
-          <div>
-            <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-2">Icon</label>
-            <div className="flex flex-wrap gap-2">
-              {ICON_OPTIONS.map(ic => (
-                <button key={ic} type="button"
-                  onClick={() => set('icon', ic)}
-                  className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center category-emoji transition-all ${form.icon === ic ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-black/5 hover:bg-black/10'}`}>
-                  {ic}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Goal Name *</label>
-            <input required value={form.name} onChange={e => set('name', e.target.value)}
-              placeholder="e.g. iPhone 16 Pro"
-              className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Target Amount */}
+        <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain p-6 space-y-4">
+            {/* Icon picker */}
             <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Target Amount *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
-                <input required type="number" min="1" value={form.target_amount} onChange={e => set('target_amount', e.target.value)}
-                  placeholder="110000"
-                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-2">Icon</label>
+              <div className="flex flex-wrap gap-2">
+                {ICON_OPTIONS.map(ic => (
+                  <button key={ic} type="button"
+                    onClick={() => set('icon', ic)}
+                    className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center category-emoji transition-all ${form.icon === ic ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-black/5 hover:bg-black/10'}`}>
+                    {ic}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Saved Amount */}
+            {/* Name */}
             <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Already Saved</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
-                <input type="number" min="0" value={form.saved_amount} onChange={e => set('saved_amount', e.target.value)}
-                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {/* Monthly Contribution */}
-            <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Monthly Savings</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
-                <input type="number" min="0" value={form.monthly_contribution} onChange={e => set('monthly_contribution', e.target.value)}
-                  className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-              </div>
-            </div>
-
-            {/* Target Date */}
-            <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Target Date *</label>
-              <input required type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)}
+              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Goal Name *</label>
+              <input required value={form.name} onChange={e => set('name', e.target.value)}
+                placeholder="e.g. iPhone 16 Pro"
                 className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Category */}
-            <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Category</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-white">
-                <option value="">Select…</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Target Amount */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Target Amount *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
+                  <input required type="number" min="1" value={form.target_amount} onChange={e => set('target_amount', e.target.value)}
+                    placeholder="110000"
+                    className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+                </div>
+              </div>
+
+              {/* Saved Amount */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Already Saved</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
+                  <input type="number" min="0" value={form.saved_amount} onChange={e => set('saved_amount', e.target.value)}
+                    className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+                </div>
+              </div>
             </div>
 
-            {/* Priority */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Monthly Contribution */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Monthly Savings</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40 text-sm font-medium">₹</span>
+                  <input type="number" min="0" value={form.monthly_contribution} onChange={e => set('monthly_contribution', e.target.value)}
+                    className="w-full pl-7 pr-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+                </div>
+              </div>
+
+              {/* Target Date */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Target Date *</label>
+                <input required type="date" value={form.target_date} onChange={e => set('target_date', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Category */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Category</label>
+                <select value={form.category} onChange={e => set('category', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-white">
+                  <option value="">Select…</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Priority</label>
+                <select value={form.priority} onChange={e => set('priority', e.target.value as 'High'|'Medium'|'Low')}
+                  className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-white">
+                  <option value="High">🔴 High</option>
+                  <option value="Medium">🟡 Medium</option>
+                  <option value="Low">🟢 Low</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Notes */}
             <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Priority</label>
-              <select value={form.priority} onChange={e => set('priority', e.target.value as 'High'|'Medium'|'Low')}
-                className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-white">
-                <option value="High">🔴 High</option>
-                <option value="Medium">🟡 Medium</option>
-                <option value="Low">🟢 Low</option>
-              </select>
+              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Notes</label>
+              <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
+                placeholder="Optional notes about this goal…"
+                className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 resize-none" />
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Notes</label>
-            <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Optional notes about this goal…"
-              className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 resize-none" />
-          </div>
-
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 p-6 pt-2 border-t border-black/5 shrink-0">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-semibold text-black/60 hover:bg-black/5 transition-colors">
               Cancel
@@ -448,8 +450,8 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-black/5">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[calc(100vh-32px)] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-black/5 shrink-0">
           <div>
             <h2 className="font-bold text-black text-base">Update Savings</h2>
             <p className="text-xs text-black/50 mt-0.5">{goal.icon} {goal.name}</p>
@@ -458,7 +460,7 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
             <X className="w-4 h-4 text-black/60" />
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto overflow-x-hidden overscroll-behavior-contain flex-1">
           <div>
             <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Current Saved Amount</label>
             <div className="relative">
@@ -490,24 +492,24 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
             </div>
             <p className="text-[10px] text-black/40 mt-1">{fmt(goal.target_amount - (parseFloat(saved) || 0))} remaining after update</p>
           </div>
+        </div>
 
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-semibold text-black/60 hover:bg-black/5 transition-colors">
-              Cancel
-            </button>
-            <button
-              onClick={() => onSave(parseFloat(saved) || 0, parseFloat(monthly) || 0)}
-              disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
+        <div className="flex gap-3 p-6 pt-0 border-t border-black/5 shrink-0">
+          <button type="button" onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-semibold text-black/60 hover:bg-black/5 transition-colors">
+            Cancel
+          </button>
+          <button type="button" onClick={() => onSave(parseFloat(saved) || 0, parseFloat(monthly) || 0)} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Saving…' : 'Update'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+// ─── Main Page Component ────────────────────────────────────────────────────────
 
 // ─── AI Suggestions ────────────────────────────────────────────────────────────
 

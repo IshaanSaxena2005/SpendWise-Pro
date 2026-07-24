@@ -245,8 +245,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-black/10">
+      <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-hidden shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-black/10 shrink-0">
           <div className="flex items-center gap-2">
             <Repeat2 className="w-5 h-5 text-black" />
             <h3 className="text-lg font-semibold text-black">Manage Recurring Transactions</h3>
@@ -256,7 +256,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain p-5">
           {recurring.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Repeat2 className="w-12 h-12 text-black/20 mb-3" />
