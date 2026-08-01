@@ -35,7 +35,7 @@ function TransactionForm({
   const [title, setTitle] = useState(() => editTxn?.note || '');
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
   const [date, setDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
-  const [notes, setNotes] = useState(() => editTxn?.note || '');
+  const [notes, setNotes] = useState('');
   const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState('monthly');
@@ -79,7 +79,7 @@ function TransactionForm({
           type: transactionType,
           amount: numAmount,
           category_id: catId ? Number(catId) : undefined,
-          note: notes || title,
+          note: notes.trim() || title,
           frequency: frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
           start_date: startDate,
           end_date: endDate || undefined,
@@ -92,7 +92,7 @@ function TransactionForm({
           category_id: Number(catId),
           amount: numAmount,
           expense_date: date,
-          note: notes || title,
+          note: notes.trim() || title,
           is_recurring: true,
         });
       } else if (editTxn) {
@@ -101,7 +101,7 @@ function TransactionForm({
           category_id: Number(catId),
           amount: numAmount,
           expense_date: date,
-          note: notes || title,
+          note: notes.trim() || title,
         });
       } else {
         await expenseAPI.addExpense({
@@ -109,7 +109,7 @@ function TransactionForm({
           category_id: Number(catId),
           amount: numAmount,
           expense_date: date,
-          note: notes || title,
+          note: notes.trim() || title,
         });
       }
 

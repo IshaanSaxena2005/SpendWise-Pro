@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Repeat2, Pause, Play, Trash2, Calendar, Clock, Edit2 } from 'lucide-react';
+import { recurringAPI } from '../../lib/api';
 
 interface RecurringTransaction {
   id: number;
@@ -64,14 +65,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
   const fetchRecurringTransactions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/recurring', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const result = await response.json();
-      return result.recurring_transactions || [];
+      const res = await recurringAPI.getAll();
+      return res.data.recurring_transactions || [];
     } catch (err) {
       console.error('Error fetching recurring transactions:', err);
       return [];
@@ -80,14 +75,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
   const fetchRecurringSummary = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/recurring/summary', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const result = await response.json();
-      return result.summary || null;
+      const res = await recurringAPI.getSummary();
+      return res.data.summary || null;
     } catch (err) {
       console.error('Error fetching recurring summary:', err);
       return null;
@@ -96,13 +85,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
   const handlePause = async (id: number) => {
     try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/recurring/${id}/pause`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await recurringAPI.pause(id);
       setRecurring((prev) => prev.map((r) => (r.id === id ? { ...r, is_active: false } : r)));
     } catch (err) {
       console.error('Error pausing recurring transaction:', err);
@@ -112,13 +95,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
   const handleResume = async (id: number) => {
     try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/recurring/${id}/resume`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await recurringAPI.resume(id);
       setRecurring((prev) => prev.map((r) => (r.id === id ? { ...r, is_active: true } : r)));
     } catch (err) {
       console.error('Error resuming recurring transaction:', err);
@@ -130,13 +107,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
     if (!confirm('Are you sure you want to delete this recurring transaction?')) return;
     
     try {
-      const token = localStorage.getItem('token');
-      await fetch(`/api/recurring/${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await recurringAPI.delete(id);
       setRecurring((prev) => prev.filter((r) => r.id !== id));
     } catch (err) {
       console.error('Error deleting recurring transaction:', err);
@@ -160,21 +131,13 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
     
     try {
       setSavingEdit(true);
-      const token = localStorage.getItem('token');
       
-      await fetch(`/api/recurring/${editingItem.id}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: Number(editForm.amount),
-          frequency: editForm.frequency,
-          start_date: editForm.start_date,
-          end_date: editForm.end_date || null,
-          never_ends: editForm.never_ends,
-        }),
+      await recurringAPI.update(editingItem.id, {
+        amount: Number(editForm.amount),
+        frequency: editForm.frequency,
+        start_date: editForm.start_date,
+        end_date: editForm.end_date || undefined,
+        never_ends: editForm.never_ends,
       });
       
       // Refresh the list
@@ -203,14 +166,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
   const handleViewHistory = async (item: RecurringTransaction) => {
     try {
       setHistoryItem(item);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/recurring/${item.id}/history`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const result = await response.json();
-      setHistory(result.history || []);
+      const res = await recurringAPI.getHistory(item.id);
+      setHistory(res.data.history || []);
     } catch (err) {
       console.error('Error fetching execution history:', err);
       alert('Failed to fetch execution history');

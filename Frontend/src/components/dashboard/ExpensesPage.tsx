@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus, Repeat2 } from 'lucide-react';
-import { expenseAPI, categoryAPI, analyticsAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, type Transaction, type Category } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
@@ -56,14 +56,8 @@ export function ExpensesPage() {
 
   const fetchUpcomingRecurring = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/recurring', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const result = await response.json();
-      const allRecurring = result.recurring_transactions || [];
+      const res = await recurringAPI.getAll();
+      const allRecurring = res.data.recurring_transactions || [];
       
       // Filter for active recurring transactions
       const activeRecurring = allRecurring.filter((r: any) => r.is_active);
