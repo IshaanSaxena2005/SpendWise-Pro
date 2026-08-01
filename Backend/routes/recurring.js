@@ -47,6 +47,7 @@ router.use(authMiddleware);
 
 router.post('/', recurringValidation, createRecurringTransaction);
 router.get('/', getRecurringTransactions);
+router.get('/upcoming', getRecurringTransactions);
 router.get('/summary', async (req, res) => {
   try {
     const summary = await getRecurringSummary(req.user.id);

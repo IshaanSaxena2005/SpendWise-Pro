@@ -13,7 +13,7 @@ const addExpense = async (req, res) => {
 
     const userId = req.user.id;
     const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id } = req.body;
-    const expenseNote = note || title;
+    const expenseNote = note && note.trim() ? note : (title || '');
 
     await pool.query(
       'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
