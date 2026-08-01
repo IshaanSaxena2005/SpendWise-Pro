@@ -39,7 +39,7 @@ CREATE TABLE recurring_transactions (
 ALTER TABLE expenses ADD COLUMN is_recurring BOOLEAN DEFAULT FALSE;
 
 -- Step 3: Add recurring_transaction_id column to expenses
-ALTER TABLE expenses ADD COLUMN recurring_transaction_id BIGINT UNSIGNED NULL AFTER is_recurring;
+ALTER TABLE expenses ADD COLUMN recurring_transaction_id BIGINT UNSIGNED NULL;
 
 -- Step 4: Add foreign key constraint
 ALTER TABLE expenses ADD CONSTRAINT fk_expenses_recurring FOREIGN KEY (recurring_transaction_id) REFERENCES recurring_transactions (id) ON DELETE SET NULL ON UPDATE CASCADE;
