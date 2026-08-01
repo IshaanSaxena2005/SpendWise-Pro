@@ -38,9 +38,8 @@ const checkAnomaly = async (userId, amount, categoryId) => {
 const getAnomalyHistory = async (userId) => {
   try {
     const [notifications] = await pool.query(
-      `SELECT n.*, c.name AS category_name 
+      `SELECT n.* 
        FROM notifications n 
-       LEFT JOIN categories c ON n.category_id = c.id 
        WHERE n.user_id = ? 
          AND n.type = 'anomaly' 
        ORDER BY n.created_at DESC 

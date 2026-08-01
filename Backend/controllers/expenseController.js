@@ -28,13 +28,12 @@ const addExpense = async (req, res) => {
       );
       const categoryName = categories[0]?.name || 'Unknown';
       await pool.query(
-        `INSERT INTO notifications (user_id, title, description, type, category_id, read_status) 
-         VALUES (?, ?, ?, 'anomaly', ?, FALSE)`,
+        `INSERT INTO notifications (user_id, title, description, type, read_status) 
+         VALUES (?, ?, ?, 'anomaly', FALSE)`,
         [
           userId,
           'Unusual spending detected',
-          `Your transaction of ₹${amount} in ${categoryName} is unusually high.`,
-          category_id
+          `Your transaction of ₹${amount} in ${categoryName} is unusually high.`
         ]
       );
     }
