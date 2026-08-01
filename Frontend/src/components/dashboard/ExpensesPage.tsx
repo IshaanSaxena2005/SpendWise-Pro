@@ -403,7 +403,7 @@ export function ExpensesPage() {
                         <div className="flex items-center gap-2">
                           <CategoryEmoji icon={getCategoryIcon(cat)} className="mr-1.5" />
                           {t.note || 'Expense'}
-                          {(t as any).is_recurring && (
+                          {!!(t as any).is_recurring && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100">
                               <Repeat2 className="w-3 h-3" />
                               Recurring
