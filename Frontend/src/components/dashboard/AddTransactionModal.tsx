@@ -1,10 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowRight, Repeat2 } from 'lucide-react';
-import { expenseAPI, categoryAPI, recurringAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, recurringAPI, aiAPI, type Transaction, type Category } from '../../lib/api';
 import { AddCategoryModal } from './AddCategoryModal';
 import { CategorySelect } from './CategorySelect';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { formatDateForInput, getCurrentDateForInput } from '../../lib/dateUtils';
+import {
+  memoizedDetectCategory,
+  preloadKeywordCache,
+  getConfidenceLevel,
+  levenshteinDistance,
+  type CategoryDetectionResult,
+  type ConfidenceLevel,
+} from '../../lib/categoryMatcher';
+import { getCategoryIcon } from '../../lib/categoryIcons';
+import { CategoryEmoji } from './CategoryEmoji';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +31,70 @@ interface FormProps {
   onClose: () => void;
   onAddCategory: () => void;
   onTransactionChanged?: () => void;
+}
+
+const AI_FALLBACK_THRESHOLD = 70;
+const DEBOUNCE_MS = 300;
+
+function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
+  const config: Record<ConfidenceLevel, { dot: string; label: string; classes: string }> = {
+    High: {
+      dot: 'bg-emerald-500',
+      label: 'High Confidence',
+      classes: 'text-emerald-700 bg-emerald-50 border-emerald-100',
+    },
+    Medium: {
+      dot: 'bg-amber-500',
+      label: 'Medium Confidence',
+      classes: 'text-amber-700 bg-amber-50 border-amber-100',
+    },
+    Low: {
+      dot: 'bg-gray-400',
+      label: 'Low Confidence',
+      classes: 'text-gray-600 bg-gray-50 border-gray-200',
+    },
+  };
+  const c = config[level];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${c.classes}`}
+    >
+      <span className={`w-2 h-2 rounded-full ${c.dot}`} />
+      {c.label}
+    </span>
+  );
+}
+
+function AutoDetectedCard({
+  detection,
+  category,
+}: {
+  detection: CategoryDetectionResult;
+  category: Category | undefined;
+}) {
+  if (!detection.categoryId || !detection.categoryName) return null;
+
+  const level = detection.confidenceLevel;
+  const displayCategory = category ?? { name: detection.categoryName, icon: undefined };
+
+  return (
+    <div className="mt-2 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">✨</span>
+          <span className="text-xs font-semibold text-violet-700">Auto Detected</span>
+        </div>
+        <span className="text-xs font-bold text-violet-700">{detection.confidence}%</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CategoryEmoji icon={getCategoryIcon(displayCategory)} className="text-base" />
+          <span className="text-sm font-medium text-black">{detection.categoryName}</span>
+        </div>
+        <ConfidenceBadge level={level} />
+      </div>
+    </div>
+  );
 }
 
 function TransactionForm({
@@ -45,10 +119,155 @@ function TransactionForm({
 
   const [loading, setLoading] = useState(false);
 
+  const [detection, setDetection] = useState<CategoryDetectionResult | null>(null);
+  const [isUserLockedCategory, setIsUserLockedCategory] = useState(Boolean(editTxn));
+  const [detectLoading, setDetectLoading] = useState(false);
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiRequestRef = useRef<number>(0);
+  // Use refs to avoid stale closures in async callbacks
+  const isUserLockedRef = useRef(Boolean(editTxn));
+  const detectionRef = useRef<CategoryDetectionResult | null>(null);
+
+  useEffect(() => {
+    preloadKeywordCache();
+  }, []);
+
+  const handleCategoryNameToId = useCallback(
+    (categoryName: string | null): number | null => {
+      if (!categoryName) return null;
+      const target = categoryName.trim().toLowerCase();
+      const exact = categories.find((c) => c.name.trim().toLowerCase() === target);
+      if (exact) return exact.id;
+      for (const cat of categories) {
+        const cn = cat.name.trim().toLowerCase();
+        if (cn.includes(target) || target.includes(cn)) return cat.id;
+        const sim =
+          target.length >= 4 && cn.length >= 4
+            ? 1 - levenshteinDistance(cn, target) / Math.max(cn.length, target.length)
+            : 0;
+        if (sim >= 0.7) return cat.id;
+      }
+      return null;
+    },
+    [categories],
+  );
+
+  const applyDetectionToCatId = useCallback(
+    (result: CategoryDetectionResult) => {
+      if (isUserLockedRef.current) return;
+      if (result.categoryId) {
+        setCatId(String(result.categoryId));
+      }
+    },
+    [setCatId],
+  );
+
+  const runDetection = useCallback(
+    async (description: string) => {
+      if (isUserLockedRef.current) return;
+      if (!description || !description.trim()) {
+        setDetection(null);
+        detectionRef.current = null;
+        return;
+      }
+
+      const keywordResult = memoizedDetectCategory(description, categories);
+      if (keywordResult.confidence >= AI_FALLBACK_THRESHOLD) {
+        setDetection(keywordResult);
+        detectionRef.current = keywordResult;
+        applyDetectionToCatId(keywordResult);
+        return;
+      }
+
+      if (keywordResult.confidence > 0) {
+        setDetection(keywordResult);
+        detectionRef.current = keywordResult;
+        applyDetectionToCatId(keywordResult);
+      } else {
+        setDetection(null);
+        detectionRef.current = null;
+      }
+
+      setDetectLoading(true);
+      const requestId = ++aiRequestRef.current;
+      try {
+        const resp = await aiAPI.categorize(description);
+        if (requestId !== aiRequestRef.current) return;
+        if (!resp?.data?.success) return;
+
+        const { category, confidence, source } = resp.data;
+        if (!category) return;
+
+        const resolvedId = handleCategoryNameToId(category);
+        if (!resolvedId) return;
+
+        const finalConfidence = Number(confidence) || 0;
+        const aiResult: CategoryDetectionResult = {
+          categoryId: resolvedId,
+          categoryName: category,
+          confidence: finalConfidence,
+          matchedKeyword: resp.data.matchedKeyword || null,
+          source: source || 'ai',
+          confidenceLevel: getConfidenceLevel(finalConfidence),
+        };
+
+        const currentDetection = detectionRef.current;
+        if (!currentDetection || finalConfidence > currentDetection.confidence) {
+          setDetection(aiResult);
+          detectionRef.current = aiResult;
+          applyDetectionToCatId(aiResult);
+        }
+      } catch (err) {
+        void err;
+      } finally {
+        if (requestId === aiRequestRef.current) {
+          setDetectLoading(false);
+        }
+      }
+    },
+    [
+      categories,
+      applyDetectionToCatId,
+      handleCategoryNameToId,
+    ],
+  );
+
+  const onTitleChange = useCallback(
+    (value: string) => {
+      setTitle(value);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        void runDetection(value);
+      }, DEBOUNCE_MS);
+    },
+    [runDetection],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleUserCategoryChange = useCallback(
+    (id: string) => {
+      isUserLockedRef.current = true;
+      setIsUserLockedCategory(true);
+      setDetection(null);       // clear badge when user overrides
+      detectionRef.current = null;
+      setCatId(id);
+    },
+    [setCatId],
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Frontend validation
     const numAmount = Number(amount);
     if (numAmount <= 0) {
       alert('Amount must be greater than 0');
@@ -59,7 +278,6 @@ function TransactionForm({
       return;
     }
     
-    // Income validation with warnings
     if (transactionType === 'income' && numAmount > 2000000) {
       if (numAmount > 10000000) {
         const confirmed = confirm(`This is an unusually high monthly income (₹${(numAmount / 100000).toFixed(1)} Crore). Are you sure this is correct?`);
@@ -74,7 +292,6 @@ function TransactionForm({
       setLoading(true);
       
       if (isRecurring && !editTxn) {
-        // Create recurring transaction
         await recurringAPI.add({
           type: transactionType,
           amount: numAmount,
@@ -86,7 +303,6 @@ function TransactionForm({
           never_ends: neverEnds,
         });
         
-        // Also create the first transaction
         await expenseAPI.addExpense({
           title,
           category_id: Number(catId),
@@ -123,6 +339,10 @@ function TransactionForm({
       setLoading(false);
     }
   };
+
+  const detectedCategory = detection?.categoryId
+    ? categories.find((c) => c.id === detection.categoryId)
+    : undefined;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
@@ -162,7 +382,7 @@ function TransactionForm({
             className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
             placeholder="e.g. Swiggy Order"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => onTitleChange(e.target.value)}
             required
           />
         </div>
@@ -184,9 +404,18 @@ function TransactionForm({
           <CategorySelect
             categories={categories}
             value={catId}
-            onChange={setCatId}
+            onChange={handleUserCategoryChange}
             onAddCategory={onAddCategory}
           />
+          {detection && !editTxn && (
+            <AutoDetectedCard detection={detection} category={detectedCategory} />
+          )}
+          {detectLoading && !detection && !editTxn && (
+            <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+              <span className="text-xs text-gray-500">Detecting category…</span>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-black/60 mb-1.5">Date</label>
@@ -209,7 +438,6 @@ function TransactionForm({
           />
         </div>
 
-        {/* Recurring Transaction Section */}
         {!editTxn && (
           <div className="border-t border-black/10 pt-4">
             <label className="flex items-center gap-2 cursor-pointer">

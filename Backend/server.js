@@ -45,6 +45,7 @@ app.use(cors({
       return;
     }
 
+    console.error(`[CORS Blocked] Origin: "${origin}" (normalized: "${normalizedOrigin}"). Allowed origins:`, allowedOrigins);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true

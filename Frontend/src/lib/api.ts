@@ -241,8 +241,18 @@ export const anomalyAPI = {
   getAnomalyHistory: () => api.get<{ success: boolean; anomalies: Anomaly[] }>('/anomaly/check'),
 };
 
+export interface CategorizeResponse {
+  success: boolean;
+  category: string | null;
+  confidence: number;
+  source: 'keyword' | 'fuzzy' | 'ai' | null;
+  matchedKeyword?: string;
+}
+
 export const aiAPI = {
   chat: (query: string) => api.post<{ success: boolean; response: string }>('/ai/chat', { query }),
+  categorize: (description: string) =>
+    api.post<CategorizeResponse>('/ai/categorize', { description }),
 };
 
 export const recurringAPI = {

@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.post('/generate', aiChatLimiter, generate);
+router.get('/', getInsights);
 router.get('/insights', getInsights);
 router.get('/recommendations', getRecommendations);
 

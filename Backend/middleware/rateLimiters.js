@@ -31,7 +31,14 @@ const aiChatLimiter = createLimiter({
   keyGenerator: (req) => String(req.user?.id || req.ip),
 });
 
+const aiCategorizeLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req) => String(req.user?.id || req.ip),
+});
+
 module.exports = {
   authLimiter,
   aiChatLimiter,
+  aiCategorizeLimiter,
 };
