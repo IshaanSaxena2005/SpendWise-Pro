@@ -120,7 +120,6 @@ function TransactionForm({
   const [loading, setLoading] = useState(false);
 
   const [detection, setDetection] = useState<CategoryDetectionResult | null>(null);
-  const [isUserLockedCategory, setIsUserLockedCategory] = useState(Boolean(editTxn));
   const [detectLoading, setDetectLoading] = useState(false);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -257,7 +256,6 @@ function TransactionForm({
   const handleUserCategoryChange = useCallback(
     (id: string) => {
       isUserLockedRef.current = true;
-      setIsUserLockedCategory(true);
       setDetection(null);       // clear badge when user overrides
       detectionRef.current = null;
       setCatId(id);
