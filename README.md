@@ -283,6 +283,10 @@ VITE_GOOGLE_CLIENT_ID=
 | `/api/intelligence`  | Recommendations     |
 | `/api/notifications` | Notifications       |
 | `/api/user`          | Avatar management   |
+| `/api/goals` | Smart Financial Goals |
+| `/api/recurring` | Recurring Transactions |
+| `/api/forecast` | ML Forecasting |
+| `/api/categorize` | Smart Category Detection |
 
 ### ML Service Endpoints
 
