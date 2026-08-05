@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowRight, Repeat2 } from 'lucide-react';
-import { expenseAPI, categoryAPI, recurringAPI, aiAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, recurringAPI, goalsAPI, aiAPI, type Transaction, type Category, type Goal } from '../../lib/api';
 import { AddCategoryModal } from './AddCategoryModal';
 import { CategorySelect } from './CategorySelect';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
@@ -146,6 +146,8 @@ function TransactionForm({
   const [startDate, setStartDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
   const [endDate, setEndDate] = useState('');
   const [neverEnds, setNeverEnds] = useState(true);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goalId, setGoalId] = useState(() => editTxn?.goal_id ? String(editTxn.goal_id) : '');
 
   const [loading, setLoading] = useState(false);
 
@@ -160,6 +162,14 @@ function TransactionForm({
 
   useEffect(() => {
     preloadKeywordCache();
+  }, []);
+
+  useEffect(() => {
+    goalsAPI.getAll()
+      .then(res => {
+        setGoals(res.data.goals || []);
+      })
+      .catch(err => console.error('Error fetching goals:', err));
   }, []);
 
   const handleCategoryNameToId = useCallback(
@@ -318,11 +328,11 @@ function TransactionForm({
     try {
       setLoading(true);
       
-      if (isRecurring && !editTxn) {
+      if (isRecurring) {
         await recurringAPI.add({
           type: transactionType,
           amount: numAmount,
-          category_id: catId ? Number(catId) : undefined,
+          category_id: Number(catId),
           note: notes.trim() || title,
           frequency: frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
           start_date: startDate,
@@ -337,6 +347,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           is_recurring: true,
+          goal_id: goalId ? Number(goalId) : null,
         });
       } else if (editTxn) {
         await expenseAPI.updateExpense(editTxn.id, {
@@ -345,6 +356,7 @@ function TransactionForm({
           amount: numAmount,
           expense_date: date,
           note: notes.trim() || title,
+          goal_id: goalId ? Number(goalId) : null,
         });
       } else {
         await expenseAPI.addExpense({
@@ -353,6 +365,7 @@ function TransactionForm({
           amount: numAmount,
           expense_date: date,
           note: notes.trim() || title,
+          goal_id: goalId ? Number(goalId) : null,
         });
       }
 
@@ -447,6 +460,21 @@ function TransactionForm({
               <span className="text-xs text-gray-500">Detecting category…</span>
             </div>
           )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Link to Financial Goal (Optional)</label>
+          <select
+            value={goalId}
+            onChange={(e) => setGoalId(e.target.value)}
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 bg-white border border-black/5"
+          >
+            <option value="">None (Don't link to a goal)</option>
+            {goals.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.icon} {g.title} ({Math.round(g.progress_percentage || 0)}%)
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-black/60 mb-1.5">Date</label>

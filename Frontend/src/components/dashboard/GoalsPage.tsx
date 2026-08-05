@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Target, Plus, Edit2, Trash2, Trophy, TrendingUp, Calendar,
-  CheckCircle, Clock, AlertTriangle, X, ChevronRight, Zap,
-  ArrowUp, Minus, Star,
+  Target, Plus, Edit2, Trash2, Trophy, TrendingUp,
+  CheckCircle, Clock, AlertTriangle, X, Zap,
+  Star, BarChart3, PieChart
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell
+} from 'recharts';
 import { goalsAPI, type Goal } from '../../lib/api';
 import { getUser } from '../../lib/auth';
 import { DEMO_EMAIL } from '../../lib/constants';
@@ -15,37 +19,15 @@ function fmt(n: number) {
   return '₹' + Math.floor(n).toLocaleString('en-IN');
 }
 
-function monthsFromNow(targetDate: string): number {
-  const now = new Date();
-  const tgt = new Date(targetDate);
-  return (tgt.getFullYear() - now.getFullYear()) * 12 + (tgt.getMonth() - now.getMonth());
-}
-
-function estimatedCompletion(saved: number, target: number, monthly: number): string {
-  if (monthly <= 0) return 'Not set';
-  const remaining = target - saved;
-  if (remaining <= 0) return 'Completed!';
-  const months = Math.ceil(remaining / monthly);
-  const d = new Date();
-  d.setMonth(d.getMonth() + months);
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function requiredMonthly(saved: number, target: number, targetDate: string): number {
-  const months = monthsFromNow(targetDate);
-  if (months <= 0) return 0;
-  return Math.max(0, (target - saved) / months);
-}
-
-function pct(saved: number, target: number): number {
-  if (target <= 0) return 0;
-  return Math.min(100, (saved / target) * 100);
+function daysFromNow(targetDate: string): number {
+  const diff = new Date(targetDate).getTime() - new Date().getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
 const PRIORITY_CONFIG = {
-  High:   { bg: 'bg-rose-100',   text: 'text-rose-700',   dot: 'bg-rose-500'   },
-  Medium: { bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
-  Low:    { bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500' },
+  High:   { bg: 'bg-rose-50',    text: 'text-rose-700 border-rose-100',   dot: 'bg-rose-500'   },
+  Medium: { bg: 'bg-amber-50',   text: 'text-amber-700 border-amber-100',  dot: 'bg-amber-500'  },
+  Low:    { bg: 'bg-emerald-50', text: 'text-emerald-700 border-emerald-100', dot: 'bg-emerald-500' },
 };
 
 const ICON_OPTIONS = ['🎯','📱','✈️','🛡️','💻','🎮','🚗','🏠','📚','🎵','💍','🏋️','💰','🌟','🎁','🏖️'];
@@ -66,16 +48,18 @@ function Confetti({ active, onDone }: { active: boolean; onDone: () => void }) {
 
   if (!active) return null;
   return (
-    <>
+    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
       {Array.from({ length: 48 }).map((_, i) => (
         <div
           key={i}
-          className="confetti-particle"
+          className="confetti-particle absolute"
           style={{
             left: `${Math.random() * 100}vw`,
             top: `-${8 + Math.random() * 20}px`,
             backgroundColor: COLORS[i % COLORS.length],
+            animationName: 'confettiFall',
             animationDuration: `${1.2 + Math.random() * 1.3}s`,
+            animationTimingFunction: 'linear',
             animationDelay: `${Math.random() * 0.6}s`,
             width: `${6 + Math.random() * 6}px`,
             height: `${6 + Math.random() * 6}px`,
@@ -83,7 +67,7 @@ function Confetti({ active, onDone }: { active: boolean; onDone: () => void }) {
           }}
         />
       ))}
-    </>
+    </div>
   );
 }
 
@@ -93,18 +77,63 @@ function GoalSkeleton() {
   return (
     <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 animate-pulse">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 bg-black/5 rounded-xl" />
+        <div className="w-12 h-12 bg-black/5 rounded-xl" />
         <div className="flex-1 space-y-2">
           <div className="h-4 bg-black/5 rounded-lg w-32" />
           <div className="h-3 bg-black/5 rounded-lg w-20" />
         </div>
         <div className="h-5 w-12 bg-black/5 rounded-full" />
       </div>
-      <div className="h-2 bg-black/5 rounded-full mb-3" />
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {[0,1,2].map(i => <div key={i} className="h-16 bg-black/5 rounded-xl" />)}
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-16 h-16 bg-black/5 rounded-full" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 bg-black/5 rounded w-28" />
+          <div className="h-3 bg-black/5 rounded w-20" />
+        </div>
       </div>
-      <div className="h-3 bg-black/5 rounded w-40" />
+      <div className="h-20 bg-black/5 rounded-xl mb-3" />
+      <div className="h-3 bg-black/5 rounded w-24" />
+    </div>
+  );
+}
+
+function ProgressRing({ percentage, size = 64, strokeWidth = 6 }: { percentage: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (Math.min(100, Math.max(0, percentage)) / 100) * circumference;
+
+  const colorClass = 
+    percentage >= 100 ? 'stroke-emerald-500' :
+    percentage >= 75  ? 'stroke-violet-500' :
+    percentage >= 50  ? 'stroke-blue-500' :
+    percentage >= 25  ? 'stroke-amber-500' : 'stroke-rose-500';
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90 w-full h-full">
+        {/* Background ring */}
+        <circle
+          className="stroke-black/[0.04]"
+          fill="transparent"
+          strokeWidth={strokeWidth}
+          r={radius}
+          cx={size / 2}
+          cy={size / 2}
+        />
+        {/* Progress ring */}
+        <circle
+          className={`transition-all duration-1000 ease-out ${colorClass}`}
+          fill="transparent"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          r={radius}
+          cx={size / 2}
+          cy={size / 2}
+        />
+      </svg>
+      <span className="absolute text-xs font-bold text-black">{Math.round(percentage)}%</span>
     </div>
   );
 }
@@ -121,13 +150,13 @@ interface GoalModalProps {
 function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
   const isEdit = !!goal;
   const [form, setForm] = useState({
-    name: goal?.name ?? '',
+    name: goal?.title || goal?.name || '',
     icon: goal?.icon ?? '🎯',
     category: goal?.category ?? '',
     target_amount: goal?.target_amount?.toString() ?? '',
-    saved_amount: goal?.saved_amount?.toString() ?? '0',
+    saved_amount: (goal?.current_amount ?? goal?.saved_amount ?? 0).toString(),
     monthly_contribution: goal?.monthly_contribution?.toString() ?? '0',
-    target_date: goal?.target_date ?? '',
+    target_date: goal?.target_date ? goal.target_date.substring(0, 10) : '',
     priority: goal?.priority ?? 'Medium' as 'High'|'Medium'|'Low',
     notes: goal?.notes ?? '',
   });
@@ -136,8 +165,6 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Frontend validation
     const targetAmount = parseFloat(form.target_amount);
     if (targetAmount <= 0) {
       alert('Target amount must be greater than 0');
@@ -150,6 +177,7 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
     
     await onSave({
       name: form.name,
+      title: form.name,
       icon: form.icon,
       category: form.category || undefined,
       target_amount: targetAmount,
@@ -162,8 +190,8 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100vh-32px)] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100vh-32px)] flex flex-col overflow-hidden border border-white/20">
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/5 shrink-0">
           <h2 className="font-bold text-black text-base">{isEdit ? 'Edit Goal' : 'New Goal'}</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors">
@@ -172,7 +200,7 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
-          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {/* Icon picker */}
             <div>
               <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-2">Icon</label>
@@ -180,7 +208,7 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
                 {ICON_OPTIONS.map(ic => (
                   <button key={ic} type="button"
                     onClick={() => set('icon', ic)}
-                    className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center category-emoji transition-all ${form.icon === ic ? 'ring-2 ring-violet-500 bg-violet-50' : 'bg-black/5 hover:bg-black/10'}`}>
+                    className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all ${form.icon === ic ? 'ring-2 ring-violet-500 bg-violet-50 scale-110 shadow-sm' : 'bg-black/5 hover:bg-black/10'}`}>
                     {ic}
                   </button>
                 ))}
@@ -269,7 +297,7 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
             </div>
           </div>
 
-          <div className="flex gap-3 p-6 pt-2 border-t border-black/5 shrink-0">
+          <div className="flex gap-3 p-6 pt-2 border-t border-black/5 shrink-0 bg-black/[0.01]">
             <button type="button" onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-semibold text-black/60 hover:bg-black/5 transition-colors">
               Cancel
@@ -285,157 +313,6 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
   );
 }
 
-// ─── Goal Card ─────────────────────────────────────────────────────────────────
-
-interface GoalCardProps {
-  goal: Goal;
-  index: number;
-  onEdit: (g: Goal) => void;
-  onDelete: (id: number) => void;
-  onUpdateSaved: (goal: Goal) => void;
-  isDemo: boolean;
-}
-
-function GoalCard({ goal, index, onEdit, onDelete, onUpdateSaved, isDemo }: GoalCardProps) {
-  const progress = pct(goal.saved_amount, goal.target_amount);
-  const remaining = Math.max(0, goal.target_amount - goal.saved_amount);
-  const needMonthly = requiredMonthly(goal.saved_amount, goal.target_amount, goal.target_date);
-  const estCompletion = estimatedCompletion(goal.saved_amount, goal.target_amount, goal.monthly_contribution);
-  const monthsLeft = monthsFromNow(goal.target_date);
-  const isOnTrack = goal.monthly_contribution >= needMonthly;
-  const pcfg = PRIORITY_CONFIG[goal.priority];
-
-  const progressBarColor =
-    progress >= 100 ? 'bg-emerald-500' :
-    progress >= 75  ? 'bg-violet-500' :
-    progress >= 50  ? 'bg-blue-500' :
-    progress >= 25  ? 'bg-amber-500' : 'bg-rose-500';
-
-  return (
-    <div
-      className="goal-card-in bg-white rounded-2xl border border-black/5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden"
-      style={{ animationDelay: `${index * 0.07}s` }}
-    >
-      {/* Header */}
-      <div className="p-5 pb-0">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gradient-to-br from-violet-50 to-indigo-50 rounded-xl flex items-center justify-center text-2xl category-emoji border border-black/5">
-              {goal.icon || '🎯'}
-            </div>
-            <div>
-              <h3 className="font-bold text-black text-sm leading-tight">{goal.name}</h3>
-              {goal.category && <p className="text-xs text-black/40 font-medium mt-0.5">{goal.category}</p>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${pcfg.bg} ${pcfg.text}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${pcfg.dot}`} />
-              {goal.priority}
-            </span>
-            {goal.is_completed && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                <CheckCircle className="w-2.5 h-2.5" />
-                Done
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mb-2">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold text-black/60">{fmt(goal.saved_amount)} saved</span>
-            <span className="text-xs font-bold text-black">{progress.toFixed(1)}%</span>
-          </div>
-          <div className="w-full h-2.5 bg-black/5 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full progress-bar-animate ${progressBarColor}`}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <span className="text-[10px] text-black/40">₹0</span>
-            <span className="text-[10px] text-black/40">{fmt(goal.target_amount)}</span>
-          </div>
-        </div>
-
-        {/* Remaining */}
-        {!goal.is_completed && remaining > 0 && (
-          <p className="text-xs text-black/50 mb-4">
-            <span className="font-semibold text-black">{fmt(remaining)}</span> remaining
-          </p>
-        )}
-      </div>
-
-      {/* Rate comparison cards */}
-      {!goal.is_completed && (
-        <div className="px-5 pb-4">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100/60">
-              <p className="text-[9px] font-bold text-blue-600/70 uppercase tracking-wider mb-1">Current Rate</p>
-              <p className="text-sm font-bold text-blue-700">{fmt(goal.monthly_contribution)}</p>
-              <p className="text-[9px] text-blue-500/70 font-medium">/month</p>
-            </div>
-            <div className={`rounded-xl p-3 border ${isOnTrack ? 'bg-emerald-50 border-emerald-100/60' : 'bg-amber-50 border-amber-100/60'}`}>
-              <p className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${isOnTrack ? 'text-emerald-600/70' : 'text-amber-600/70'}`}>Need</p>
-              <p className={`text-sm font-bold ${isOnTrack ? 'text-emerald-700' : 'text-amber-700'}`}>{fmt(needMonthly)}</p>
-              <p className={`text-[9px] font-medium ${isOnTrack ? 'text-emerald-500/70' : 'text-amber-500/70'}`}>/month</p>
-            </div>
-            <div className={`rounded-xl p-3 border ${isOnTrack ? 'bg-emerald-50 border-emerald-100/60' : 'bg-rose-50 border-rose-100/60'}`}>
-              <p className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${isOnTrack ? 'text-emerald-600/70' : 'text-rose-600/70'}`}>Diff</p>
-              <div className="flex items-center gap-0.5">
-                {isOnTrack
-                  ? <ArrowUp className="w-3 h-3 text-emerald-600" />
-                  : <Minus className="w-3 h-3 text-rose-600" />}
-                <p className={`text-sm font-bold ${isOnTrack ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {fmt(Math.abs(needMonthly - goal.monthly_contribution))}
-                </p>
-              </div>
-              <p className={`text-[9px] font-medium ${isOnTrack ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>/month</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dates */}
-      <div className="px-5 pb-4 space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-black/50">
-          <Calendar className="w-3.5 h-3.5 shrink-0" />
-          <span>Target: <span className="font-semibold text-black/70">{new Date(goal.target_date).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</span></span>
-          {monthsLeft > 0 && <span className="text-[10px] text-black/30">({monthsLeft}mo left)</span>}
-          {monthsLeft <= 0 && !goal.is_completed && <span className="text-[10px] text-rose-500 font-semibold">(Overdue)</span>}
-        </div>
-        {!goal.is_completed && goal.monthly_contribution > 0 && (
-          <div className="flex items-center gap-2 text-xs text-black/50">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            <span>Est. completion: <span className="font-semibold text-violet-600">{estCompletion}</span></span>
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      {!isDemo && (
-        <div className="px-5 pb-5 flex gap-2">
-          <button
-            onClick={() => onUpdateSaved(goal)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-violet-200 text-violet-600 text-xs font-semibold hover:bg-violet-50 transition-colors">
-            <TrendingUp className="w-3.5 h-3.5" /> Update Savings
-          </button>
-          <button onClick={() => onEdit(goal)}
-            className="p-2 rounded-xl border border-black/10 text-black/50 hover:text-black hover:bg-black/5 transition-colors">
-            <Edit2 className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onDelete(goal.id)}
-            className="p-2 rounded-xl border border-rose-100 text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Update Saved Modal ────────────────────────────────────────────────────────
 
 function UpdateSavedModal({ goal, onClose, onSave, saving }: {
@@ -444,23 +321,23 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
   onSave: (newSaved: number, monthly: number) => Promise<void>;
   saving: boolean;
 }) {
-  const [saved, setSaved] = useState(goal.saved_amount.toString());
+  const [saved, setSaved] = useState((goal.current_amount ?? goal.saved_amount).toString());
   const [monthly, setMonthly] = useState(goal.monthly_contribution.toString());
-  const progress = pct(parseFloat(saved) || 0, goal.target_amount);
+  const progress = ((parseFloat(saved) || 0) / goal.target_amount) * 100;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[calc(100vh-32px)] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white/95 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-black/5">
         <div className="flex items-center justify-between px-6 py-5 border-b border-black/5 shrink-0">
           <div>
             <h2 className="font-bold text-black text-base">Update Savings</h2>
-            <p className="text-xs text-black/50 mt-0.5">{goal.icon} {goal.name}</p>
+            <p className="text-xs text-black/55 mt-0.5">{goal.icon} {goal.title || goal.name}</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-black/5 rounded-lg transition-colors">
             <X className="w-4 h-4 text-black/60" />
           </button>
         </div>
-        <div className="p-6 space-y-4 overflow-y-auto overflow-x-hidden overscroll-behavior-contain flex-1">
+        <div className="p-6 space-y-4">
           <div>
             <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Current Saved Amount</label>
             <div className="relative">
@@ -478,8 +355,7 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
             </div>
           </div>
 
-          {/* Live preview bar */}
-          <div className="p-3 bg-black/[0.03] rounded-xl">
+          <div className="p-3 bg-black/[0.02] rounded-xl border border-black/5">
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-black/50">Progress preview</span>
               <span className="font-bold text-black">{progress.toFixed(1)}%</span>
@@ -490,17 +366,16 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
                 style={{ width: `${Math.min(progress, 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-black/40 mt-1">{fmt(goal.target_amount - (parseFloat(saved) || 0))} remaining after update</p>
           </div>
         </div>
 
-        <div className="flex gap-3 p-6 pt-0 border-t border-black/5 shrink-0">
+        <div className="flex gap-3 p-6 pt-0 shrink-0">
           <button type="button" onClick={onClose}
             className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-semibold text-black/60 hover:bg-black/5 transition-colors">
             Cancel
           </button>
           <button type="button" onClick={() => onSave(parseFloat(saved) || 0, parseFloat(monthly) || 0)} disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50">
             {saving ? 'Saving…' : 'Update'}
           </button>
         </div>
@@ -509,101 +384,125 @@ function UpdateSavedModal({ goal, onClose, onSave, saving }: {
   );
 }
 
-// ─── Main Page Component ────────────────────────────────────────────────────────
+// ─── Goal Card Component ───────────────────────────────────────────────────────
 
-// ─── AI Suggestions ────────────────────────────────────────────────────────────
+interface GoalCardProps {
+  goal: Goal;
+  index: number;
+  onEdit: (g: Goal) => void;
+  onDelete: (id: number) => void;
+  onUpdateSaved: (goal: Goal) => void;
+  isDemo: boolean;
+}
 
-function AISuggestions({ goals }: { goals: Goal[] }) {
-  const suggestions: { icon: string; title: string; body: string; color: string }[] = [];
+function GoalCard({ goal, index, onEdit, onDelete, onUpdateSaved, isDemo }: GoalCardProps) {
+  const current = goal.current_amount ?? goal.saved_amount;
+  const progress = goal.progress_percentage ?? 0;
+  const remaining = Math.max(0, goal.target_amount - current);
+  const daysLeft = daysFromNow(goal.target_date);
+  const estCompletion = goal.ai_insights?.estimated_completion_date
+    ? new Date(goal.ai_insights.estimated_completion_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Never';
 
-  // Most behind goal
-  const behind = goals.filter(g => !g.is_completed && g.monthly_contribution > 0).sort((a, b) => {
-    const aNeed = requiredMonthly(a.saved_amount, a.target_amount, a.target_date);
-    const bNeed = requiredMonthly(b.saved_amount, b.target_amount, b.target_date);
-    return (aNeed - a.monthly_contribution) - (bNeed - b.monthly_contribution);
-  }).reverse()[0];
-
-  if (behind) {
-    const need = requiredMonthly(behind.saved_amount, behind.target_amount, behind.target_date);
-    const gap  = need - behind.monthly_contribution;
-    if (gap > 0) {
-      suggestions.push({
-        icon: '⚡',
-        title: `Boost "${behind.name}" by ${fmt(gap)}/month`,
-        body: `Increasing your monthly contribution from ${fmt(behind.monthly_contribution)} to ${fmt(need)} will ensure you hit your target on time.`,
-        color: 'from-amber-50 to-orange-50 border-amber-100',
-      });
-    }
-  }
-
-  // Closest to completion
-  const almostDone = goals.filter(g => !g.is_completed && pct(g.saved_amount, g.target_amount) >= 70).sort((a, b) => pct(b.saved_amount, b.target_amount) - pct(a.saved_amount, a.target_amount))[0];
-  if (almostDone) {
-    suggestions.push({
-      icon: '🎯',
-      title: `"${almostDone.name}" is ${pct(almostDone.saved_amount, almostDone.target_amount).toFixed(0)}% complete`,
-      body: `Only ${fmt(almostDone.target_amount - almostDone.saved_amount)} left! You're incredibly close. One extra month of effort will finish this goal.`,
-      color: 'from-violet-50 to-indigo-50 border-violet-100',
-    });
-  }
-
-  // High priority but low funding
-  const highUnderfunded = goals.find(g => g.priority === 'High' && !g.is_completed && g.monthly_contribution === 0);
-  if (highUnderfunded) {
-    suggestions.push({
-      icon: '🚨',
-      title: `Set a monthly contribution for "${highUnderfunded.name}"`,
-      body: `This is a High priority goal but has no monthly contribution set. Setting even a small amount helps you track progress and stay on target.`,
-      color: 'from-rose-50 to-pink-50 border-rose-100',
-    });
-  }
-
-  // General savings tip
-  const totalNeed = goals.filter(g => !g.is_completed).reduce((s, g) => s + requiredMonthly(g.saved_amount, g.target_amount, g.target_date), 0);
-  const totalContrib = goals.filter(g => !g.is_completed).reduce((s, g) => s + g.monthly_contribution, 0);
-  if (totalNeed > 0 && totalContrib < totalNeed) {
-    suggestions.push({
-      icon: '💡',
-      title: `You need ${fmt(totalNeed - totalContrib)} more savings/month across all goals`,
-      body: `Redirecting discretionary spending (dining, subscriptions) to your goals could close this gap. Try reviewing your monthly budget.`,
-      color: 'from-emerald-50 to-teal-50 border-emerald-100',
-    });
-  }
-
-  if (suggestions.length === 0) {
-    suggestions.push({
-      icon: '🏆',
-      title: 'You\'re on track with all goals!',
-      body: 'Your current savings rate covers all your goals on time. Consider starting a new goal or increasing your emergency fund.',
-      color: 'from-emerald-50 to-teal-50 border-emerald-100',
-    });
-  }
+  const pcfg = PRIORITY_CONFIG[goal.priority];
 
   return (
-    <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center">
-          <Zap className="w-4 h-4 text-violet-600" />
-        </div>
-        <div>
-          <h2 className="font-bold text-black text-sm">AI Suggestions</h2>
-          <p className="text-[11px] text-black/40">Personalized recommendations based on your goals</p>
-        </div>
-      </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {suggestions.slice(0, 3).map((s, i) => (
-          <div key={i} className={`bg-gradient-to-br ${s.color} border rounded-xl p-4`}>
-            <div className="text-2xl mb-2 category-emoji">{s.icon}</div>
-            <p className="text-sm font-bold text-black mb-1">{s.title}</p>
-            <p className="text-xs text-black/60 leading-relaxed">{s.body}</p>
+    <div
+      className="bg-white/80 backdrop-blur-md rounded-2xl border border-black/5 shadow-sm hover:shadow-lg transition-all duration-300 p-5 flex flex-col justify-between relative group overflow-hidden"
+      style={{ animationDelay: `${index * 0.05}s` }}
+    >
+      <div>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-violet-50 to-indigo-50 border border-violet-100/50 rounded-xl flex items-center justify-center text-2xl">
+              {goal.icon || '🎯'}
+            </div>
+            <div>
+              <h3 className="font-bold text-black text-sm leading-tight">{goal.title || goal.name}</h3>
+              <span className="text-[10px] text-black/40 font-semibold uppercase tracking-wider">{goal.category || 'Goal'}</span>
+            </div>
           </div>
-        ))}
+          <div className="flex flex-col items-end gap-1.5">
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${pcfg.bg} ${pcfg.text}`}>
+              {goal.priority}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              goal.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+              goal.status === 'Overdue' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              {goal.status}
+            </span>
+          </div>
+        </div>
+
+        {/* Dynamic Progress Ring & remaining content */}
+        <div className="flex items-center gap-4 mb-4">
+          <ProgressRing percentage={progress} size={70} strokeWidth={7} />
+          <div className="space-y-1">
+            <p className="text-xs text-black/50">
+              Saved <span className="font-bold text-black">{fmt(current)}</span> of {fmt(goal.target_amount)}
+            </p>
+            {remaining > 0 ? (
+              <p className="text-xs text-rose-600 font-semibold">{fmt(remaining)} remaining</p>
+            ) : (
+              <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">🎉 Completed!</p>
+            )}
+          </div>
+        </div>
+
+        {/* AI Insight Box inside Card */}
+        {goal.ai_insights && (
+          <div className="bg-violet-50/50 border border-violet-100/50 rounded-xl p-3 mb-4 space-y-1.5">
+            <div className="flex items-center gap-1 text-[10px] font-bold text-violet-700 uppercase tracking-wide">
+              <Zap className="w-3 h-3" /> AI Insights
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-black/60">
+              <div>
+                <span className="block text-[10px] text-black/40 uppercase">Est. Finish</span>
+                <span className="font-semibold text-black">{estCompletion}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] text-black/40 uppercase">Need / Month</span>
+                <span className="font-semibold text-black">{fmt(goal.ai_insights.amount_needed_per_month)}</span>
+              </div>
+            </div>
+            {goal.ai_insights.suggestions.length > 0 && (
+              <p className="text-[10px] text-violet-600/90 font-medium leading-relaxed pt-1 border-t border-violet-100/60">
+                💡 {goal.ai_insights.suggestions[0]}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="pt-3 border-t border-black/5 mt-auto flex items-center justify-between">
+        <div className="text-xs text-black/40 flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          <span>{daysLeft} days left</span>
+        </div>
+        {!isDemo && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onUpdateSaved(goal)}
+              className="px-3 py-1.5 rounded-lg bg-black text-white hover:bg-gray-900 text-xs font-semibold transition-colors">
+              Update
+            </button>
+            <button onClick={() => onEdit(goal)}
+              className="p-1.5 rounded-lg hover:bg-black/5 text-black/50 hover:text-black transition-colors">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => onDelete(goal.id)}
+              className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page Component ───────────────────────────────────────────────────────
 
 export function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -618,7 +517,6 @@ export function GoalsPage() {
   const user = getUser();
   const isDemo = (user?.email ?? '') === DEMO_EMAIL;
 
-  // ── Data ─────────────────────────────────────────────────────────────────────
   const fetchGoals = useCallback(async () => {
     try {
       const res = await goalsAPI.getAll();
@@ -637,7 +535,6 @@ export function GoalsPage() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  // ── CRUD ──────────────────────────────────────────────────────────────────────
   const handleSaveGoal = async (data: Partial<Goal>) => {
     setSaving(true);
     try {
@@ -671,7 +568,7 @@ export function GoalsPage() {
       });
       if (willComplete && !wasCompleted) {
         setConfetti(true);
-        showToast('success', `🎉 "${updateGoal.name}" completed!`);
+        showToast('success', `🎉 "${updateGoal.title || updateGoal.name}" completed!`);
       } else {
         showToast('success', 'Savings updated!');
       }
@@ -697,8 +594,8 @@ export function GoalsPage() {
 
   // ── KPIs ──────────────────────────────────────────────────────────────────────
   const totalGoals     = goals.length;
-  const completedGoals = goals.filter(g => g.is_completed).length;
-  const totalSaved     = goals.reduce((s, g) => s + g.saved_amount, 0);
+  const completedGoals = goals.filter(g => g.status === 'Completed').length;
+  const totalSaved     = goals.reduce((s, g) => s + (g.current_amount ?? g.saved_amount), 0);
   const totalTarget    = goals.reduce((s, g) => s + g.target_amount, 0);
   const overallPct     = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
 
@@ -707,16 +604,25 @@ export function GoalsPage() {
     { label: 'Completed',     value: completedGoals,         sub: `${totalGoals - completedGoals} in progress`,     icon: Trophy,       grad: 'from-emerald-50 to-teal-50',  iconColor: 'text-emerald-600', fmt: false },
     { label: 'Total Saved',   value: totalSaved,             sub: 'across all goals',    icon: TrendingUp,   grad: 'from-blue-50 to-cyan-50',     iconColor: 'text-blue-600', fmt: true },
     { label: 'Total Target',  value: totalTarget,            sub: 'combined target',     icon: Star,         grad: 'from-amber-50 to-orange-50',  iconColor: 'text-amber-600', fmt: true },
-    { label: 'Overall',       value: overallPct,             sub: 'progress',            icon: CheckCircle,  grad: 'from-rose-50 to-pink-50',     iconColor: 'text-rose-600', fmt: false, isPct: true },
+    { label: 'Overall Pct',   value: overallPct,             sub: 'progress',            icon: CheckCircle,  grad: 'from-rose-50 to-pink-50',     iconColor: 'text-rose-600', fmt: false, isPct: true },
   ];
 
-  // ── Render ─────────────────────────────────────────────────────────────────────
+  // Prepare chart data dynamically
+  const progressChartData = goals.map(g => ({
+    name: g.title || g.name,
+    Saved: g.current_amount ?? g.saved_amount,
+    Target: g.target_amount,
+  }));
+
+  const contributionChartData = goals.map(g => ({
+    name: g.title || g.name,
+    Contribution: g.monthly_contribution,
+  }));
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Confetti */}
       <Confetti active={confetti} onDone={() => setConfetti(false)} />
 
-      {/* Toast */}
       {toast && (
         <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9990] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-4 duration-300 ${
           toast.type === 'success' ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800'
@@ -730,16 +636,16 @@ export function GoalsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-black tracking-tight flex items-center gap-2">
-            <span className="category-emoji">🎯</span> Financial Goals
+            <span className="category-emoji">🎯</span> Smart Financial Goals
           </h1>
-          <p className="text-sm text-black/50 mt-1">Track your savings goals and achieve your future purchases.</p>
+          <p className="text-sm text-black/50 mt-1">AI-powered tracking, estimates, and dynamic progress calculation.</p>
         </div>
         {!isDemo && (
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-gray-900 transition-colors shadow-sm hover:shadow-md">
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Goal</span>
+            <span>New Goal</span>
           </button>
         )}
       </div>
@@ -757,7 +663,7 @@ export function GoalsPage() {
                 </div>
               </div>
               <div className="text-xl font-extrabold text-black tracking-tight">
-                {loading ? '—' : (k as any).isPct ? `${overallPct.toFixed(0)}%` : k.fmt ? fmt(k.value as number) : (k.value as number)}
+                {loading ? '—' : k.isPct ? `${overallPct.toFixed(1)}%` : k.fmt ? fmt(k.value) : k.value}
               </div>
               <p className="text-[10px] text-black/40 font-medium mt-0.5">{k.sub}</p>
             </div>
@@ -775,19 +681,68 @@ export function GoalsPage() {
         </div>
       )}
 
+      {/* Charts Section */}
+      {goals.length > 0 && !loading && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl border border-black/5 p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-black mb-4 flex items-center gap-1.5">
+              <PieChart className="w-4 h-4 text-violet-500" /> Progress vs Targets
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={progressChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorSaved" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="name" stroke="#9CA3AF" fontSize={10} />
+                  <YAxis stroke="#9CA3AF" fontSize={10} />
+                  <Tooltip formatter={(value) => ['₹' + Number(value).toLocaleString('en-IN')]} />
+                  <Area type="monotone" dataKey="Saved" stroke="#8B5CF6" strokeWidth={2} fillOpacity={1} fill="url(#colorSaved)" />
+                  <Area type="monotone" dataKey="Target" stroke="#D1D5DB" strokeDasharray="5 5" fill="none" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-black/5 p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-black mb-4 flex items-center gap-1.5">
+              <BarChart3 className="w-4 h-4 text-emerald-500" /> Monthly Contributions
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={contributionChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="name" stroke="#9CA3AF" fontSize={10} />
+                  <YAxis stroke="#9CA3AF" fontSize={10} />
+                  <Tooltip formatter={(value) => ['₹' + Number(value).toLocaleString('en-IN')]} />
+                  <Bar dataKey="Contribution" fill="#10B981" radius={[4, 4, 0, 0]}>
+                    {contributionChartData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#10B981' : '#3B82F6'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Goals Grid */}
       {loading ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
           {[1,2,3,4].map(i => <GoalSkeleton key={i} />)}
         </div>
       ) : goals.length === 0 ? (
-        /* Empty state */
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-12 flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-violet-100 to-indigo-100 rounded-2xl flex items-center justify-center text-4xl category-emoji mb-5">
+          <div className="w-20 h-20 bg-gradient-to-br from-violet-100 to-indigo-100 rounded-2xl flex items-center justify-center text-4xl mb-5">
             🎯
           </div>
           <h2 className="text-lg font-bold text-black mb-2">No goals yet</h2>
-          <p className="text-sm text-black/50 max-w-xs leading-relaxed mb-6">
+          <p className="text-sm text-black/50 max-w-xs mb-6">
             Start tracking your savings goals — from gadgets and vacations to an emergency fund.
           </p>
           <button
@@ -797,34 +752,18 @@ export function GoalsPage() {
           </button>
         </div>
       ) : (
-        <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-4">
-            {goals.map((g, idx) => (
-              <GoalCard
-                key={g.id}
-                goal={g}
-                index={idx}
-                onEdit={setEditGoal}
-                onDelete={handleDelete}
-                onUpdateSaved={setUpdateGoal}
-                isDemo={isDemo}
-              />
-            ))}
-          </div>
-
-          {/* AI Suggestions */}
-          <AISuggestions goals={goals} />
-        </>
-      )}
-
-      {/* View more link */}
-      {goals.length > 0 && (
-        <div className="flex justify-center">
-          <div className="text-xs text-black/30 flex items-center gap-1">
-            <Target className="w-3 h-3" />
-            {completedGoals} of {totalGoals} goals completed
-            <ChevronRight className="w-3 h-3" />
-          </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {goals.map((g, idx) => (
+            <GoalCard
+              key={g.id}
+              goal={g}
+              index={idx}
+              onEdit={setEditGoal}
+              onDelete={handleDelete}
+              onUpdateSaved={setUpdateGoal}
+              isDemo={isDemo}
+            />
+          ))}
         </div>
       )}
 

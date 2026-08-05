@@ -4,7 +4,7 @@ const { DEMO_EMAIL } = require('../config/constants');
 const DEMO_GOALS = [
   {
     id: 1, user_id: 0,
-    name: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
+    name: 'iPhone 16 Pro', title: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
     target_amount: 110000, saved_amount: 62000, monthly_contribution: 7500,
     target_date: '2026-12-31', priority: 'High',
     notes: 'Latest iPhone with Pro camera system',
@@ -13,7 +13,7 @@ const DEMO_GOALS = [
   },
   {
     id: 2, user_id: 0,
-    name: 'Japan Trip', icon: '✈️', category: 'Travel',
+    name: 'Japan Trip', title: 'Japan Trip', icon: '✈️', category: 'Travel',
     target_amount: 85000, saved_amount: 28000, monthly_contribution: 4000,
     target_date: '2027-03-31', priority: 'Medium',
     notes: 'Cherry blossom season — March / April',
@@ -22,7 +22,7 @@ const DEMO_GOALS = [
   },
   {
     id: 3, user_id: 0,
-    name: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
+    name: 'Emergency Fund', title: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
     target_amount: 150000, saved_amount: 95000, monthly_contribution: 10000,
     target_date: '2026-09-30', priority: 'High',
     notes: '6 months of living expenses covered',
@@ -31,7 +31,7 @@ const DEMO_GOALS = [
   },
   {
     id: 4, user_id: 0,
-    name: 'MacBook Pro M4', icon: '💻', category: 'Technology',
+    name: 'MacBook Pro M4', title: 'MacBook Pro M4', icon: '💻', category: 'Technology',
     target_amount: 200000, saved_amount: 15000, monthly_contribution: 2500,
     target_date: '2027-12-31', priority: 'Low',
     notes: 'For development and video editing',
@@ -40,24 +40,102 @@ const DEMO_GOALS = [
   },
 ];
 
+function enrichGoal(goal) {
+  const current_amount = Number(goal.current_amount !== undefined ? goal.current_amount : goal.saved_amount) || 0;
+  const target_amount = Number(goal.target_amount) || 1;
+  const progress_percentage = Math.min(100, Number(((current_amount / target_amount) * 100).toFixed(1)));
+  
+  // Calculate status
+  let status = 'Active';
+  if (goal.is_completed || progress_percentage >= 100) {
+    status = 'Completed';
+  } else if (new Date(goal.target_date) < new Date()) {
+    status = 'Overdue';
+  }
+
+  // AI insights calculations
+  const remaining = Math.max(0, target_amount - current_amount);
+  const monthly = Number(goal.monthly_contribution) || 0;
+  
+  // Months remaining to target date
+  const now = new Date();
+  const target = new Date(goal.target_date);
+  const monthsRemaining = Math.max(0.1, (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
+  const amountNeededPerMonth = Math.max(0, Number((remaining / monthsRemaining).toFixed(2)));
+
+  let estimatedCompletionDate = 'Never (No contributions)';
+  let probability = 'Low';
+  let suggestions = [];
+
+  if (progress_percentage >= 100) {
+    estimatedCompletionDate = 'Completed';
+    probability = 'High';
+  } else if (monthly > 0) {
+    const monthsNeeded = Math.ceil(remaining / monthly);
+    const estDate = new Date();
+    estDate.setMonth(estDate.getMonth() + monthsNeeded);
+    estimatedCompletionDate = estDate.toISOString().split('T')[0];
+
+    // Probability
+    if (monthly >= amountNeededPerMonth) {
+      probability = 'High';
+    } else if (monthly >= amountNeededPerMonth * 0.7) {
+      probability = 'Medium';
+    } else {
+      probability = 'Low';
+    }
+  }
+
+  if (status === 'Overdue') {
+    probability = 'Low';
+    suggestions.push('The target date has passed. Consider extending the target date or increasing your savings rate.');
+  } else if (probability === 'Low' && progress_percentage < 100) {
+    const gap = amountNeededPerMonth - monthly;
+    suggestions.push(`Increase monthly savings by ₹${Math.floor(gap).toLocaleString('en-IN')} to get back on track.`);
+    suggestions.push('Consider reviewing discretionary spending categories like Dining out or Shopping.');
+  } else if (probability === 'Medium') {
+    suggestions.push('You are slightly behind schedule. A minor boost of 10% to your savings rate will ensure on-time completion.');
+  } else if (status === 'Active') {
+    suggestions.push('Keep up the good work! You are currently on track to achieve this goal.');
+  }
+
+  return {
+    ...goal,
+    title: goal.name || goal.title,
+    current_amount,
+    saved_amount: current_amount, // for backward compatibility in widgets
+    progress_percentage,
+    status,
+    is_completed: (goal.is_completed || progress_percentage >= 100) ? 1 : 0,
+    ai_insights: {
+      estimated_completion_date: estimatedCompletionDate,
+      amount_needed_per_month: amountNeededPerMonth,
+      probability_of_completion: probability,
+      suggestions
+    }
+  };
+}
+
 const getGoals = async (req, res) => {
   try {
     if (req.user.email === DEMO_EMAIL) {
-      return res.json({ success: true, goals: DEMO_GOALS });
+      return res.json({ success: true, goals: DEMO_GOALS.map(enrichGoal) });
     }
 
     const [goals] = await pool.query(
-      `SELECT id, user_id, name, icon, category,
-              target_amount, saved_amount, monthly_contribution,
-              DATE_FORMAT(target_date, '%Y-%m-%d') AS target_date,
-              priority, notes, is_completed, created_at, updated_at
-       FROM goals
-       WHERE user_id = ?
-       ORDER BY is_completed ASC, FIELD(priority, 'High', 'Medium', 'Low'), created_at DESC`,
+      `SELECT g.id, g.user_id, g.name AS title, g.name, g.icon, g.category,
+              g.target_amount, 
+              (g.saved_amount + COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0)) AS current_amount,
+              g.saved_amount, g.monthly_contribution,
+              DATE_FORMAT(g.target_date, '%Y-%m-%d') AS target_date,
+              g.priority, g.notes, g.is_completed, g.created_at, g.updated_at
+       FROM goals g
+       WHERE g.user_id = ?
+       ORDER BY g.is_completed ASC, FIELD(g.priority, 'High', 'Medium', 'Low'), g.created_at DESC`,
       [req.user.id],
     );
 
-    res.json({ success: true, goals });
+    res.json({ success: true, goals: goals.map(enrichGoal) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -73,15 +151,17 @@ const createGoal = async (req, res) => {
     }
 
     const {
-      name, icon, category,
+      name, title, icon, category,
       target_amount, saved_amount = 0, monthly_contribution = 0,
       target_date, priority = 'Medium', notes,
     } = req.body;
 
-    if (!name || !target_amount || !target_date) {
+    const finalName = (name || title || '').trim();
+
+    if (!finalName || !target_amount || !target_date) {
       return res.status(400).json({
         success: false,
-        message: 'name, target_amount and target_date are required.',
+        message: 'name/title, target_amount and target_date are required.',
       });
     }
 
@@ -92,7 +172,7 @@ const createGoal = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id,
-        name.trim(),
+        finalName,
         icon || null,
         category || null,
         target_amount,
@@ -124,7 +204,10 @@ const updateGoal = async (req, res) => {
 
     // Fetch current state to compute milestone transitions
     const [existing] = await pool.query(
-      'SELECT saved_amount, target_amount, name FROM goals WHERE id = ? AND user_id = ?',
+      `SELECT g.id, g.name, g.target_amount, 
+              (g.saved_amount + COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0)) AS current_amount
+       FROM goals g 
+       WHERE g.id = ? AND g.user_id = ?`,
       [id, userId],
     );
 
@@ -133,7 +216,7 @@ const updateGoal = async (req, res) => {
     }
 
     const {
-      name, icon, category,
+      name, title, icon, category,
       target_amount, saved_amount, monthly_contribution,
       target_date, priority, notes, is_completed,
     } = req.body;
@@ -141,7 +224,8 @@ const updateGoal = async (req, res) => {
     const fields = [];
     const values = [];
 
-    if (name !== undefined) { fields.push('name = ?'); values.push(name.trim()); }
+    const finalName = name || title;
+    if (finalName !== undefined) { fields.push('name = ?'); values.push(finalName.trim()); }
     if (icon !== undefined) { fields.push('icon = ?'); values.push(icon); }
     if (category !== undefined) { fields.push('category = ?'); values.push(category); }
     if (target_amount !== undefined) { fields.push('target_amount = ?'); values.push(target_amount); }
@@ -165,8 +249,8 @@ const updateGoal = async (req, res) => {
     // ── Milestone notifications ────────────────────────────────────────────────
     if (saved_amount !== undefined) {
       const effectiveTarget = target_amount !== undefined ? target_amount : existing[0].target_amount;
-      const effectiveName   = name !== undefined ? name : existing[0].name;
-      const oldPct = (existing[0].saved_amount / existing[0].target_amount) * 100;
+      const effectiveName   = finalName !== undefined ? finalName : existing[0].name;
+      const oldPct = (existing[0].current_amount / existing[0].target_amount) * 100;
       const newPct = (saved_amount / effectiveTarget) * 100;
       const remaining = effectiveTarget - saved_amount;
 
@@ -186,9 +270,23 @@ const updateGoal = async (req, res) => {
             `INSERT INTO notifications (user_id, title, description, type) VALUES (?, ?, ?, ?)`,
             [userId, '⭐ Halfway There!', `You've saved 50% towards your "${effectiveName}" goal!`, 'goal_milestone'],
           );
+        } else if (newPct >= 25 && oldPct < 25) {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, description, type) VALUES (?, ?, ?, ?)`,
+            [userId, '📈 Goal 25% Complete', `You've reached 25% of your target for "${effectiveName}"!`, 'goal_milestone'],
+          );
         }
 
-        if (remaining > 0 && remaining <= 10000 && (existing[0].target_amount - existing[0].saved_amount) > 10000) {
+        // Detect if goal is behind schedule and notify
+        const enriched = enrichGoal({ ...existing[0], saved_amount, target_amount: effectiveTarget, target_date });
+        if (enriched.status === 'Active' && enriched.ai_insights.probability_of_completion === 'Low') {
+          await pool.query(
+            `INSERT INTO notifications (user_id, title, description, type) VALUES (?, ?, ?, 'goal_behind')`,
+            [userId, '⚠️ Goal Behind Schedule', `Your goal "${effectiveName}" is behind schedule. AI recommends increasing contributions.`, 'goal_behind']
+          );
+        }
+
+        if (remaining > 0 && remaining <= 10000 && (existing[0].target_amount - existing[0].current_amount) > 10000) {
           await pool.query(
             `INSERT INTO notifications (user_id, title, description, type) VALUES (?, ?, ?, ?)`,
             [userId, '💰 Almost There!', `Only ₹${Math.floor(remaining).toLocaleString('en-IN')} left to reach your "${effectiveName}" goal!`, 'goal_almost'],

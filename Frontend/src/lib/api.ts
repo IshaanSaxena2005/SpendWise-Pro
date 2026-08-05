@@ -40,6 +40,8 @@ export interface Transaction {
   note?: string;
   is_recurring?: boolean;
   recurring_transaction_id?: number | null;
+  goal_id?: number | null;
+  goal_title?: string | null;
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -70,15 +72,25 @@ export interface Goal {
   id: number;
   user_id: number;
   name: string;
+  title?: string;
   icon?: string;
   category?: string;
   target_amount: number;
   saved_amount: number;
+  current_amount?: number;
+  progress_percentage?: number;
   monthly_contribution: number;
   target_date: string;
   priority: 'High' | 'Medium' | 'Low';
   notes?: string;
   is_completed: boolean;
+  status?: 'Active' | 'Completed' | 'Overdue';
+  ai_insights?: {
+    estimated_completion_date: string;
+    amount_needed_per_month: number;
+    probability_of_completion: 'High' | 'Medium' | 'Low';
+    suggestions: string[];
+  };
   created_at: string;
   updated_at: string;
 }
@@ -172,9 +184,9 @@ export interface Anomaly {
 
 export const expenseAPI = {
   getAllExpenses: () => api.get<{ success: boolean; expenses: Transaction[] }>('/expenses/all'),
-  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null }) =>
+  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null; goal_id?: number | null }) =>
     api.post<{ success: boolean; message?: string; is_anomaly?: boolean }>('/expenses/add', data),
-  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string }>) =>
+  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string; goal_id?: number | null }>) =>
     api.put<{ success: boolean; message?: string }>(`/expenses/update/${id}`, data),
   deleteExpense: (id: number) => api.delete<{ success: boolean; message?: string }>(`/expenses/delete/${id}`),
 };

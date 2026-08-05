@@ -13,12 +13,12 @@ const addExpense = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id } = req.body;
+    const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id, goal_id } = req.body;
     const expenseNote = note && note.trim() ? note : (title || '');
 
     await pool.query(
-      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null]
+      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, goal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null, goal_id || null]
     );
 
     const merchantName = title || note || '';
@@ -72,10 +72,13 @@ const getExpenses = async (req, res) => {
         e.note,
         e.is_recurring,
         e.recurring_transaction_id,
+        e.goal_id,
+        g.name AS goal_title,
         e.created_at,
         e.updated_at
       FROM expenses e
       JOIN categories c ON c.id = e.category_id
+      LEFT JOIN goals g ON g.id = e.goal_id
       WHERE e.user_id = ?
       ORDER BY e.expense_date DESC, e.id DESC`,
       [userId]
@@ -104,12 +107,12 @@ const updateExpense = async (req, res) => {
 
     const userId = req.user.id;
     const { id } = req.params;
-    const { amount, category_id, expense_date, note, title } = req.body;
+    const { amount, category_id, expense_date, note, title, goal_id } = req.body;
     const expenseNote = note || title;
 
     const [result] = await pool.query(
-      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ? WHERE id = ? AND user_id = ?',
-      [amount, category_id, expense_date, expenseNote, id, userId]
+      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ?, goal_id = ? WHERE id = ? AND user_id = ?',
+      [amount, category_id, expense_date, expenseNote, goal_id !== undefined ? goal_id : null, id, userId]
     );
 
     if (result.affectedRows === 0) {

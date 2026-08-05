@@ -72,6 +72,10 @@ const expenseValidation = [
     .optional()
     .trim()
     .isLength({ max: 500 }).withMessage('Note must be 500 characters or fewer'),
+  body('goal_id')
+    .optional({ nullable: true, checkFalsy: true })
+    .isInt({ min: 1 }).withMessage('Invalid goal_id')
+    .toInt(),
 ];
 
 const categoryValidation = [
@@ -113,8 +117,6 @@ const goalValidation = [
     .isISO8601({ strict: true }).withMessage('Invalid target date')
     .toDate(),
 ];
-
-// Goals API is not currently implemented. Validation middleware for goals is already prepared and can be enabled when the feature is added.
 
 module.exports = {
   idParamValidation,
