@@ -31,21 +31,22 @@
 
 ## Features
 
-| Area                       | Capabilities                                                                |
-| -------------------------- | --------------------------------------------------------------------------- |
-| **Expense Tracking**       | Add, update, and delete expenses with categories, notes, and dates          |
-| **Budget Management**      | Set overall and category budgets with real-time utilization tracking        |
-| **Analytics Dashboard**    | Monthly trends, category breakdowns, top spending categories, and summaries |
-| **AI Financial Assistant** | Natural-language queries about spending, budgets, forecasts, and profile    |
-| **Spending Forecasting**   | ML-powered next-month spending predictions                                  |
-| **Anomaly Detection**      | Detect unusual spending behavior using Isolation Forest                     |
-| **Intelligent Insights**   | Auto-generated insights and savings recommendations                         |
-| **Financial Health**       | Dynamic health score with personalized recommendations                      |
-| **Notifications**          | In-app alerts for budget and spending events                                |
-| **Authentication**         | JWT-based authentication with email verification and password reset         |
-| **Profile & Avatar**       | Profile management with secure avatar upload                                |
-| **Security**               | Helmet, rate limiting, input validation, and CORS hardening                 |
-| **Deployment**             | Production-ready cloud deployment using Vercel and Railway                  |
+| Area | Capabilities |
+|------|--------------|
+| **Smart Expense Tracking** | Add, edit, delete, search, filter and export transactions |
+| **Self-Learning AI Categorization** | Automatically categorizes transactions using keywords, fuzzy matching, AI, and personalized learning |
+| **Recurring Transactions** | Daily, weekly, monthly and yearly recurring expenses & income |
+| **Smart Financial Goals** | AI-assisted goals with progress tracking, completion prediction and milestone notifications |
+| **Budget Management** | Overall and category-wise budgets with utilization tracking |
+| **Analytics Dashboard** | Spending trends, category breakdown, savings insights and monthly summaries |
+| **AI Financial Assistant** | Natural language financial queries powered by Gemini AI |
+| **Spending Forecasting** | Machine learning prediction of future expenses |
+| **Anomaly Detection** | Isolation Forest based unusual spending detection |
+| **Financial Health Score** | Personalized financial health analysis with recommendations |
+| **Notifications** | Budget alerts, recurring reminders and goal milestone notifications |
+| **Authentication & Security** | JWT, Email Verification, Password Reset, Google OAuth, Rate Limiting |
+| **Profile Management** | Avatar upload and profile customization |
+| **Cloud Deployment** | Production-ready deployment on Vercel + Render + TiDB Cloud |
 
 ---
 
