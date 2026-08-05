@@ -72,16 +72,21 @@
 - Helmet
 - express-rate-limit
 - express-validator
+- Gemini AI API
 
-### Machine Learning
+### AI & Machine Learning
 
+- Python
 - Flask
 - Scikit-learn
-  - Linear Regression
-  - Isolation Forest
 - Pandas
 - NumPy
-
+- Gemini AI API
+- Rule-based NLP Engine
+- Fuzzy String Matching
+- Self-Learning Categorization Engine
+- Linear Regression
+- Isolation Forest
 ---
 
 ## Architecture
