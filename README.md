@@ -310,6 +310,19 @@ The application is deployed using modern cloud infrastructure:
 
 ---
 
+## ⭐ Highlights
+
+- 🧠 Self-Learning AI Smart Categorization Engine
+- 🔁 Recurring Income & Expense Management
+- 🎯 AI-assisted Financial Goal Tracking
+- 📈 Machine Learning Spending Forecasts
+- 🚨 Isolation Forest Anomaly Detection
+- 🤖 Gemini-powered Financial Assistant
+- 📊 Interactive Analytics Dashboard
+- ☁️ Production-ready Cloud Deployment
+
+---
+
 ## Author
 
 **Ishaan Saxena**
