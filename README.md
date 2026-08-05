@@ -303,9 +303,10 @@ VITE_GOOGLE_CLIENT_ID=
 The application is deployed using modern cloud infrastructure:
 
 - **Frontend:** Vercel
-- **Backend API:** Railway
-- **ML Service:** Railway
-- **Database:** Railway MySQL
+- **Backend API:** Render
+- **Database:** TiDB Cloud
+- **Machine Learning:** Flask Service
+- **AI Provider:** Google Gemini
 
 ---
 
