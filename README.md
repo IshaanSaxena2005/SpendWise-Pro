@@ -92,31 +92,22 @@
 ## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Client
-        FE["Frontend<br/>React + Vite"]
-    end
+flowchart LR
 
-    subgraph Server
-        BE["Backend API<br/>Node.js + Express"]
-        ML["ML Service<br/>Flask + Scikit-learn"]
-    end
+    FE["Frontend<br/>React + Vite"]
 
-    subgraph Data
-        DB[("Railway MySQL")]
-    end
+    BE["Backend API<br/>Node.js + Express"]
 
-    FE -->|REST /api| BE
-    Frontend
-        │
-        ▼
-    Node.js Backend
-        │
-    ┌───┴──────────────┐
-    ▼                  ▼
-    TiDB Cloud      Python ML Service
-    ▼                  ▼
-    Gemini AI <─────────┘
+    DB[("TiDB Cloud")]
+
+    ML["ML Service<br/>Flask + Scikit-learn"]
+
+    AI["Gemini AI"]
+
+    FE -->|REST API| BE
+    BE --> DB
+    BE --> ML
+    BE --> AI
 ```
 
 | Service     | Platform         |
