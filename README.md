@@ -107,8 +107,16 @@ flowchart TB
     end
 
     FE -->|REST /api| BE
-    BE --> DB
-    BE -->|Forecast & Anomaly APIs| ML
+    Frontend
+        │
+        ▼
+    Node.js Backend
+        │
+    ┌───┴──────────────┐
+    ▼                  ▼
+    TiDB Cloud      Python ML Service
+    ▼                  ▼
+    Gemini AI <─────────┘
 ```
 
 | Service     | Platform         |
