@@ -1,5 +1,10 @@
 const axios = require('axios');
+const pool = require('../config/db');
 const { CATEGORY_KEYWORDS, CATEGORY_ALIASES } = require('../constants/categoryKeywords');
+const { normalizeMerchant } = require('./learningService');
+
+// In-memory cache for category name embeddings
+const categoryEmbeddingCache = new Map();
 
 function levenshteinDistance(a, b) {
   const matrix = [];
@@ -218,38 +223,211 @@ Return only the JSON, no extra text.`;
   }
 }
 
-async function categorizeTransaction(description) {
+async function getGeminiEmbedding(text) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  // Check cache first
+  if (categoryEmbeddingCache.has(text)) {
+    return categoryEmbeddingCache.get(text);
+  }
+
+  try {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+    const response = await axios.post(
+      endpoint,
+      {
+        model: 'models/text-embedding-004',
+        content: {
+          parts: [{ text }]
+        }
+      },
+      { timeout: 5000 }
+    );
+    const vector = response.data?.embedding?.values || null;
+    if (vector) {
+      categoryEmbeddingCache.set(text, vector);
+    }
+    return vector;
+  } catch (err) {
+    console.warn(`Failed to get embedding for: "${text}":`, err.message);
+    return null;
+  }
+}
+
+function cosineSimilarity(vecA, vecB) {
+  let dotProduct = 0.0;
+  let normA = 0.0;
+  let normB = 0.0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+async function categorizeTransaction(userId, description) {
   if (!description || !String(description).trim()) {
     return {
       category: null,
       confidence: 0,
       source: null,
+      matched_text: null
     };
   }
 
-  const ruleResult = ruleBasedCategorize(description);
+  const normalized = normalizeMerchant(description);
 
+  // 1. User Learning Database Lookup (Exact)
+  if (userId) {
+    try {
+      const [learned] = await pool.query(
+        `SELECT ucl.confidence, c.name AS category_name, ucl.merchant 
+         FROM user_category_learning ucl
+         JOIN categories c ON c.id = ucl.category_id
+         WHERE ucl.user_id = ? AND ucl.normalized_merchant = ?`,
+        [userId, normalized]
+      );
+      if (learned.length > 0) {
+        return {
+          category: learned[0].category_name,
+          confidence: Math.round(Number(learned[0].confidence)),
+          source: 'learning',
+          matched_text: learned[0].merchant
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching exact user category learning:', err);
+    }
+  }
+
+  // 2. Global Merchant Alias Lookup
+  try {
+    const [aliasMatch] = await pool.query(
+      `SELECT category_name, alias FROM merchant_aliases WHERE alias = ? OR merchant = ? LIMIT 1`,
+      [normalized, normalized]
+    );
+    if (aliasMatch.length > 0) {
+      return {
+        category: aliasMatch[0].category_name,
+        confidence: 95,
+        source: 'learning',
+        matched_text: aliasMatch[0].alias
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching merchant aliases:', err);
+  }
+
+  // 3. Similar Merchant Learning Lookup (Substring / Fuzzy generalization)
+  if (userId) {
+    try {
+      const [allLearned] = await pool.query(
+        `SELECT ucl.confidence, c.name AS category_name, ucl.merchant, ucl.normalized_merchant 
+         FROM user_category_learning ucl
+         JOIN categories c ON c.id = ucl.category_id
+         WHERE ucl.user_id = ?`,
+        [userId]
+      );
+      let bestSimilarity = 0;
+      let matchedRow = null;
+
+      for (const row of allLearned) {
+        // If one is substring of another
+        if (normalized.includes(row.normalized_merchant) || row.normalized_merchant.includes(normalized)) {
+          const sim = fuzzySimilarity(normalized, row.normalized_merchant);
+          if (sim > bestSimilarity && sim >= 0.70) {
+            bestSimilarity = sim;
+            matchedRow = row;
+          }
+        }
+      }
+
+      if (matchedRow) {
+        // Generalization from similar merchant (confidence starts high but slightly degraded to 90)
+        return {
+          category: matchedRow.category_name,
+          confidence: Math.min(95, Math.round(Number(matchedRow.confidence) * 0.95)),
+          source: 'learning',
+          matched_text: matchedRow.merchant
+        };
+      }
+    } catch (err) {
+      console.error('Error fetching similar user category learning:', err);
+    }
+  }
+
+  // 4. Local Keyword/Rule Based Matching
+  const ruleResult = ruleBasedCategorize(description);
   if (ruleResult.confidence >= 70) {
+    // Standardize confidence to 75-90 for keyword
+    const adjustedConfidence = Math.round(75 + (ruleResult.confidence - 70) * (15 / 30));
     return {
       category: ruleResult.category,
-      confidence: ruleResult.confidence,
-      source: ruleResult.source,
-      matchedKeyword: ruleResult.matchedKeyword || undefined,
+      confidence: adjustedConfidence,
+      source: 'keyword',
+      matched_text: ruleResult.matchedKeyword || description
     };
   }
 
-  const aiResult = await callGeminiCategorize(description);
+  // 5. Semantic Embedding Similarity (Phase 3)
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey) {
+    try {
+      const inputVector = await getGeminiEmbedding(normalized);
+      if (inputVector) {
+        const standardCategories = Object.keys(CATEGORY_KEYWORDS);
+        let maxSimilarity = -1;
+        let bestCategory = null;
 
-  if (aiResult && aiResult.category) {
-    return aiResult;
+        for (const catName of standardCategories) {
+          const catVector = await getGeminiEmbedding(catName.toLowerCase());
+          if (catVector) {
+            const sim = cosineSimilarity(inputVector, catVector);
+            if (sim > maxSimilarity) {
+              maxSimilarity = sim;
+              bestCategory = catName;
+            }
+          }
+        }
+
+        // Cosine similarity threshold >= 0.55
+        if (bestCategory && maxSimilarity >= 0.55) {
+          // Scale confidence to 80-95
+          const confidence = Math.round(80 + (maxSimilarity - 0.55) * (15 / 0.45));
+          return {
+            category: bestCategory,
+            confidence: Math.min(95, confidence),
+            source: 'embedding',
+            matched_text: bestCategory
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Semantic embedding similarity failed:', err.message || err);
+    }
+
+    // 6. AI Generation Fallback (Phase 6)
+    const aiResult = await callGeminiCategorize(description);
+    if (aiResult && aiResult.category) {
+      return {
+        category: aiResult.category,
+        confidence: aiResult.confidence,
+        source: 'ai',
+        matched_text: description
+      };
+    }
   }
 
+  // Final fallback using local rule if anything
   if (ruleResult.category) {
     return {
       category: ruleResult.category,
       confidence: ruleResult.confidence,
-      source: ruleResult.source,
-      matchedKeyword: ruleResult.matchedKeyword || undefined,
+      source: 'keyword',
+      matched_text: ruleResult.matchedKeyword || description
     };
   }
 
@@ -257,6 +435,7 @@ async function categorizeTransaction(description) {
     category: null,
     confidence: 0,
     source: null,
+    matched_text: null
   };
 }
 

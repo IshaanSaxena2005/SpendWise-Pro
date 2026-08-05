@@ -3,13 +3,14 @@ import type { Category } from './api';
 
 export type { ConfidenceLevel };
 
-export type DetectionSource = 'keyword' | 'fuzzy' | 'ai' | null;
+export type DetectionSource = 'learning' | 'keyword' | 'embedding' | 'ai' | null;
 
 export interface CategoryDetectionResult {
   categoryId: number | null;
   categoryName: string | null;
   confidence: number;
   matchedKeyword: string | null;
+  matched_text?: string | null;
   source: DetectionSource;
   confidenceLevel: ConfidenceLevel;
 }
@@ -192,7 +193,7 @@ export function detectCategory(
         categoryName: category.name,
         confidence,
         matchedKeyword: match.keyword,
-        source: match.isFuzzy ? 'fuzzy' : 'keyword',
+        source: 'keyword',
         confidenceLevel: getConfidenceLevel(confidence),
       };
     }

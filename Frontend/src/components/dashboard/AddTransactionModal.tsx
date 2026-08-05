@@ -33,23 +33,25 @@ interface FormProps {
   onTransactionChanged?: () => void;
 }
 
-const AI_FALLBACK_THRESHOLD = 70;
 const DEBOUNCE_MS = 300;
+// Auto-select when confidence >= 85; auto-select + badge at 70-84; suggestion only < 70
+const AUTO_SELECT_THRESHOLD = 85;
+const SHOW_BADGE_THRESHOLD = 70;
 
 function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
-  const config: Record<ConfidenceLevel, { dot: string; label: string; classes: string }> = {
+  const config: Record<ConfidenceLevel, { emoji: string; label: string; classes: string }> = {
     High: {
-      dot: 'bg-emerald-500',
+      emoji: '🟢',
       label: 'High Confidence',
       classes: 'text-emerald-700 bg-emerald-50 border-emerald-100',
     },
     Medium: {
-      dot: 'bg-amber-500',
+      emoji: '🟡',
       label: 'Medium Confidence',
       classes: 'text-amber-700 bg-amber-50 border-amber-100',
     },
     Low: {
-      dot: 'bg-gray-400',
+      emoji: '⚪',
       label: 'Low Confidence',
       classes: 'text-gray-600 bg-gray-50 border-gray-200',
     },
@@ -59,30 +61,57 @@ function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${c.classes}`}
     >
-      <span className={`w-2 h-2 rounded-full ${c.dot}`} />
+      <span>{c.emoji}</span>
       {c.label}
     </span>
   );
 }
 
+function getSourceLabel(source: CategoryDetectionResult['source']): string {
+  switch (source) {
+    case 'learning': return 'Learned from your history';
+    case 'embedding': return 'Detected using AI Similarity';
+    case 'ai': return 'Detected using Gemini AI';
+    case 'keyword': return 'Detected using Keywords';
+    default: return 'Detected automatically';
+  }
+}
+
 function AutoDetectedCard({
   detection,
   category,
+  isSuggestionOnly,
 }: {
   detection: CategoryDetectionResult;
   category: Category | undefined;
+  isSuggestionOnly?: boolean;
 }) {
   if (!detection.categoryId || !detection.categoryName) return null;
 
   const level = detection.confidenceLevel;
   const displayCategory = category ?? { name: detection.categoryName, icon: undefined };
+  const sourceLabel = getSourceLabel(detection.source);
+
+  if (isSuggestionOnly) {
+    // Low confidence: just show a suggestion pill — don't auto-select
+    return (
+      <div className="mt-2 px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-2">
+        <span className="text-xs text-gray-500">Suggested:</span>
+        <CategoryEmoji icon={getCategoryIcon(displayCategory)} className="text-sm" />
+        <span className="text-xs font-medium text-gray-700">{detection.categoryName}</span>
+        <span className="ml-auto text-xs text-gray-400">{detection.confidence}%</span>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="text-sm">✨</span>
-          <span className="text-xs font-semibold text-violet-700">Auto Detected</span>
+          <span className="text-xs font-semibold text-violet-700">
+            {detection.confidence >= AUTO_SELECT_THRESHOLD ? 'AI Smart Detection' : '✨ AI detected'}
+          </span>
         </div>
         <span className="text-xs font-bold text-violet-700">{detection.confidence}%</span>
       </div>
@@ -93,6 +122,7 @@ function AutoDetectedCard({
         </div>
         <ConfidenceBadge level={level} />
       </div>
+      <div className="mt-1.5 text-xs text-violet-500/80">{sourceLabel}</div>
     </div>
   );
 }
@@ -171,23 +201,17 @@ function TransactionForm({
         return;
       }
 
-      const keywordResult = memoizedDetectCategory(description, categories);
-      if (keywordResult.confidence >= AI_FALLBACK_THRESHOLD) {
-        setDetection(keywordResult);
-        detectionRef.current = keywordResult;
-        applyDetectionToCatId(keywordResult);
-        return;
+      // Step 1: Instantly apply local keyword result as a low-latency preview
+      const localResult = memoizedDetectCategory(description, categories);
+      if (localResult.confidence >= SHOW_BADGE_THRESHOLD) {
+        setDetection(localResult);
+        detectionRef.current = localResult;
+        if (localResult.confidence >= AUTO_SELECT_THRESHOLD) {
+          applyDetectionToCatId(localResult);
+        }
       }
 
-      if (keywordResult.confidence > 0) {
-        setDetection(keywordResult);
-        detectionRef.current = keywordResult;
-        applyDetectionToCatId(keywordResult);
-      } else {
-        setDetection(null);
-        detectionRef.current = null;
-      }
-
+      // Step 2: Call backend (which now checks user learning DB + aliases + AI)
       setDetectLoading(true);
       const requestId = ++aiRequestRef.current;
       try {
@@ -195,27 +219,32 @@ function TransactionForm({
         if (requestId !== aiRequestRef.current) return;
         if (!resp?.data?.success) return;
 
-        const { category, confidence, source } = resp.data;
+        const { category, confidence, source, matched_text } = resp.data;
         if (!category) return;
 
         const resolvedId = handleCategoryNameToId(category);
         if (!resolvedId) return;
 
         const finalConfidence = Number(confidence) || 0;
-        const aiResult: CategoryDetectionResult = {
+        const apiResult: CategoryDetectionResult = {
           categoryId: resolvedId,
           categoryName: category,
           confidence: finalConfidence,
           matchedKeyword: resp.data.matchedKeyword || null,
+          matched_text: matched_text || null,
           source: source || 'ai',
           confidenceLevel: getConfidenceLevel(finalConfidence),
         };
 
         const currentDetection = detectionRef.current;
-        if (!currentDetection || finalConfidence > currentDetection.confidence) {
-          setDetection(aiResult);
-          detectionRef.current = aiResult;
-          applyDetectionToCatId(aiResult);
+        // Always prefer backend result if it's at least as confident
+        if (!currentDetection || finalConfidence >= currentDetection.confidence) {
+          setDetection(apiResult);
+          detectionRef.current = apiResult;
+          // Apply auto-selection based on confidence rules
+          if (finalConfidence >= SHOW_BADGE_THRESHOLD) {
+            applyDetectionToCatId(apiResult);
+          }
         }
       } catch (err) {
         void err;
@@ -406,7 +435,11 @@ function TransactionForm({
             onAddCategory={onAddCategory}
           />
           {detection && !editTxn && (
-            <AutoDetectedCard detection={detection} category={detectedCategory} />
+            <AutoDetectedCard
+              detection={detection}
+              category={detectedCategory}
+              isSuggestionOnly={detection.confidence < SHOW_BADGE_THRESHOLD}
+            />
           )}
           {detectLoading && !detection && !editTxn && (
             <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-2">

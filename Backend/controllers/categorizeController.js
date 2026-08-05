@@ -10,16 +10,19 @@ const categorize = async (req, res) => {
         category: null,
         confidence: 0,
         source: null,
+        matched_text: null
       });
     }
 
-    const result = await categorizeTransaction(description);
+    const userId = req.user?.id || null;
+    const result = await categorizeTransaction(userId, description);
 
     return res.status(200).json({
       success: true,
       category: result.category,
       confidence: Number(result.confidence) || 0,
       source: result.source,
+      matched_text: result.matched_text || null,
       matchedKeyword: result.matchedKeyword || undefined,
     });
   } catch (err) {
@@ -29,6 +32,7 @@ const categorize = async (req, res) => {
       category: null,
       confidence: 0,
       source: null,
+      matched_text: null
     });
   }
 };

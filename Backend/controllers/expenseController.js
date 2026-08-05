@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { checkAnomaly } = require('../services/anomalyService');
 const { DEMO_EMAIL } = require('../config/constants');
+const { learnFromUserChoice } = require('../services/learningService');
 
 const addExpense = async (req, res) => {
   try {
@@ -19,6 +20,11 @@ const addExpense = async (req, res) => {
       'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null]
     );
+
+    const merchantName = title || note || '';
+    if (merchantName) {
+      await learnFromUserChoice(userId, merchantName, category_id);
+    }
 
     const anomaly = await checkAnomaly(userId, amount, category_id);
     if (anomaly.is_anomaly) {
@@ -111,6 +117,11 @@ const updateExpense = async (req, res) => {
         success: false,
         message: 'Expense not found',
       });
+    }
+
+    const merchantName = title || note || '';
+    if (merchantName) {
+      await learnFromUserChoice(userId, merchantName, category_id);
     }
 
     res.json({

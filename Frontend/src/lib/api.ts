@@ -245,7 +245,8 @@ export interface CategorizeResponse {
   success: boolean;
   category: string | null;
   confidence: number;
-  source: 'keyword' | 'fuzzy' | 'ai' | null;
+  source: 'learning' | 'keyword' | 'embedding' | 'ai' | null;
+  matched_text?: string | null;
   matchedKeyword?: string;
 }
 
