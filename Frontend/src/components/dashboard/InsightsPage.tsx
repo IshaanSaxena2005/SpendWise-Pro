@@ -151,7 +151,7 @@ const generateDynamicInsights = (
   if (transactions.length >= 2) {
     const monthlySpending: Record<string, number> = {};
     transactions
-      .filter(t => !incomeCategories.includes(t.category?.name || ''))
+      .filter(t => t.transaction_type === 'expense')
       .forEach(t => {
         const month = t.expense_date?.substring(0, 7) || 'unknown';
         monthlySpending[month] = (monthlySpending[month] || 0) + Number(t.amount);
