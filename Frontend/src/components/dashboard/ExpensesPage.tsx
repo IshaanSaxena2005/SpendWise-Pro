@@ -13,8 +13,6 @@ import { DEMO_EMAIL } from '../../lib/constants';
 
 const PAGE_SIZE = 30;
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance'];
-
 function fmt(n: number) { return '₹' + Math.floor(toAmount(n)).toLocaleString('en-IN'); }
 
 export function ExpensesPage() {
@@ -421,10 +419,10 @@ export function ExpensesPage() {
                       </td>
                       <td
                         className={`px-5 py-3 text-sm font-semibold ${
-                          INCOME_CATEGORIES.includes(cat?.name ?? '') ? 'text-green-600' : 'text-gray-900'
+                          t.transaction_type === 'income' ? 'text-green-600' : 'text-gray-900'
                         }`}
                       >
-                        {INCOME_CATEGORIES.includes(cat?.name ?? '') ? '+' : '-'}{fmt(t.amount)}
+                        {t.transaction_type === 'income' ? '+' : '-'}{fmt(t.amount)}
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex gap-2">

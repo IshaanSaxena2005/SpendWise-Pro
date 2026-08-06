@@ -18,8 +18,6 @@ import { getCurrentMonthForInput } from '../../lib/dateUtils';
 import { getUser } from '../../lib/auth';
 import { DEMO_EMAIL } from '../../lib/constants';
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance'];
-
 export function BudgetsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -113,10 +111,9 @@ export function BudgetsPage() {
 
   const expenseOnly = useMemo(
     () => currentMonthExpenses.filter((t) => {
-      const cat = categories.find((c) => c.id === t.category_id);
-      return !cat || !INCOME_CATEGORIES.includes(cat.name);
+      return t.transaction_type === 'expense';
     }),
-    [currentMonthExpenses, categories]
+    [currentMonthExpenses]
   );
 
   const summary = useMemo(

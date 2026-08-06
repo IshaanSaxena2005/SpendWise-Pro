@@ -34,9 +34,10 @@ const generateDynamicInsights = (
   const insights: { type: InsightType; title: string; text: string }[] = [];
 
   // Calculate totals
-  const totalExpenses = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
-  const incomeCategories = ['Salary', 'Freelance'];
-  const incomeTransactions = transactions.filter(t => incomeCategories.includes(t.category?.name || ''));
+  const totalExpenses = transactions
+    .filter(t => t.transaction_type === 'expense')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const incomeTransactions = transactions.filter(t => t.transaction_type === 'income');
   const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
   const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 

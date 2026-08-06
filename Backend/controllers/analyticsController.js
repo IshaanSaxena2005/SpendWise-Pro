@@ -10,9 +10,8 @@ const getDashboardSummary = async (req, res) => {
         COALESCE(SUM(e.amount), 0) AS total_spending,
         COUNT(*) AS total_expenses
       FROM expenses e
-      JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
-        AND c.name NOT IN ('Salary', 'Freelance')`,
+        AND e.transaction_type = 'expense'`,
       [userId]
     );
     console.log(`[getDashboardSummary] totals query result:`, totals);
@@ -22,9 +21,8 @@ const getDashboardSummary = async (req, res) => {
         COALESCE(SUM(e.amount), 0) AS current_month_spending,
         COUNT(*) AS current_month_expenses
       FROM expenses e
-      JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
-        AND c.name NOT IN ('Salary', 'Freelance')
+        AND e.transaction_type = 'expense'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())`,
       [userId]
@@ -35,9 +33,8 @@ const getDashboardSummary = async (req, res) => {
       `SELECT
         COALESCE(SUM(e.amount), 0) AS current_month_income
       FROM expenses e
-      JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
-        AND c.name IN ('Salary', 'Freelance')
+        AND e.transaction_type = 'income'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())`,
       [userId]
@@ -100,10 +97,10 @@ const getCategoryBreakdown = async (req, res) => {
       LEFT JOIN expenses e
         ON e.category_id = c.id
         AND e.user_id = ?
+        AND e.transaction_type = 'expense'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())
       WHERE c.user_id = ?
-        AND c.name NOT IN ('Salary', 'Freelance')
       GROUP BY c.id, c.name
       HAVING total_amount > 0
       ORDER BY total_amount DESC`,
@@ -149,9 +146,8 @@ const getMonthlyTrend = async (req, res) => {
         DATE_FORMAT(e.expense_date, '%Y-%m') AS month,
         COALESCE(SUM(e.amount), 0) AS total_amount
       FROM expenses e
-      JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
-        AND c.name NOT IN ('Salary', 'Freelance')
+        AND e.transaction_type = 'expense'
         AND e.expense_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
       GROUP BY DATE_FORMAT(e.expense_date, '%Y-%m')
       ORDER BY month ASC`,
@@ -192,7 +188,7 @@ const getTopSpendingCategory = async (req, res) => {
       FROM expenses e
       JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
-        AND c.name NOT IN ('Salary', 'Freelance')
+        AND e.transaction_type = 'expense'
         AND MONTH(e.expense_date) = MONTH(CURDATE())
         AND YEAR(e.expense_date) = YEAR(CURDATE())
       GROUP BY c.id, c.name
@@ -237,7 +233,8 @@ const getFinancialHistory = async (req, res) => {
         c.name AS category_name,
         e.amount,
         e.expense_date,
-        e.note
+        e.note,
+        e.transaction_type
       FROM expenses e
       JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?

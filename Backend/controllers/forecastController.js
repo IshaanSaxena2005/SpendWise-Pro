@@ -29,9 +29,8 @@ const getNextMonthForecast = async (req, res) => {
       `SELECT DATE_FORMAT(e.expense_date, '%Y-%m') as month,
               SUM(e.amount) as total
        FROM expenses e
-       JOIN categories c ON c.id = e.category_id
        WHERE e.user_id = ?
-         AND c.name NOT IN ('Salary', 'Freelance')
+         AND e.transaction_type = 'expense'
        GROUP BY month
        ORDER BY month ASC`,
       [userId]

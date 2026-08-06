@@ -12,8 +12,6 @@ function fmt(n: number | string) {
   return '₹' + Math.floor(toAmount(n)).toLocaleString('en-IN');
 }
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance'];
-
 export function DashboardOverview() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -161,7 +159,6 @@ export function DashboardOverview() {
     }
   };
 
-  const incomeCategories = INCOME_CATEGORIES;
   // Use dashboard summary for current month totals (consistent with Budgets/Forecast)
   const currentMonthIncome = dashboardSummary?.current_month_income || 0;
   const currentMonthExpenses = dashboardSummary?.current_month_spending || 0;
@@ -207,10 +204,9 @@ export function DashboardOverview() {
 
   const expenseOnly = useMemo(() => {
     return currentMonthTransactions.filter((t) => {
-      const cat = categories.find((c) => c.id === t.category_id);
-      return !cat || !incomeCategories.includes(cat.name);
+      return t.transaction_type === 'expense';
     });
-  }, [currentMonthTransactions, categories]);
+  }, [currentMonthTransactions]);
 
   // Filter out budgets with 0 spent and 0 budget
   const activeBudgets = useMemo(() => {
@@ -288,7 +284,7 @@ export function DashboardOverview() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {incomeCategories.includes(cat?.name ?? '') ? (
+                      {t.transaction_type === 'income' ? (
                         <span className="text-sm font-semibold tracking-tight text-green-600">
                           +{fmt(t.amount)}
                         </span>

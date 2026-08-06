@@ -140,7 +140,11 @@ function TransactionForm({
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
   const [date, setDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
   const [notes, setNotes] = useState('');
-  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>(() => {
+    if (editTxn?.transaction_type === 'income') return 'income';
+    if (editTxn?.transaction_type === 'expense') return 'expense';
+    return 'expense';
+  });
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState('monthly');
   const [startDate, setStartDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
@@ -348,6 +352,7 @@ function TransactionForm({
           note: notes.trim() || title,
           is_recurring: true,
           goal_id: goalId ? Number(goalId) : null,
+          transaction_type: transactionType,
         });
       } else if (editTxn) {
         await expenseAPI.updateExpense(editTxn.id, {
@@ -357,6 +362,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           goal_id: goalId ? Number(goalId) : null,
+          transaction_type: transactionType,
         });
       } else {
         await expenseAPI.addExpense({
@@ -366,6 +372,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           goal_id: goalId ? Number(goalId) : null,
+          transaction_type: transactionType,
         });
       }
 
@@ -387,35 +394,33 @@ function TransactionForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain space-y-4 p-6">
-        {!editTxn && (
-          <div>
-            <label className="block text-xs font-medium text-black/60 mb-1.5">Transaction Type</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTransactionType('expense')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  transactionType === 'expense' 
-                    ? 'bg-rose-50 text-rose-600 border-2 border-rose-200' 
-                    : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
-                }`}
-              >
-                Expense
-              </button>
-              <button
-                type="button"
-                onClick={() => setTransactionType('income')}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  transactionType === 'income' 
-                    ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' 
-                    : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
-                }`}
-              >
-                Income
-              </button>
-            </div>
+        <div>
+          <label className="block text-xs font-medium text-black/60 mb-1.5">Transaction Type</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setTransactionType('expense')}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                transactionType === 'expense' 
+                  ? 'bg-rose-50 text-rose-600 border-2 border-rose-200' 
+                  : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
+              }`}
+            >
+              Expense
+            </button>
+            <button
+              type="button"
+              onClick={() => setTransactionType('income')}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                transactionType === 'income' 
+                  ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' 
+                  : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
+              }`}
+            >
+              Income
+            </button>
           </div>
-        )}
+        </div>
         <div>
           <label className="block text-xs font-medium text-black/60 mb-1.5">Description</label>
           <input

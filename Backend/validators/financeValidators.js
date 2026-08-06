@@ -55,6 +55,9 @@ const expenseValidation = [
   body('expense_date')
     .isISO8601({ strict: true }).withMessage('Invalid date')
     .toDate(),
+  body('transaction_type')
+    .optional()
+    .isIn(['income', 'expense']).withMessage('transaction_type must be either "income" or "expense"'),
   body()
     .custom((value, { req }) => {
       const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';

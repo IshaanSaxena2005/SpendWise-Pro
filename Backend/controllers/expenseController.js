@@ -13,12 +13,13 @@ const addExpense = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id, goal_id } = req.body;
+    const { category_id, amount, expense_date, note, title, is_recurring, recurring_transaction_id, goal_id, transaction_type } = req.body;
     const expenseNote = note && note.trim() ? note : (title || '');
+    const txnType = transaction_type === 'income' ? 'income' : 'expense';
 
     await pool.query(
-      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, goal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null, goal_id || null]
+      'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, goal_id, transaction_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null, goal_id || null, txnType]
     );
 
     const merchantName = title || note || '';
@@ -74,6 +75,7 @@ const getExpenses = async (req, res) => {
         e.recurring_transaction_id,
         e.goal_id,
         g.name AS goal_title,
+        e.transaction_type,
         e.created_at,
         e.updated_at
       FROM expenses e
@@ -107,12 +109,27 @@ const updateExpense = async (req, res) => {
 
     const userId = req.user.id;
     const { id } = req.params;
-    const { amount, category_id, expense_date, note, title, goal_id } = req.body;
+    const { amount, category_id, expense_date, note, title, goal_id, transaction_type } = req.body;
     const expenseNote = note || title;
 
+    const fields = ['amount = ?', 'category_id = ?', 'expense_date = ?', 'note = ?'];
+    const params = [amount, category_id, expense_date, expenseNote];
+
+    if (goal_id !== undefined) {
+      fields.push('goal_id = ?');
+      params.push(goal_id || null);
+    }
+
+    if (transaction_type !== undefined) {
+      fields.push('transaction_type = ?');
+      params.push(transaction_type === 'income' ? 'income' : 'expense');
+    }
+
+    params.push(id, userId);
+
     const [result] = await pool.query(
-      'UPDATE expenses SET amount = ?, category_id = ?, expense_date = ?, note = ?, goal_id = ? WHERE id = ? AND user_id = ?',
-      [amount, category_id, expense_date, expenseNote, goal_id !== undefined ? goal_id : null, id, userId]
+      `UPDATE expenses SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+      params
     );
 
     if (result.affectedRows === 0) {

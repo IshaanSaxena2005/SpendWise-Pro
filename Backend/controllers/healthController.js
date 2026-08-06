@@ -104,9 +104,8 @@ async function calcSpendingConsistency(userId) {
        DATE_FORMAT(e.expense_date, '%Y-%m') AS ym,
        SUM(e.amount) AS monthly_total
      FROM expenses e
-     JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
-       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.transaction_type = 'expense'
        AND e.expense_date >= ?
      GROUP BY ym
      ORDER BY ym`,
@@ -162,7 +161,7 @@ async function calcCategoryBalance(userId) {
      FROM expenses e
      JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
-       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.transaction_type = 'expense'
        AND e.expense_date >= ?
      GROUP BY e.category_id, c.name`,
     [userId, threeMonthsAgo]
@@ -228,9 +227,8 @@ async function calcExpenseActivity(userId) {
     `SELECT COUNT(*) AS cnt,
             COUNT(DISTINCT e.expense_date) AS active_days
      FROM expenses e
-     JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
-       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.transaction_type = 'expense'
        AND e.expense_date >= ?`,
     [userId, since]
   );

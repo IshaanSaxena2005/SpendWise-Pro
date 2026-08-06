@@ -42,6 +42,7 @@ export interface Transaction {
   recurring_transaction_id?: number | null;
   goal_id?: number | null;
   goal_title?: string | null;
+  transaction_type: 'income' | 'expense';
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -184,9 +185,9 @@ export interface Anomaly {
 
 export const expenseAPI = {
   getAllExpenses: () => api.get<{ success: boolean; expenses: Transaction[] }>('/expenses/all'),
-  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null; goal_id?: number | null }) =>
+  addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null; goal_id?: number | null; transaction_type?: 'income' | 'expense' }) =>
     api.post<{ success: boolean; message?: string; is_anomaly?: boolean }>('/expenses/add', data),
-  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string; goal_id?: number | null }>) =>
+  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string; goal_id?: number | null; transaction_type?: 'income' | 'expense' }>) =>
     api.put<{ success: boolean; message?: string }>(`/expenses/update/${id}`, data),
   deleteExpense: (id: number) => api.delete<{ success: boolean; message?: string }>(`/expenses/delete/${id}`),
 };

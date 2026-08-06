@@ -84,15 +84,16 @@ async function createTransactionFromRecurring(recurring) {
     // Insert the transaction
     const [result] = await connection.query(
       `INSERT INTO expenses 
-       (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id) 
-       VALUES (?, ?, ?, ?, ?, TRUE, ?)`,
+       (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, transaction_type) 
+       VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)`,
       [
         recurring.user_id,
         recurring.category_id,
         recurring.amount,
         recurring.next_execution_date,
         recurring.note,
-        recurring.id
+        recurring.id,
+        recurring.type
       ]
     );
 

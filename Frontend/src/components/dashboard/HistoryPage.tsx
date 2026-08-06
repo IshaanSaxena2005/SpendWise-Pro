@@ -188,7 +188,7 @@ export function HistoryPage() {
       };
     }
 
-    const isIncome = e.category_name === 'Salary' || e.category_name === 'Freelance';
+    const isIncome = e.transaction_type === 'income';
     if (isIncome) {
       monthlyDataMap[mStr].income += Number(e.amount);
     } else {
@@ -220,11 +220,11 @@ export function HistoryPage() {
 
   // Lifetime summaries of the selected/filtered period
   const totalIncome = filteredExpenses
-    .filter(e => e.category_name === 'Salary' || e.category_name === 'Freelance')
+    .filter(e => e.transaction_type === 'income')
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
   const totalExpenses = filteredExpenses
-    .filter(e => e.category_name !== 'Salary' && e.category_name !== 'Freelance')
+    .filter(e => e.transaction_type === 'expense')
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
   const netSavings = totalIncome - totalExpenses;
@@ -288,7 +288,7 @@ export function HistoryPage() {
   // Category analysis across the filtered period
   const categorySpendingMap: { [key: string]: number } = {};
   filteredExpenses
-    .filter(e => e.category_name !== 'Salary' && e.category_name !== 'Freelance')
+    .filter(e => e.transaction_type === 'expense')
     .forEach(e => {
       categorySpendingMap[e.category_name] = (categorySpendingMap[e.category_name] || 0) + Number(e.amount);
     });
@@ -723,7 +723,7 @@ export function HistoryPage() {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {detailTransactions.map((item) => {
-                const isIncome = item.category_name === 'Salary' || item.category_name === 'Freelance';
+                const isIncome = item.transaction_type === 'income';
                 return (
                   <div
                     key={item.id}
