@@ -34,8 +34,8 @@ interface FormProps {
 }
 
 const DEBOUNCE_MS = 300;
-// Auto-select when confidence >= 85; auto-select + badge at 70-84; suggestion only < 70
-const AUTO_SELECT_THRESHOLD = 85;
+// Auto-select + badge when confidence >= 70. Informational badge only — no Accept/Reject.
+const AUTO_SELECT_THRESHOLD = 70;
 const SHOW_BADGE_THRESHOLD = 70;
 
 function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
@@ -110,7 +110,7 @@ function AutoDetectedCard({
         <div className="flex items-center gap-1.5">
           <span className="text-sm">✨</span>
           <span className="text-xs font-semibold text-violet-700">
-            {detection.confidence >= AUTO_SELECT_THRESHOLD ? 'AI Smart Detection' : '✨ AI detected'}
+            ✨ Auto Detected
           </span>
         </div>
         <span className="text-xs font-bold text-violet-700">{detection.confidence}%</span>

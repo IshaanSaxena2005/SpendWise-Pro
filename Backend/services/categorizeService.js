@@ -1,10 +1,9 @@
-const axios = require('axios');
 const pool = require('../config/db');
 const { CATEGORY_KEYWORDS, CATEGORY_ALIASES } = require('../constants/categoryKeywords');
 const { normalizeMerchant } = require('./learningService');
+const { generateContent, getEmbedding, hasGeminiApiKey } = require('./geminiService');
 
-// In-memory cache for category name embeddings
-const categoryEmbeddingCache = new Map();
+const HIGH_CONFIDENCE_THRESHOLD = 70;
 
 function levenshteinDistance(a, b) {
   const matrix = [];
@@ -117,142 +116,107 @@ function ruleBasedCategorize(description) {
   };
 }
 
+function resolveValidCategory(category) {
+  const validCategories = Object.keys(CATEGORY_KEYWORDS);
+  let matchedCategory = validCategories.find(
+    (c) => c.toLowerCase() === String(category || '').trim().toLowerCase(),
+  );
+
+  if (!matchedCategory) {
+    for (const validCat of validCategories) {
+      const aliases = CATEGORY_ALIASES[validCat] || [];
+      const aliasMatch = aliases.find(
+        (a) => a.toLowerCase() === String(category || '').trim().toLowerCase(),
+      );
+      if (aliasMatch) {
+        matchedCategory = validCat;
+        break;
+      }
+    }
+  }
+
+  if (!matchedCategory) {
+    let bestSim = 0;
+    for (const validCat of validCategories) {
+      const sim = fuzzySimilarity(validCat, category);
+      if (sim > bestSim && sim >= 0.6) {
+        bestSim = sim;
+        matchedCategory = validCat;
+      }
+    }
+  }
+
+  return matchedCategory || null;
+}
+
 async function callGeminiCategorize(description) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return null;
+  if (!hasGeminiApiKey()) {
+    return { result: null, reason: 'missing_api_key', durationMs: 0 };
   }
 
   const categoryList = Object.keys(CATEGORY_KEYWORDS).join(', ');
+  const prompt = `You are a transaction categorization expert for SpendWise Pro.
+Classify the transaction description into EXACTLY ONE category from this list: ${categoryList}.
 
-  const prompt = `You are a transaction categorization expert.
-Given the transaction description below, classify it into EXACTLY ONE of these categories: ${categoryList}.
+Return ONLY valid JSON:
+{"category":"<one of the listed categories>","confidence":<integer 0-100>,"explanation":"<short reason>"}
 
-IMPORTANT RULES:
-- Return ONLY valid JSON with fields: "category" (string), "confidence" (integer 0-100)
-- The "category" MUST be one of: ${categoryList}
-- Do NOT invent new categories
-- If unsure, pick the most likely category with a lower confidence
-- Be accurate with typos and partial matches
+Rules:
+- category MUST be one of: ${categoryList}
+- Do NOT invent categories
+- Prefer lower confidence when unsure
+- Handle typos and merchant names
 
-Transaction description: ${description}
+Transaction description: ${description}`;
 
-Return only the JSON, no extra text.`;
+  const gemini = await generateContent({
+    prompt,
+    temperature: 0.1,
+    maxOutputTokens: 160,
+    responseMimeType: 'application/json',
+    cacheKey: `categorize:${normalizeDescription(description)}`,
+  });
 
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+  if (!gemini.ok || !gemini.json) {
+    return { result: null, reason: gemini.reason || 'invalid_json', durationMs: gemini.durationMs };
+  }
 
-    const response = await axios.post(
-      endpoint,
-      {
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 100,
-        },
-      },
-      {
-        timeout: 8000,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    );
+  const matchedCategory = resolveValidCategory(gemini.json.category);
+  if (!matchedCategory) {
+    return { result: null, reason: 'invalid_category', durationMs: gemini.durationMs };
+  }
 
-    const rawText =
-      response?.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const confidence = Number(gemini.json.confidence);
+  const finalConfidence = Number.isFinite(confidence)
+    ? Math.max(0, Math.min(100, Math.round(confidence)))
+    : 70;
 
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return null;
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    const category = String(parsed.category || '').trim();
-    const confidence = Number(parsed.confidence);
-
-    const validCategories = Object.keys(CATEGORY_KEYWORDS);
-    let matchedCategory = validCategories.find(
-      (c) => c.toLowerCase() === category.toLowerCase(),
-    );
-
-    if (!matchedCategory) {
-      for (const validCat of validCategories) {
-        const aliases = CATEGORY_ALIASES[validCat] || [];
-        const aliasMatch = aliases.find(
-          (a) => a.toLowerCase() === category.toLowerCase(),
-        );
-        if (aliasMatch) {
-          matchedCategory = validCat;
-          break;
-        }
-      }
-    }
-
-    if (!matchedCategory) {
-      let bestSim = 0;
-      for (const validCat of validCategories) {
-        const sim = fuzzySimilarity(validCat, category);
-        if (sim > bestSim && sim >= 0.6) {
-          bestSim = sim;
-          matchedCategory = validCat;
-        }
-      }
-    }
-
-    if (!matchedCategory) {
-      return null;
-    }
-
-    const finalConfidence = Number.isFinite(confidence)
-      ? Math.max(0, Math.min(100, Math.round(confidence)))
-      : 70;
-
-    return {
+  return {
+    result: {
       category: matchedCategory,
       confidence: finalConfidence,
       source: 'ai',
-    };
-  } catch (err) {
-    console.warn('Gemini categorize failed:', err.message || err);
-    return null;
-  }
+      explanation: String(gemini.json.explanation || '').slice(0, 200) || null,
+    },
+    reason: null,
+    durationMs: gemini.durationMs,
+  };
 }
 
 async function getGeminiEmbedding(text) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  const embed = await getEmbedding(text);
+  return embed.ok ? embed.vector : null;
+}
 
-  // Check cache first
-  if (categoryEmbeddingCache.has(text)) {
-    return categoryEmbeddingCache.get(text);
-  }
-
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
-    const response = await axios.post(
-      endpoint,
-      {
-        model: 'models/text-embedding-004',
-        content: {
-          parts: [{ text }]
-        }
-      },
-      { timeout: 5000 }
-    );
-    const vector = response.data?.embedding?.values || null;
-    if (vector) {
-      categoryEmbeddingCache.set(text, vector);
-    }
-    return vector;
-  } catch (err) {
-    console.warn(`Failed to get embedding for: "${text}":`, err.message);
-    return null;
-  }
+function logCategorize({ description, source, confidence, durationMs, fallbackReason }) {
+  console.log('[Categorize]', {
+    description: String(description || '').slice(0, 80),
+    source,
+    confidence,
+    durationMs,
+    fallbackReason: fallbackReason || null,
+    geminiConfigured: hasGeminiApiKey(),
+  });
 }
 
 function cosineSimilarity(vecA, vecB) {
@@ -269,13 +233,26 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 async function categorizeTransaction(userId, description) {
+  const started = Date.now();
+
+  const finish = (payload, fallbackReason = null) => {
+    logCategorize({
+      description,
+      source: payload.source,
+      confidence: payload.confidence,
+      durationMs: Date.now() - started,
+      fallbackReason,
+    });
+    return payload;
+  };
+
   if (!description || !String(description).trim()) {
-    return {
+    return finish({
       category: null,
       confidence: 0,
       source: null,
-      matched_text: null
-    };
+      matched_text: null,
+    }, 'empty_description');
   }
 
   const normalized = normalizeMerchant(description);
@@ -291,12 +268,12 @@ async function categorizeTransaction(userId, description) {
         [userId, normalized]
       );
       if (learned.length > 0) {
-        return {
+        return finish({
           category: learned[0].category_name,
           confidence: Math.round(Number(learned[0].confidence)),
           source: 'learning',
           matched_text: learned[0].merchant
-        };
+        });
       }
     } catch (err) {
       console.error('Error fetching exact user category learning:', err);
@@ -310,12 +287,12 @@ async function categorizeTransaction(userId, description) {
       [normalized, normalized]
     );
     if (aliasMatch.length > 0) {
-      return {
+      return finish({
         category: aliasMatch[0].category_name,
         confidence: 95,
         source: 'learning',
         matched_text: aliasMatch[0].alias
-      };
+      });
     }
   } catch (err) {
     console.error('Error fetching merchant aliases:', err);
@@ -335,7 +312,6 @@ async function categorizeTransaction(userId, description) {
       let matchedRow = null;
 
       for (const row of allLearned) {
-        // If one is substring of another
         if (normalized.includes(row.normalized_merchant) || row.normalized_merchant.includes(normalized)) {
           const sim = fuzzySimilarity(normalized, row.normalized_merchant);
           if (sim > bestSimilarity && sim >= 0.70) {
@@ -346,35 +322,35 @@ async function categorizeTransaction(userId, description) {
       }
 
       if (matchedRow) {
-        // Generalization from similar merchant (confidence starts high but slightly degraded to 90)
-        return {
+        return finish({
           category: matchedRow.category_name,
           confidence: Math.min(95, Math.round(Number(matchedRow.confidence) * 0.95)),
           source: 'learning',
           matched_text: matchedRow.merchant
-        };
+        });
       }
     } catch (err) {
       console.error('Error fetching similar user category learning:', err);
     }
   }
 
-  // 4. Local Keyword/Rule Based Matching
+  // 4. Local Keyword/Rule Based Matching — never call Gemini if high-confidence
   const ruleResult = ruleBasedCategorize(description);
-  if (ruleResult.confidence >= 70) {
-    // Standardize confidence to 75-90 for keyword
+  if (ruleResult.confidence >= HIGH_CONFIDENCE_THRESHOLD) {
     const adjustedConfidence = Math.round(75 + (ruleResult.confidence - 70) * (15 / 30));
-    return {
+    return finish({
       category: ruleResult.category,
       confidence: adjustedConfidence,
-      source: 'keyword',
-      matched_text: ruleResult.matchedKeyword || description
-    };
+      source: ruleResult.source === 'fuzzy' ? 'keyword' : 'keyword',
+      matched_text: ruleResult.matchedKeyword || description,
+      matchedKeyword: ruleResult.matchedKeyword,
+    });
   }
 
-  // 5. Semantic Embedding Similarity (Phase 3)
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey) {
+  // 5–6. Gemini only when rule confidence is below threshold
+  let geminiFallbackReason = null;
+
+  if (hasGeminiApiKey()) {
     try {
       const inputVector = await getGeminiEmbedding(normalized);
       if (inputVector) {
@@ -393,50 +369,56 @@ async function categorizeTransaction(userId, description) {
           }
         }
 
-        // Cosine similarity threshold >= 0.55
         if (bestCategory && maxSimilarity >= 0.55) {
-          // Scale confidence to 80-95
           const confidence = Math.round(80 + (maxSimilarity - 0.55) * (15 / 0.45));
-          return {
+          return finish({
             category: bestCategory,
             confidence: Math.min(95, confidence),
             source: 'embedding',
             matched_text: bestCategory
-          };
+          });
         }
+        geminiFallbackReason = 'embedding_below_threshold';
+      } else {
+        geminiFallbackReason = 'embedding_unavailable';
       }
     } catch (err) {
+      geminiFallbackReason = 'embedding_error';
       console.warn('Semantic embedding similarity failed:', err.message || err);
     }
 
-    // 6. AI Generation Fallback (Phase 6)
-    const aiResult = await callGeminiCategorize(description);
+    const { result: aiResult, reason: aiReason, durationMs: aiMs } = await callGeminiCategorize(description);
     if (aiResult && aiResult.category) {
-      return {
+      return finish({
         category: aiResult.category,
         confidence: aiResult.confidence,
         source: 'ai',
-        matched_text: description
-      };
+        matched_text: description,
+        explanation: aiResult.explanation || null,
+      });
     }
+    geminiFallbackReason = aiReason || geminiFallbackReason || `ai_failed_${aiMs}ms`;
+  } else {
+    geminiFallbackReason = 'MISSING_API_KEY';
   }
 
   // Final fallback using local rule if anything
   if (ruleResult.category) {
-    return {
+    return finish({
       category: ruleResult.category,
       confidence: ruleResult.confidence,
       source: 'keyword',
-      matched_text: ruleResult.matchedKeyword || description
-    };
+      matched_text: ruleResult.matchedKeyword || description,
+      matchedKeyword: ruleResult.matchedKeyword,
+    }, geminiFallbackReason);
   }
 
-  return {
+  return finish({
     category: null,
     confidence: 0,
     source: null,
     matched_text: null
-  };
+  }, geminiFallbackReason || 'no_match');
 }
 
 module.exports = {

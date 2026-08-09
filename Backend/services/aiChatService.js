@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const axios = require('axios');
 const { getAnomalyHistory } = require('./anomalyService');
+const { generateContent, hasGeminiApiKey, sanitizePromptText } = require('./geminiService');
 
 const SUPPORTED_QUERIES = {
   'How much did I spend this month?': 'getThisMonthSpending',
@@ -270,7 +271,144 @@ async function getAnomalies(userId) {
   return `Here are your recent unusual transactions:\n${lines.join('\n')}`;
 }
 
-async function handleAIChat(userId, userQuery) {
+async function buildFinancialContext(userId) {
+  const [[thisMonth]] = await pool.query(
+    `SELECT COALESCE(SUM(e.amount), 0) AS total
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND MONTH(e.expense_date) = MONTH(CURDATE())
+       AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+    [userId]
+  );
+
+  const [[lastMonth]] = await pool.query(
+    `SELECT COALESCE(SUM(e.amount), 0) AS total
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND MONTH(e.expense_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
+       AND YEAR(e.expense_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)`,
+    [userId]
+  );
+
+  const [topCategories] = await pool.query(
+    `SELECT c.name AS category_name, COALESCE(SUM(e.amount), 0) AS total_amount
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND MONTH(e.expense_date) = MONTH(CURDATE())
+       AND YEAR(e.expense_date) = YEAR(CURDATE())
+     GROUP BY c.id, c.name
+     ORDER BY total_amount DESC
+     LIMIT 5`,
+    [userId]
+  );
+
+  const [budgets] = await pool.query(
+    `SELECT
+      COALESCE(c.name, 'Overall') AS name,
+      b.amount_limit,
+      COALESCE(SUM(e.amount), 0) AS spent
+     FROM budgets b
+     LEFT JOIN categories c ON b.category_id = c.id
+     LEFT JOIN expenses e ON b.category_id = e.category_id
+       AND e.expense_date BETWEEN b.month AND LAST_DAY(b.month)
+       AND e.user_id = ?
+     WHERE b.user_id = ?
+       AND b.month = DATE_FORMAT(CURDATE(), '%Y-%m-01')
+     GROUP BY b.id
+     LIMIT 8`,
+    [userId, userId]
+  );
+
+  const [health] = await pool.query(
+    'SELECT score FROM financial_health WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+    [userId]
+  );
+
+  const [user] = await pool.query(
+    'SELECT full_name FROM users WHERE id = ? LIMIT 1',
+    [userId]
+  );
+
+  return {
+    userFirstName: String(user[0]?.full_name || 'User').split(' ')[0],
+    thisMonthSpending: Number(thisMonth.total) || 0,
+    lastMonthSpending: Number(lastMonth.total) || 0,
+    topCategories: topCategories.map((r) => ({
+      category: r.category_name,
+      amount: Number(r.total_amount) || 0,
+    })),
+    budgets: budgets.map((b) => ({
+      name: b.name,
+      limit: Number(b.amount_limit) || 0,
+      spent: Number(b.spent) || 0,
+    })),
+    healthScore: health[0] ? Number(health[0].score) : null,
+  };
+}
+
+async function callGeminiChat(userId, userQuery) {
+  if (!hasGeminiApiKey()) {
+    return { ok: false, reason: 'missing_api_key', response: null, durationMs: 0 };
+  }
+
+  let context;
+  try {
+    context = await buildFinancialContext(userId);
+  } catch (err) {
+    console.warn('[AI Chat] context build failed:', err.message);
+    context = null;
+  }
+
+  const safeQuery = sanitizePromptText(userQuery, 500);
+  const prompt = `You are SpendWise AI, a personal finance assistant for Indian users (currency INR ₹).
+Answer ONLY using the provided financial context and general budgeting best practices.
+Do NOT invent transactions, balances, or account credentials.
+Do NOT ask for passwords, OTP, or sensitive identity details.
+Keep answers concise (max 120 words), practical, and friendly.
+Use ₹ and Indian formatting when mentioning money.
+
+Return ONLY valid JSON:
+{"answer":"<helpful reply>","confidence":<integer 0-100>}
+
+Financial context (JSON):
+${JSON.stringify(context || {})}
+
+User question:
+${safeQuery}`;
+
+  const gemini = await generateContent({
+    prompt,
+    temperature: 0.3,
+    maxOutputTokens: 400,
+    responseMimeType: 'application/json',
+    cacheKey: `chat:${userId}:${safeQuery.toLowerCase()}`,
+  });
+
+  if (!gemini.ok) {
+    return { ok: false, reason: gemini.reason || 'api_failure', response: null, durationMs: gemini.durationMs };
+  }
+
+  const answer = gemini.json?.answer || gemini.text;
+  if (!answer || !String(answer).trim()) {
+    return { ok: false, reason: 'empty_response', response: null, durationMs: gemini.durationMs };
+  }
+
+  return {
+    ok: true,
+    reason: null,
+    response: String(answer).trim(),
+    durationMs: gemini.durationMs,
+    confidence: Number(gemini.json?.confidence) || null,
+  };
+}
+
+async function handleRuleBasedChat(userId, userQuery) {
   const normalizedQuery = userQuery.trim().toLowerCase();
   let matchedHandler = null;
   for (const [query, handlerName] of Object.entries(SUPPORTED_QUERIES)) {
@@ -280,7 +418,7 @@ async function handleAIChat(userId, userQuery) {
     }
   }
   if (!matchedHandler) {
-    return "I'm SpendWise AI and can assist only with your financial data, spending analytics, predictions, and profile information.";
+    return null;
   }
   const handlers = {
     getThisMonthSpending,
@@ -300,6 +438,46 @@ async function handleAIChat(userId, userQuery) {
     getAnomalies,
   };
   return await handlers[matchedHandler](userId);
+}
+
+async function handleAIChat(userId, userQuery) {
+  const started = Date.now();
+  const safeQuery = sanitizePromptText(userQuery, 500);
+  if (!safeQuery) {
+    return "Please ask a finance-related question.";
+  }
+
+  // Prefer exact rule handlers for known data queries (fast + deterministic)
+  const ruleAnswer = await handleRuleBasedChat(userId, safeQuery);
+  if (ruleAnswer) {
+    console.log('[AI Chat]', {
+      source: 'rule_engine',
+      durationMs: Date.now() - started,
+      geminiConfigured: hasGeminiApiKey(),
+    });
+    return ruleAnswer;
+  }
+
+  // Gemini for open-ended finance advice / analysis
+  const gemini = await callGeminiChat(userId, safeQuery);
+  if (gemini.ok && gemini.response) {
+    console.log('[AI Chat]', {
+      source: 'gemini',
+      confidence: gemini.confidence,
+      durationMs: gemini.durationMs,
+      geminiConfigured: true,
+    });
+    return gemini.response;
+  }
+
+  console.log('[AI Chat]', {
+    source: 'fallback',
+    fallbackReason: gemini.reason || 'unknown',
+    durationMs: Date.now() - started,
+    geminiConfigured: hasGeminiApiKey(),
+  });
+
+  return "I'm SpendWise AI and can help with your spending, budgets, forecasts, savings tips, and financial health. Try asking about this month's spending, top categories, or how to save money.";
 }
 
 module.exports = {

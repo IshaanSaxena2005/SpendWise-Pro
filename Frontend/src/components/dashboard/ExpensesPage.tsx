@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus, Repeat2 } from 'lucide-react';
-import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, budgetAPI, type Transaction, type Category, type Budget } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 import { AddTransactionModal } from './AddTransactionModal';
@@ -18,6 +18,7 @@ function fmt(n: number) { return '₹' + Math.floor(toAmount(n)).toLocaleString(
 export function ExpensesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -42,14 +43,16 @@ export function ExpensesPage() {
   const isDemoUser = user?.email === DEMO_EMAIL;
 
   const fetchFinanceData = useCallback(async () => {
-    const [txRes, catRes, summaryRes] = await Promise.all([
+    const [txRes, catRes, summaryRes, budRes] = await Promise.all([
       expenseAPI.getAllExpenses(),
       categoryAPI.getAllCategories(),
       analyticsAPI.getDashboardSummary(),
+      budgetAPI.getAllBudgets(),
     ]);
     setTransactions(txRes.data.expenses || []);
     setCategories(catRes.data.categories || []);
     setDashboardSummary(summaryRes.data.summary || null);
+    setBudgets(budRes.data.budgets || []);
   }, []);
 
   const fetchUpcomingRecurring = useCallback(async () => {
@@ -122,6 +125,41 @@ export function ExpensesPage() {
       return matchFrom && matchTo;
     });
   }, [transactions, dateFrom, dateTo]);
+
+  // Category Spending Summary — respects date filters, category filter, and counts only expense transactions
+  const categorySummary = useMemo(() => {
+    const dateFiltered = transactions.filter((t) => {
+      const matchFrom = !dateFrom || t.expense_date >= dateFrom;
+      const matchTo = !dateTo || t.expense_date <= dateTo;
+      return matchFrom && matchTo;
+    });
+
+    if (catFilter === 'all') {
+      const totalSpent = dateFiltered
+        .filter((t) => t.transaction_type === 'expense')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      return { mode: 'all' as const, totalSpent };
+    }
+
+    const targetCatId = Number(catFilter);
+    const totalSpent = dateFiltered
+      .filter((t) => t.transaction_type === 'expense' && t.category_id === targetCatId)
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const category = categories.find((c) => c.id === targetCatId);
+
+    const matchingBudget = budgets.find((b) => b.category_id === targetCatId);
+    const budgetLimit = matchingBudget ? Number(matchingBudget.amount_limit) : null;
+
+    return {
+      mode: 'single' as const,
+      categoryName: category?.name || 'Category',
+      categoryIcon: category,
+      totalSpent,
+      budget: budgetLimit,
+      remaining: budgetLimit !== null ? budgetLimit - totalSpent : null,
+    };
+  }, [transactions, categories, budgets, catFilter, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -319,6 +357,123 @@ export function ExpensesPage() {
             <Download className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" /> Export CSV
           </button>
         </div>
+      </div>
+
+      {/* Category Spending Summary */}
+      <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-4 md:p-5">
+        {categorySummary.mode === 'all' ? (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center shrink-0 border border-black/5">
+                <Receipt className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-black/40 tracking-widest uppercase mb-0.5">
+                  All Categories
+                </div>
+                <div className="text-sm text-black/60">Total expenses within date range</div>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-semibold text-black/40">Total Spent</span>
+              <span className="text-2xl font-bold text-black tracking-tight">
+                {fmt(categorySummary.totalSpent)}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-black/5 ${getCategoryBadgeClasses(categorySummary.categoryName).split(' ')[0]}`}>
+                <CategoryEmoji icon={getCategoryIcon(categorySummary.categoryIcon)} className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-black tracking-tight flex items-center gap-1.5">
+                  <CategoryEmoji icon={getCategoryIcon(categorySummary.categoryIcon)} className="w-4 h-4" />
+                  {categorySummary.categoryName}
+                </div>
+                <div className="text-xs text-black/50">
+                  {categorySummary.budget !== null ? 'Budgeted category' : 'No budget set'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-[#F5F5F5] rounded-xl p-3">
+                <div className="text-[10px] font-bold text-black/40 tracking-widest uppercase mb-1">
+                  Total Spent
+                </div>
+                <div className="text-xl font-bold text-black tracking-tight">
+                  {fmt(categorySummary.totalSpent)}
+                </div>
+              </div>
+              {categorySummary.budget !== null && (
+                <>
+                  <div className="bg-[#F5F5F5] rounded-xl p-3">
+                    <div className="text-[10px] font-bold text-black/40 tracking-widest uppercase mb-1">
+                      Budget
+                    </div>
+                    <div className="text-xl font-bold text-black tracking-tight">
+                      {fmt(categorySummary.budget)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl p-3 border border-black/5 bg-white">
+                    <div className="text-[10px] font-bold text-black/40 tracking-widest uppercase mb-1">
+                      Remaining
+                    </div>
+                    <div
+                      className={`text-xl font-bold tracking-tight ${
+                        (categorySummary.remaining ?? 0) >= 0
+                          ? 'text-emerald-600'
+                          : 'text-rose-500'
+                      }`}
+                    >
+                      {(categorySummary.remaining ?? 0) >= 0 ? '' : '-'}
+                      {fmt(Math.abs(categorySummary.remaining ?? 0))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {categorySummary.budget !== null && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-medium text-black/50">
+                  <span>Budget Usage</span>
+                  <span>
+                    {Math.min(
+                      100,
+                      categorySummary.budget > 0
+                        ? Math.round((categorySummary.totalSpent / categorySummary.budget) * 100)
+                        : 0
+                    )}
+                    %
+                  </span>
+                </div>
+                <div className="h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      (categorySummary.remaining ?? 0) >= 0
+                        ? 'bg-gradient-to-r from-emerald-400 to-violet-500'
+                        : 'bg-gradient-to-r from-rose-500 to-rose-600'
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          categorySummary.budget > 0
+                            ? (categorySummary.totalSpent / categorySummary.budget) * 100
+                            : 0
+                        )
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
