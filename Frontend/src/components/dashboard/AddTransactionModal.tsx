@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowRight, Repeat2 } from 'lucide-react';
-import { expenseAPI, categoryAPI, recurringAPI, aiAPI, type Transaction, type Category } from '../../lib/api';
+import { expenseAPI, categoryAPI, recurringAPI, aiAPI, goalsAPI, type Transaction, type Category, type Goal } from '../../lib/api';
 import { AddCategoryModal } from './AddCategoryModal';
 import { CategorySelect } from './CategorySelect';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
@@ -151,10 +151,30 @@ function TransactionForm({
   const [endDate, setEndDate] = useState('');
   const [neverEnds, setNeverEnds] = useState(true);
 
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goalId, setGoalId] = useState<string>(() =>
+    editTxn?.goal_id != null ? String(editTxn.goal_id) : '');
+
   const [loading, setLoading] = useState(false);
 
   const [detection, setDetection] = useState<CategoryDetectionResult | null>(null);
   const [detectLoading, setDetectLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void goalsAPI.getAll()
+      .then((res) => {
+        if (cancelled) return;
+        // Only offer active (not-yet-completed) goals to link against.
+        setGoals((res.data.goals || []).filter((g) => !g.is_completed));
+      })
+      .catch((err) => {
+        console.error('Error loading goals:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiRequestRef = useRef<number>(0);
@@ -342,6 +362,7 @@ function TransactionForm({
           note: notes.trim() || title,
           is_recurring: true,
           transaction_type: transactionType,
+          goal_id: goalId ? Number(goalId) : null,
         });
       } else if (editTxn) {
         await expenseAPI.updateExpense(editTxn.id, {
@@ -351,6 +372,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           transaction_type: transactionType,
+          goal_id: goalId ? Number(goalId) : null,
         });
       } else {
         await expenseAPI.addExpense({
@@ -360,6 +382,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           transaction_type: transactionType,
+          goal_id: goalId ? Number(goalId) : null,
         });
       }
 
@@ -473,6 +496,27 @@ function TransactionForm({
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
+
+        {goals.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-black/60 mb-1.5">Link to Goal (optional)</label>
+            <select
+              value={goalId}
+              onChange={(e) => setGoalId(e.target.value)}
+              className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            >
+              <option value="">No goal</option>
+              {goals.map((g) => (
+                <option key={g.id} value={String(g.id)}>
+                  {g.icon ? `${g.icon} ` : ''}{g.title || g.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-black/40">
+              Counts this amount toward the goal's progress.
+            </p>
+          </div>
+        )}
 
         {!editTxn && (
           <div className="border-t border-black/10 pt-4">

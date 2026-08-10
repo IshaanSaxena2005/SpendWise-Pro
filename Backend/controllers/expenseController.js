@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { checkAnomaly } = require('../services/anomalyService');
 const { DEMO_EMAIL } = require('../config/constants');
 const { learnFromUserChoice } = require('../services/learningService');
+const { checkAndSendBudgetEmails } = require('../services/emailNotificationService');
 
 const addExpense = async (req, res) => {
   try {
@@ -50,6 +51,10 @@ const addExpense = async (req, res) => {
       message: 'Expense added',
       is_anomaly: anomaly.is_anomaly
     });
+
+    // Fire-and-forget: budget threshold emails must never block or break the API.
+    // The service self-catches all errors; the extra .catch() is belt-and-suspenders.
+    checkAndSendBudgetEmails(userId).catch(() => {});
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -148,6 +153,9 @@ const updateExpense = async (req, res) => {
       success: true,
       message: 'Expense updated',
     });
+
+    // Fire-and-forget: recompute budget usage and send threshold emails if crossed.
+    checkAndSendBudgetEmails(userId).catch(() => {});
   } catch (err) {
     res.status(500).json({
       success: false,

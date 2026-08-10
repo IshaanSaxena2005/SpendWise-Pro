@@ -20,6 +20,7 @@ const aiRoutes = require('./routes/ai');
 const anomalyRoutes = require('./routes/anomaly');
 const goalRoutes   = require('./routes/goal');
 const recurringRoutes = require('./routes/recurring');
+const emailRoutes = require('./routes/email');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -79,6 +80,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/anomaly', anomalyRoutes);
 app.use('/api/goals',  goalRoutes);
 app.use('/api/recurring', recurringRoutes);
+app.use('/api/email', emailRoutes);
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -148,6 +150,23 @@ async function start() {
       created_at           TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
       updated_at           TIMESTAMP       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_goals_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+
+  // ── Email events log (idempotent migration) ───────────────────────────────
+  // Guarantees a given notification email is sent at most once per user per
+  // event. The UNIQUE(user_id, event_key) constraint powers the dedup: an
+  // INSERT IGNORE that affects 0 rows means the email was already sent.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_events (
+      id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id    BIGINT UNSIGNED NOT NULL,
+      event_key  VARCHAR(191)    NOT NULL,
+      created_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_user_event (user_id, event_key),
+      CONSTRAINT fk_email_events_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB

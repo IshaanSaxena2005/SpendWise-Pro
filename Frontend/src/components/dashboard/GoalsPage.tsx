@@ -288,11 +288,11 @@ function GoalModal({ goal, onClose, onSave, saving }: GoalModalProps) {
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Notes / Purpose */}
             <div>
-              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Notes</label>
+              <label className="text-xs font-semibold text-black/50 uppercase tracking-widest block mb-1.5">Purpose / Notes</label>
               <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
-                placeholder="Optional notes about this goal…"
+                placeholder="e.g. Family vacation to Goa in December"
                 className="w-full px-4 py-2.5 rounded-xl border border-black/10 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 resize-none" />
             </div>
           </div>
@@ -446,6 +446,12 @@ function GoalCard({ goal, index, onEdit, onDelete, onUpdateSaved, isDemo }: Goal
               <p className="text-xs text-rose-600 font-semibold">{fmt(remaining)} remaining</p>
             ) : (
               <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">🎉 Completed!</p>
+            )}
+            {(goal.linked_count ?? 0) > 0 && (
+              <p className="text-[10px] text-violet-600/90 font-medium flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                Includes {fmt(goal.linked_amount ?? 0)} from {goal.linked_count} linked transaction{goal.linked_count === 1 ? '' : 's'}
+              </p>
             )}
           </div>
         </div>

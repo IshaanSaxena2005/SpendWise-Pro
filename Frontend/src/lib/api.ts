@@ -79,6 +79,9 @@ export interface Goal {
   target_amount: number;
   saved_amount: number;
   current_amount?: number;
+  manual_saved_amount?: number;
+  linked_amount?: number;
+  linked_count?: number;
   progress_percentage?: number;
   monthly_contribution: number;
   target_date: string;

@@ -104,6 +104,9 @@ function enrichGoal(goal) {
     title: goal.name || goal.title,
     current_amount,
     saved_amount: current_amount, // for backward compatibility in widgets
+    manual_saved_amount: Number(goal.manual_saved_amount !== undefined ? goal.manual_saved_amount : goal.saved_amount) || 0,
+    linked_amount: Number(goal.linked_amount) || 0,
+    linked_count: Number(goal.linked_count) || 0,
     progress_percentage,
     status,
     is_completed: (goal.is_completed || progress_percentage >= 100) ? 1 : 0,
@@ -124,9 +127,13 @@ const getGoals = async (req, res) => {
 
     const [goals] = await pool.query(
       `SELECT g.id, g.user_id, g.name AS title, g.name, g.icon, g.category,
-              g.target_amount, 
+              g.target_amount,
               (g.saved_amount + COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0)) AS current_amount,
-              g.saved_amount, g.monthly_contribution,
+              g.saved_amount,
+              g.saved_amount AS manual_saved_amount,
+              COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0) AS linked_amount,
+              (SELECT COUNT(*) FROM expenses WHERE goal_id = g.id) AS linked_count,
+              g.monthly_contribution,
               DATE_FORMAT(g.target_date, '%Y-%m-%d') AS target_date,
               g.priority, g.notes, g.is_completed, g.created_at, g.updated_at
        FROM goals g
