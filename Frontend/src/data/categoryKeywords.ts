@@ -66,8 +66,6 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   Travel: [
     'uber',
     'ola',
-    'petrol',
-    'diesel',
     'metro',
     'bus',
     'train',
@@ -75,7 +73,6 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'flight',
     'taxi',
     'cab',
-    'fuel',
     'parking',
     'toll',
     'hotel',
@@ -107,7 +104,7 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'watch',
     'bag',
   ],
-  Healthcare: [
+  Health: [
     'doctor',
     'medicine',
     'hospital',
@@ -125,25 +122,20 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'test',
     'lab',
   ],
-  Education: [
-    'college',
-    'course',
-    'book',
-    'books',
-    'fees',
-    'udemy',
-    'school',
-    'tuition',
-    'class',
-    'exam',
-    'university',
-    'coaching',
-    'training',
-    'certificate',
-    'stationery',
-    'ink',
+  Fuel: [
+    'petrol',
+    'diesel',
+    'fuel',
+    'petroleum',
+    'indian oil',
+    'hp petrol',
+    'bpcl',
+    'shell',
+    'cng',
+    'lpg',
+    'gas cylinder',
   ],
-  Income: [
+  Salary: [
     'salary',
     'stipend',
     'bonus',
@@ -163,10 +155,11 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
 };
 
 export const CATEGORY_ALIASES: Record<string, string[]> = {
-  Healthcare: ['Health', 'Medical'],
-  Income: ['Salary', 'Freelance', 'Earnings'],
+  Health: ['Healthcare', 'Medical'],
+  Salary: ['Income', 'Freelance', 'Earnings', 'Paycheck'],
   Bills: ['Utilities', 'Bill'],
   Entertainment: ['Fun'],
+  Fuel: ['Petrol', 'Diesel', 'Gas'],
 };
 
 export type ConfidenceLevel = 'High' | 'Medium' | 'Low';

@@ -66,8 +66,6 @@ const CATEGORY_KEYWORDS = {
   Travel: [
     'uber',
     'ola',
-    'petrol',
-    'diesel',
     'metro',
     'bus',
     'train',
@@ -75,7 +73,6 @@ const CATEGORY_KEYWORDS = {
     'flight',
     'taxi',
     'cab',
-    'fuel',
     'parking',
     'toll',
     'hotel',
@@ -107,7 +104,7 @@ const CATEGORY_KEYWORDS = {
     'watch',
     'bag',
   ],
-  Healthcare: [
+  Health: [
     'doctor',
     'medicine',
     'hospital',
@@ -125,25 +122,20 @@ const CATEGORY_KEYWORDS = {
     'test',
     'lab',
   ],
-  Education: [
-    'college',
-    'course',
-    'book',
-    'books',
-    'fees',
-    'udemy',
-    'school',
-    'tuition',
-    'class',
-    'exam',
-    'university',
-    'coaching',
-    'training',
-    'certificate',
-    'stationery',
-    'ink',
+  Fuel: [
+    'petrol',
+    'diesel',
+    'fuel',
+    'petroleum',
+    'indian oil',
+    'hp petrol',
+    'bpcl',
+    'shell',
+    'cng',
+    'lpg',
+    'gas cylinder',
   ],
-  Income: [
+  Salary: [
     'salary',
     'stipend',
     'bonus',
@@ -163,10 +155,11 @@ const CATEGORY_KEYWORDS = {
 };
 
 const CATEGORY_ALIASES = {
-  Healthcare: ['Health', 'Medical'],
-  Income: ['Salary', 'Freelance', 'Earnings'],
+  Health: ['Healthcare', 'Medical'],
+  Salary: ['Income', 'Freelance', 'Earnings', 'Paycheck'],
   Bills: ['Utilities', 'Bill'],
   Entertainment: ['Fun'],
+  Fuel: ['Petrol', 'Diesel', 'Gas'],
 };
 
 module.exports = {

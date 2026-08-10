@@ -18,16 +18,18 @@ const SEED_MERCHANT_ALIASES = [
   { alias: 'spotify premium', merchant: 'spotify', category: 'Entertainment' },
   { alias: 'amazon prime', merchant: 'prime video', category: 'Entertainment' },
 
-  // Healthcare
-  { alias: 'apollo', merchant: 'apollo pharmacy', category: 'Healthcare' },
-  { alias: 'apollo medical', merchant: 'apollo pharmacy', category: 'Healthcare' },
-  { alias: 'medplus', merchant: 'medplus pharmacy', category: 'Healthcare' },
+  // Health
+  { alias: 'apollo', merchant: 'apollo pharmacy', category: 'Health' },
+  { alias: 'apollo medical', merchant: 'apollo pharmacy', category: 'Health' },
+  { alias: 'medplus', merchant: 'medplus pharmacy', category: 'Health' },
 
-  // Travel / Fuel
-  { alias: 'shell fuel', merchant: 'shell', category: 'Travel' },
-  { alias: 'indian oil', merchant: 'indian oil', category: 'Travel' },
-  { alias: 'hp petrol', merchant: 'hp petrol', category: 'Travel' },
-  { alias: 'bpcl', merchant: 'bpcl', category: 'Travel' },
+  // Fuel
+  { alias: 'shell fuel', merchant: 'shell', category: 'Fuel' },
+  { alias: 'indian oil', merchant: 'indian oil', category: 'Fuel' },
+  { alias: 'hp petrol', merchant: 'hp petrol', category: 'Fuel' },
+  { alias: 'bpcl', merchant: 'bpcl', category: 'Fuel' },
+
+  // Travel
   { alias: 'uber ride', merchant: 'uber', category: 'Travel' },
   { alias: 'ola cab', merchant: 'ola', category: 'Travel' },
 

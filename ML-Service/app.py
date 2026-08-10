@@ -1,12 +1,15 @@
 from flask import Flask, request, jsonify
 from model import train_and_predict
 from anomaly import detect_anomaly
+from classifier import predict_category, load_classifier
 
 app = Flask(__name__)
+
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy"})
+
 
 @app.route('/forecast', methods=['POST'])
 def forecast():
@@ -72,6 +75,30 @@ def anomaly():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/categorize', methods=['POST'])
+def categorize():
+    try:
+        data = request.get_json(silent=True)
+        if not data or 'description' not in data:
+            return jsonify({'error': 'Missing "description" field in JSON body'}), 400
+        description = data.get('description')
+        if not isinstance(description, str):
+            return jsonify({'error': '"description" must be a string'}), 400
+
+        result = predict_category(description)
+        return jsonify({
+            'category': result.get('category'),
+            'confidence': float(result.get('confidence') or 0.0),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
-    # Run the Flask app on port 5000
+    # Warm-load the classifier artifacts (blocks server start until ready)
+    try:
+        load_classifier()
+    except Exception as e:
+        print('[warn] Failed to preload classifier:', e)
+    # Run the Flask app on port 5001
     app.run(host='0.0.0.0', port=5001, debug=True)

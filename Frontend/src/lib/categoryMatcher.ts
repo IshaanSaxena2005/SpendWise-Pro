@@ -26,7 +26,7 @@ const NULL_RESULT: CategoryDetectionResult = {
 
 export function getConfidenceLevel(confidence: number): ConfidenceLevel {
   if (confidence >= 85) return 'High';
-  if (confidence >= 65) return 'Medium';
+  if (confidence >= 70) return 'Medium';
   return 'Low';
 }
 

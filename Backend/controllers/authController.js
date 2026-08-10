@@ -50,7 +50,7 @@ const signup = async (req, res) => {
       'Bills',
       'Health',
       'Salary',
-      'Freelance'
+      'Fuel'
     ];
 
     for (const categoryName of defaultCategories) {
@@ -455,7 +455,7 @@ const googleLogin = async (req, res) => {
 
       const defaultCategories = [
         'Food', 'Shopping', 'Travel', 'Entertainment',
-        'Bills', 'Health', 'Salary', 'Freelance'
+        'Bills', 'Health', 'Salary', 'Fuel'
       ];
 
       for (const categoryName of defaultCategories) {

@@ -3,6 +3,13 @@ const { CATEGORY_KEYWORDS, CATEGORY_ALIASES } = require('../constants/categoryKe
 const { normalizeMerchant } = require('./learningService');
 const { generateContent, getEmbedding, hasGeminiApiKey } = require('./geminiService');
 
+let axios = null;
+try {
+  axios = require('axios');
+} catch (_err) {
+  axios = null;
+}
+
 const HIGH_CONFIDENCE_THRESHOLD = 70;
 
 function levenshteinDistance(a, b) {
@@ -232,6 +239,47 @@ function cosineSimilarity(vecA, vecB) {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+async function callMlCategorize(description) {
+  const mlServiceUrl = process.env.ML_SERVICE_URL;
+  if (!mlServiceUrl || !axios) {
+    return { result: null, reason: !mlServiceUrl ? 'ml_service_not_configured' : 'axios_missing', durationMs: 0 };
+  }
+  const started = Date.now();
+  try {
+    const resp = await axios({
+      method: 'POST',
+      url: `${mlServiceUrl}/categorize`,
+      data: { description },
+      timeout: 4000,
+      responseType: 'json',
+    });
+    const body = resp && resp.data ? resp.data : {};
+    const rawCategory = body.category;
+    const rawConf = Number(body.confidence);
+    const matchedCategory = resolveValidCategory(rawCategory);
+    if (!matchedCategory) {
+      return { result: null, reason: 'invalid_ml_category', durationMs: Date.now() - started };
+    }
+    const confFrac = Number.isFinite(rawConf) ? Math.max(0, Math.min(1, rawConf)) : 0;
+    const confidencePct = Math.round(confFrac * 100);
+    return {
+      result: {
+        category: matchedCategory,
+        confidence: confidencePct,
+        source: 'ml',
+      },
+      reason: null,
+      durationMs: Date.now() - started,
+    };
+  } catch (err) {
+    return {
+      result: null,
+      reason: `ml_error_${err && err.code ? err.code : 'generic'}`,
+      durationMs: Date.now() - started,
+    };
+  }
+}
+
 async function categorizeTransaction(userId, description) {
   const started = Date.now();
 
@@ -347,9 +395,19 @@ async function categorizeTransaction(userId, description) {
     });
   }
 
-  // 5–6. Gemini only when rule confidence is below threshold
-  let geminiFallbackReason = null;
+  // 5. ML Classifier (TF-IDF + Logistic Regression) — handles cases the rule layer is uncertain about
+  const ml = await callMlCategorize(description);
+  if (ml.result && ml.result.category) {
+    return finish({
+      category: ml.result.category,
+      confidence: ml.result.confidence,
+      source: 'ml',
+      matched_text: description,
+    });
+  }
+  let geminiFallbackReason = ml.reason ? `ml_fallback_${ml.reason}` : null;
 
+  // 6–7. Gemini (embedding + LLM) only as the final optional fallback
   if (hasGeminiApiKey()) {
     try {
       const inputVector = await getGeminiEmbedding(normalized);
