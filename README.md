@@ -316,14 +316,16 @@ SpendWise Pro is deployed using a cloud-based architecture:
 
 ## ⭐ Highlights
 
-- 🧠 Self-Learning AI Smart Categorization Engine
+- 🧠 Self-Learning AI Transaction Categorization
+- 🤖 Gemini-Powered Financial Assistant
+- 📊 Interactive Financial Analytics
+- 🎯 Smart Financial Goals & Milestones
+- 💰 Budget Tracking & Intelligent Alerts
+- 📧 Automated Monthly Reports & Weekly AI Insights
 - 🔁 Recurring Income & Expense Management
-- 🎯 AI-assisted Financial Goal Tracking
-- 📈 Machine Learning Spending Forecasts
+- 📈 ML-Powered Spending Forecasting
 - 🚨 Isolation Forest Anomaly Detection
-- 🤖 Gemini-powered Financial Assistant
-- 📊 Interactive Analytics Dashboard
-- ☁️ Production-ready Cloud Deployment
+- 🔐 Secure Authentication & Cloud Deployment
 
 ---
 
