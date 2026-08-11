@@ -292,11 +292,12 @@ VITE_GOOGLE_CLIENT_ID=
 
 ### ML Service Endpoints
 
-| Method | Endpoint    |
-| ------ | ----------- |
-| GET    | `/health`   |
-| POST   | `/forecast` |
-| POST   | `/anomaly`  |
+| Method | Endpoint    | Purpose                    |
+| ------ | ----------- | -------------------------- |
+| GET    | `/health`   | ML service health check    |
+| POST   | `/categorize` | ML transaction categorization |
+| POST   | `/forecast` | Spending forecast         |
+| POST   | `/anomaly`  | Anomaly detection          |
 
 ---
 
