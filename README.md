@@ -87,13 +87,14 @@
 - Scikit-learn
 - Pandas
 - NumPy
-- Gemini AI API
-- Rule-based NLP Engine
-- Fuzzy String Matching
-- Self-Learning Categorization Engine
+- TF-IDF Vectorization
+- Logistic Regression
 - Linear Regression
 - Isolation Forest
----
+- Rule-based NLP
+- Fuzzy String Matching
+- Self-Learning Categorization
+- Google Gemini AI
 
 ## Architecture
 
