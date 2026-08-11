@@ -117,12 +117,13 @@ flowchart LR
     BE --> AI
 ```
 
-| Service     | Platform         |
-| ----------- | ---------------- |
-| Frontend    | Vercel           |
-| Backend API | Railway          |
-| ML Service  | Railway / Render |
-| Database    | Railway MySQL    |
+| Service     | Platform   |
+| ----------- | ---------- |
+| Frontend    | Vercel     |
+| Backend API | Render     |
+| Database    | TiDB Cloud |
+| ML Service  | Render     |
+| AI Provider | Google Gemini |
 
 ---
 
