@@ -59,10 +59,14 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
   }, [user.email]); // Re-fetch when user's email changes (i.e., new login)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="sidebar-motion flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-4 px-5 py-5 border-b border-black/5">
-        <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 flex items-center justify-center overflow-hidden shrink-0">
+      <Link
+        to="/dashboard"
+        onClick={onNavClick}
+        className="group flex items-center gap-4 px-5 py-5 border-b border-black/5"
+      >
+        <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 flex items-center justify-center overflow-hidden shrink-0 transition-all duration-200 ease-out group-hover:shadow-md group-hover:scale-105">
           <img
             src="/logo2.png"
             alt="SpendWise Pro"
@@ -70,10 +74,10 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
           />
         </div>
 
-        <span className="text-lg font-extrabold text-black tracking-tight whitespace-nowrap">
+        <span className="text-lg font-extrabold text-black tracking-tight whitespace-nowrap transition-colors duration-200 group-hover:text-violet-600">
           SpendWise Pro
         </span>
-      </div>
+      </Link>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
@@ -85,13 +89,19 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
               key={name}
               to={href}
               onClick={onNavClick}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ease-out ${
                 active
                   ? 'bg-black text-white shadow-md shadow-black/10'
                   : 'text-black/60 hover:text-black hover:bg-black/5 hover:translate-x-1'
               }`}
             >
-              <Icon className="w-4 h-4 shrink-0" />
+              {/* Active-page indicator bar */}
+              <span
+                className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-violet-400 transition-all duration-200 ease-out ${
+                  active ? 'h-5 opacity-100' : 'h-0 opacity-0'
+                }`}
+              />
+              <Icon className="w-4 h-4 shrink-0 transition-transform duration-200 ease-out group-hover:scale-110" />
               {name}
             </Link>
           );
@@ -102,17 +112,27 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
       <div className="px-3 py-4 border-t border-black/5 flex flex-col gap-1">
         <Link
           to="/dashboard/settings"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-black/60 hover:text-black hover:bg-black/5 hover:translate-x-1 transition-all duration-200"
+          onClick={onNavClick}
+          className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ease-out ${
+            pathname.includes('/settings')
+              ? 'bg-black text-white shadow-md shadow-black/10'
+              : 'text-black/60 hover:text-black hover:bg-black/5 hover:translate-x-1'
+          }`}
         >
-          <Settings className="w-4 h-4 shrink-0" />
+          <span
+            className={`absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-violet-400 transition-all duration-200 ease-out ${
+              pathname.includes('/settings') ? 'h-5 opacity-100' : 'h-0 opacity-0'
+            }`}
+          />
+          <Settings className="w-4 h-4 shrink-0 transition-transform duration-200 ease-out group-hover:scale-110 group-hover:rotate-45" />
           Settings
         </Link>
 
         <div className="h-px bg-black/5 my-2 mx-2" />
 
         {/* User Profile Mini */}
-        <Link to="/dashboard/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-black/5 transition-colors cursor-pointer group">
-          <AvatarCircle userName={user.full_name} avatarUrl={avatarUrl} size="sm" className="group-hover:border-black/20 transition-colors" />
+        <Link to="/dashboard/profile" onClick={onNavClick} className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-black/5 hover:-translate-y-0.5 transition-all duration-200 ease-out cursor-pointer group">
+          <AvatarCircle userName={user.full_name} avatarUrl={avatarUrl} size="sm" className="transition-all duration-200 group-hover:border-black/20 group-hover:scale-105" />
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-semibold text-black leading-tight truncate group-hover:text-violet-600 transition-colors">{user.full_name}</span>
             <span className="text-[11px] text-black/50 font-medium truncate">{user.role}</span>
@@ -121,9 +141,9 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
 
         <button
           onClick={onLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 hover:translate-x-1 w-full transition-all duration-200 mt-1"
+          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 hover:translate-x-1 w-full transition-all duration-200 ease-out mt-1"
         >
-          <LogOut className="w-4 h-4 shrink-0" />
+          <LogOut className="w-4 h-4 shrink-0 transition-transform duration-200 ease-out group-hover:scale-110" />
           Logout
         </button>
       </div>
@@ -183,12 +203,12 @@ export function DashboardLayout() {
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          className="sidebar-overlay fixed inset-0 bg-black/40 z-30 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 w-56 bg-white z-40 md:hidden transform transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 w-56 bg-white z-40 md:hidden transform transition-transform duration-[250ms] ease-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -223,7 +243,7 @@ export function DashboardLayout() {
             {!isProfileOrSettings && !isDemoUser && (
               <button
                 onClick={() => setModalOpen(true)}
-                className="flex items-center gap-1.5 bg-black text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-gray-800 transition-colors shadow-sm"
+                className="flex items-center gap-1.5 bg-black text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-gray-800 hover-lift transition-colors shadow-sm hover:shadow-md"
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Add Transaction</span>
@@ -298,7 +318,7 @@ export function DashboardLayout() {
         )}
 
         {/* Page Content */}
-        <div className="p-4 md:p-6 flex-1">
+        <div key={location.pathname} className="p-4 md:p-6 flex-1 page-enter">
           <Outlet context={{ openAddModal: () => setModalOpen(true) }} />
         </div>
       </main>

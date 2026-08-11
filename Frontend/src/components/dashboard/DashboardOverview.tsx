@@ -242,10 +242,10 @@ export function DashboardOverview() {
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {metricCards.map(({ label, value, sub, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 border border-black/5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
+        {metricCards.map(({ label, value, sub, icon: Icon, color }, i) => (
+          <div key={label} style={{ animationDelay: `${i * 60}ms` }} className="card-rise bg-white rounded-2xl p-5 border border-black/5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 rounded-xl bg-[#F5F5F5] border border-black/5 flex items-center justify-center`}> 
+              <div className={`w-10 h-10 rounded-xl bg-[#F5F5F5] border border-black/5 flex items-center justify-center`}>
                 <Icon className={`w-5 h-5 ${color}`} />
               </div>
             </div>
@@ -259,7 +259,7 @@ export function DashboardOverview() {
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Recent Transactions */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden flex flex-col">
+        <div style={{ animationDelay: '240ms' }} className="card-rise lg:col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
             <h2 className="font-semibold text-black text-sm">Recent Transactions</h2>
             <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
@@ -310,7 +310,7 @@ export function DashboardOverview() {
         </div>
 
         {/* Right Column */}
-        <div className="space-y-4">
+        <div style={{ animationDelay: '300ms' }} className="card-rise space-y-4">
           {/* AI Financial Health Score */}
           <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 relative overflow-hidden group hover:border-violet-200 transition-colors">
             <div className="absolute top-0 right-0 w-32 h-32 bg-violet-600/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
