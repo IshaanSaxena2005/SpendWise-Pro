@@ -4,7 +4,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js)
 ![Python](https://img.shields.io/badge/Python-Flask-3776AB?logo=python)
 
-**AI-powered Personal Finance Management Platform** featuring intelligent expense tracking, self-learning smart categorization, recurring transactions, financial goals, budgeting, analytics, ML-powered forecasting, anomaly detection, AI insights, and secure cloud deployment.
+**AI-powered Personal Finance Management Platform** featuring intelligent expense tracking, self-learning transaction categorization, recurring income & expenses, financial goals, budgeting, analytics, ML-powered forecasting, anomaly detection, Gemini-powered financial assistance, automated email insights, and secure cloud deployment.
 
 ---
 
