@@ -34,7 +34,7 @@ export function CategorySelect({ categories, value, onChange, onAddCategory }: P
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 cursor-pointer flex items-center justify-between gap-2"
+        className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 cursor-pointer flex items-center justify-between gap-2 transition-all duration-200 hover:bg-black/5"
       >
         <span className="flex items-center gap-2 truncate">
           {selected ? (
@@ -46,11 +46,11 @@ export function CategorySelect({ categories, value, onChange, onAddCategory }: P
             <span className="text-black/40">Select category</span>
           )}
         </span>
-        <ChevronDown className={`w-4 h-4 text-black/40 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-black/40 shrink-0 transition-transform duration-200 ease-out ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1.5 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
+        <div className="dropdown-in absolute z-20 mt-1.5 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
           <div className="max-h-48 overflow-y-auto py-1">
             {categories.map((c) => {
               const isSelected = String(c.id) === value;

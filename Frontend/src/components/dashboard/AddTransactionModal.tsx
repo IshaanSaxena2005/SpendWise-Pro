@@ -95,7 +95,7 @@ function AutoDetectedCard({
   if (isSuggestionOnly) {
     // Low confidence: just show a suggestion pill — don't auto-select
     return (
-      <div className="mt-2 px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-2">
+      <div className="auto-detect-in mt-2 px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-2">
         <span className="text-xs text-gray-500">Suggested:</span>
         <CategoryEmoji icon={getCategoryIcon(displayCategory)} className="text-sm" />
         <span className="text-xs font-medium text-gray-700">{detection.categoryName}</span>
@@ -105,7 +105,7 @@ function AutoDetectedCard({
   }
 
   return (
-    <div className="mt-2 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3">
+    <div className="auto-detect-in mt-2 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold text-violet-700">
           ✨ Auto Detected
@@ -407,9 +407,9 @@ function TransactionForm({
             <button
               type="button"
               onClick={() => setTransactionType('expense')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                transactionType === 'expense' 
-                  ? 'bg-rose-50 text-rose-600 border-2 border-rose-200' 
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.97] ${
+                transactionType === 'expense'
+                  ? 'bg-rose-50 text-rose-600 border-2 border-rose-200'
                   : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
               }`}
             >
@@ -418,9 +418,9 @@ function TransactionForm({
             <button
               type="button"
               onClick={() => setTransactionType('income')}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                transactionType === 'income' 
-                  ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200' 
+              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.97] ${
+                transactionType === 'income'
+                  ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-200'
                   : 'bg-[#F5F5F5] text-black/60 border-2 border-transparent hover:bg-black/5'
               }`}
             >
@@ -431,7 +431,7 @@ function TransactionForm({
         <div>
           <label className="block text-xs font-medium text-black/60 mb-1.5">Description</label>
           <input
-            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 transition-all duration-200"
             placeholder="e.g. Swiggy Order"
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
@@ -444,7 +444,7 @@ function TransactionForm({
             type="number"
             min="1"
             step="any"
-            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 transition-all duration-200"
             placeholder="0"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -467,7 +467,7 @@ function TransactionForm({
             />
           )}
           {detectLoading && !detection && !editTxn && (
-            <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-2">
+            <div className="auto-detect-in mt-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-2">
               <div className="w-3 h-3 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
               <span className="text-xs text-gray-500">Detecting category…</span>
             </div>
@@ -477,7 +477,7 @@ function TransactionForm({
           <label className="block text-xs font-medium text-black/60 mb-1.5">Date</label>
           <input
             type="date"
-            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 transition-all duration-200"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
@@ -487,7 +487,7 @@ function TransactionForm({
           <label className="block text-xs font-medium text-black/60 mb-1.5">Notes (optional)</label>
           <textarea
             rows={2}
-            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 resize-none"
+            className="w-full bg-[#F5F5F5] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 resize-none transition-all duration-200"
             placeholder="Details..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -586,13 +586,13 @@ function TransactionForm({
       </div>
 
       <div className="flex gap-3 pt-4 border-t border-black/10 shrink-0">
-        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-black/60 hover:bg-black/5 transition-colors">
+        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-black/60 hover:bg-black/5 active:scale-[0.98] transition-all duration-200">
           Cancel
         </button>
         <button
           type="submit"
           disabled={loading || !catId}
-          className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors disabled:opacity-60"
+          className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:active:scale-100"
         >
           {loading ? 'Saving...' : 'Save'}
           {!loading && <ArrowRight className="w-4 h-4" />}
@@ -606,6 +606,30 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
   const [categories, setCategories] = useState<Category[]>([]);
   const [catId, setCatId] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Play the exit animation, then invoke the real onClose. Skips the delay
+  // entirely when the user prefers reduced motion.
+  const handleClose = useCallback(() => {
+    const prefersReduced = typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) {
+      onClose();
+      return;
+    }
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => {
+      setClosing(false);
+      onClose();
+    }, 180);
+  }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -648,12 +672,15 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl">
+    <div className="modal-motion fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${closing ? 'modal-backdrop-out' : 'modal-backdrop-in'}`}
+        onClick={handleClose}
+      />
+      <div className={`relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl ${closing ? 'modal-panel-out' : 'modal-panel-in'}`}>
         <div className="flex items-center justify-between p-6 border-b border-black/10 shrink-0">
           <h3 className="text-lg font-semibold text-black">{editTxn ? 'Edit Transaction' : 'Add Transaction'}</h3>
-          <button onClick={onClose} className="text-black/40 hover:text-black transition-colors">
+          <button onClick={handleClose} className="text-black/40 hover:text-black active:scale-90 transition-all duration-150">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -665,7 +692,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
             categories={categories}
             catId={catId}
             setCatId={setCatId}
-            onClose={onClose}
+            onClose={handleClose}
             onAddCategory={() => setShowAddCategory(true)}
             onTransactionChanged={onTransactionChanged}
           />
