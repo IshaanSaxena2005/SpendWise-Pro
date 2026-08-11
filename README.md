@@ -272,23 +272,23 @@ VITE_GOOGLE_CLIENT_ID=
 
 ## API Overview
 
-| Prefix               | Purpose             |
-| -------------------- | ------------------- |
-| `/api/auth`          | Authentication      |
-| `/api/expenses`      | Expense CRUD        |
-| `/api/categories`    | Category CRUD       |
-| `/api/budgets`       | Budget CRUD         |
-| `/api/analytics`     | Dashboard analytics |
-| `/api/forecast`      | ML forecasting      |
-| `/api/anomaly`       | Anomaly detection   |
-| `/api/ai`            | AI assistant        |
-| `/api/intelligence`  | Recommendations     |
-| `/api/notifications` | Notifications       |
-| `/api/user`          | Avatar management   |
-| `/api/goals` | Smart Financial Goals |
-| `/api/recurring` | Recurring Transactions |
-| `/api/forecast` | ML Forecasting |
-| `/api/categorize` | Smart Category Detection |
+| Prefix               | Purpose                         |
+| -------------------- | ------------------------------- |
+| `/api/auth`          | Authentication                  |
+| `/api/expenses`      | Expense & income transactions   |
+| `/api/categories`    | Category management             |
+| `/api/budgets`       | Budget management               |
+| `/api/analytics`     | Financial analytics             |
+| `/api/forecast`      | ML spending forecasting         |
+| `/api/anomaly`       | Anomaly detection               |
+| `/api/ai`            | Gemini AI assistant             |
+| `/api/intelligence`  | Financial insights              |
+| `/api/notifications` | In-app notifications            |
+| `/api/user`          | User/profile management         |
+| `/api/goals`         | Smart financial goals           |
+| `/api/recurring`     | Recurring transactions          |
+| `/api/categorize`    | Smart transaction categorization|
+| `/api/email`         | Email reports and scheduled insights |
 
 ### ML Service Endpoints
 
