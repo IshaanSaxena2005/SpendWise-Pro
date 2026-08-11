@@ -34,19 +34,23 @@
 | Area | Capabilities |
 |------|--------------|
 | **Smart Expense Tracking** | Add, edit, delete, search, filter and export transactions |
-| **Self-Learning AI Categorization** | Automatically categorizes transactions using keywords, fuzzy matching, AI, and personalized learning |
+| **Self-Learning AI Categorization** | Hybrid categorization using user learning, merchant aliases, keyword/fuzzy matching, TF-IDF + Logistic Regression ML, and Gemini fallback |
 | **Recurring Transactions** | Daily, weekly, monthly and yearly recurring expenses & income |
-| **Smart Financial Goals** | AI-assisted goals with progress tracking, completion prediction and milestone notifications |
+| **Smart Financial Goals** | Goal-linked transactions, automatic progress tracking, remaining amount, completion prediction and milestone notifications |
 | **Budget Management** | Overall and category-wise budgets with utilization tracking |
 | **Analytics Dashboard** | Spending trends, category breakdown, savings insights and monthly summaries |
 | **AI Financial Assistant** | Natural language financial queries powered by Gemini AI |
 | **Spending Forecasting** | Machine learning prediction of future expenses |
 | **Anomaly Detection** | Isolation Forest based unusual spending detection |
 | **Financial Health Score** | Personalized financial health analysis with recommendations |
-| **Notifications** | Budget alerts, recurring reminders and goal milestone notifications |
+| **Email Notifications** | Budget warnings, budget exceeded alerts, monthly financial reports and weekly AI spending insights |
 | **Authentication & Security** | JWT, Email Verification, Password Reset, Google OAuth, Rate Limiting |
 | **Profile Management** | Avatar upload and profile customization |
 | **Cloud Deployment** | Production-ready deployment on Vercel + Render + TiDB Cloud |
+
+
+
+
 
 ---
 
