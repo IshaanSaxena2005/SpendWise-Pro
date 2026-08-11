@@ -303,13 +303,14 @@ VITE_GOOGLE_CLIENT_ID=
 
 ## Deployment
 
-The application is deployed using modern cloud infrastructure:
+SpendWise Pro is deployed using a cloud-based architecture:
 
 - **Frontend:** Vercel
 - **Backend API:** Render
 - **Database:** TiDB Cloud
-- **Machine Learning:** Flask Service
-- **AI Provider:** Google Gemini
+- **ML Service:** Render
+- **AI:** Google Gemini
+- **Email:** Brevo
 
 ---
 
