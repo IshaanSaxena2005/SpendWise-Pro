@@ -107,12 +107,9 @@ function AutoDetectedCard({
   return (
     <div className="mt-2 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50 to-indigo-50 px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">✨</span>
-          <span className="text-xs font-semibold text-violet-700">
-            ✨ Auto Detected
-          </span>
-        </div>
+        <span className="text-xs font-semibold text-violet-700">
+          ✨ Auto Detected
+        </span>
         <span className="text-xs font-bold text-violet-700">{detection.confidence}%</span>
       </div>
       <div className="flex items-center justify-between">
