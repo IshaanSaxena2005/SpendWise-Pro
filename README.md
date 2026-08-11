@@ -145,14 +145,14 @@ SpendWise-Pro/
 │   ├── model.py
 │   └── anomaly.py
 ├── screenshots/
-├   ├── home.png
-├   ├── login.png
-├   ├── dashboard.png
-├   ├── transactions.png
-├   ├── budgets.png
-├   ├── analytics.png
-├   ├── chatbot.png
-├   └── profile.png
+│   ├── home.png
+│   ├── login.png
+│   ├── dashboard.png
+│   ├── transactions.png
+│   ├── budgets.png
+│   ├── analytics.png
+│   ├── chatbot.png
+│   └── profile.png
 ├── .env.example
 └── README.md
 
