@@ -76,7 +76,9 @@
 - Helmet
 - express-rate-limit
 - express-validator
-- Gemini AI API
+- MySQL / TiDB Cloud
+- Google Gemini API
+- Brevo Email API
 
 ### AI & Machine Learning
 
