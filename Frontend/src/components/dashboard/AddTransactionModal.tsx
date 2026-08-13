@@ -704,25 +704,40 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
 
   // Positioning calculations
   const popoverWidth = 448;
-  let leftPos = 0;
+  const popoverHeight = 520; // typical height of the edit form
+  let leftPos = (window.innerWidth - popoverWidth) / 2;
   let showBelow = true;
-  let maxHeight = 550;
+  let maxHeight = 600;
   let arrowLeft = 224;
+  let topPos: number | undefined = undefined;
+  let bottomPos: number | undefined = undefined;
+  let isCenteredVertically = false;
 
   if (isPopover && anchorRect) {
     const buttonCenterX = anchorRect.left + anchorRect.width / 2;
-    leftPos = buttonCenterX - popoverWidth / 2;
-    leftPos = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, leftPos));
+    arrowLeft = Math.max(24, Math.min(popoverWidth - 24, buttonCenterX - leftPos));
 
     const spaceBelow = window.innerHeight - anchorRect.bottom;
     const spaceAbove = anchorRect.top;
-    showBelow = spaceBelow >= 550 || spaceBelow > spaceAbove;
 
-    maxHeight = showBelow
-      ? window.innerHeight - anchorRect.bottom - 32
-      : anchorRect.top - 32;
-
-    arrowLeft = Math.max(24, Math.min(popoverWidth - 24, buttonCenterX - leftPos));
+    // Check if it fits below (with a small safety margin)
+    if (spaceBelow >= popoverHeight + 20) {
+      showBelow = true;
+      topPos = anchorRect.bottom + 12;
+      maxHeight = spaceBelow - 24;
+    }
+    // Check if it fits above (with a small safety margin)
+    else if (spaceAbove >= popoverHeight + 20) {
+      showBelow = false;
+      bottomPos = window.innerHeight - anchorRect.top + 12;
+      maxHeight = spaceAbove - 24;
+    }
+    // Doesn't fit comfortably either above or below - center it vertically
+    else {
+      isCenteredVertically = true;
+      topPos = Math.max(16, (window.innerHeight - popoverHeight) / 2);
+      maxHeight = window.innerHeight - 32;
+    }
   }
 
   const mobileSheetClass = isMobile && editTxn && anchorRect
@@ -733,8 +748,8 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
     ? {
         position: 'fixed',
         left: `${leftPos}px`,
-        top: showBelow ? `${anchorRect.bottom + 12}px` : undefined,
-        bottom: !showBelow ? `${window.innerHeight - anchorRect.top + 12}px` : undefined,
+        top: topPos !== undefined ? `${topPos}px` : undefined,
+        bottom: bottomPos !== undefined ? `${bottomPos}px` : undefined,
         maxHeight: `${maxHeight}px`,
         width: `${popoverWidth}px`,
         maxWidth: 'calc(100vw - 32px)',
@@ -755,7 +770,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
         style={panelStyle}
         className={panelClass}
       >
-        {isPopover && (
+        {isPopover && !isCenteredVertically && (
           <div
             style={{
               position: 'absolute',
