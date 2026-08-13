@@ -20,6 +20,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   editTxn?: Transaction | null;
+  anchorRect?: DOMRect | null;
   onTransactionChanged?: () => void;
 }
 
@@ -602,12 +603,21 @@ function TransactionForm({
   );
 }
 
-export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionChanged }: Props) {
+export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTransactionChanged }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [catId, setCatId] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Play the exit animation, then invoke the real onClose. Skips the delay
   // entirely when the user prefers reduced motion.
@@ -624,6 +634,17 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
       onClose();
     }, 180);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleClose]);
 
   useEffect(() => {
     return () => {
@@ -671,13 +692,87 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, onTransactionCha
 
   if (!isOpen) return null;
 
+  const isPopover = editTxn && anchorRect && !isMobile;
+
+  const modalContainerClass = isPopover
+    ? "fixed inset-0 z-[100] overflow-hidden pointer-events-none"
+    : "modal-motion fixed inset-0 z-[100] flex items-center justify-center p-4";
+
+  const backdropClass = isPopover
+    ? `absolute inset-0 bg-black/10 backdrop-blur-[1px] pointer-events-auto ${closing ? 'modal-backdrop-out' : 'modal-backdrop-in'}`
+    : `absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto ${closing ? 'modal-backdrop-out' : 'modal-backdrop-in'}`;
+
+  // Positioning calculations
+  const popoverWidth = 448;
+  let leftPos = 0;
+  let showBelow = true;
+  let maxHeight = 550;
+  let arrowLeft = 224;
+
+  if (isPopover && anchorRect) {
+    const buttonCenterX = anchorRect.left + anchorRect.width / 2;
+    leftPos = buttonCenterX - popoverWidth / 2;
+    leftPos = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, leftPos));
+
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const spaceAbove = anchorRect.top;
+    showBelow = spaceBelow >= 550 || spaceBelow > spaceAbove;
+
+    maxHeight = showBelow
+      ? window.innerHeight - anchorRect.bottom - 32
+      : anchorRect.top - 32;
+
+    arrowLeft = Math.max(24, Math.min(popoverWidth - 24, buttonCenterX - leftPos));
+  }
+
+  const mobileSheetClass = isMobile && editTxn && anchorRect
+    ? `fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-white rounded-t-2xl flex flex-col shadow-2xl pointer-events-auto z-[101] ${closing ? 'bottom-sheet-out' : 'bottom-sheet-in'}`
+    : null;
+
+  const panelStyle: React.CSSProperties = isPopover
+    ? {
+        position: 'fixed',
+        left: `${leftPos}px`,
+        top: showBelow ? `${anchorRect.bottom + 12}px` : undefined,
+        bottom: !showBelow ? `${window.innerHeight - anchorRect.top + 12}px` : undefined,
+        maxHeight: `${maxHeight}px`,
+        width: `${popoverWidth}px`,
+        maxWidth: 'calc(100vw - 32px)',
+      }
+    : {};
+
+  const panelClass = mobileSheetClass
+    ? mobileSheetClass
+    : `relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl pointer-events-auto ${closing ? 'modal-panel-out' : 'modal-panel-in'}`;
+
   return (
-    <div className="modal-motion fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className={modalContainerClass}>
       <div
-        className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${closing ? 'modal-backdrop-out' : 'modal-backdrop-in'}`}
+        className={backdropClass}
         onClick={handleClose}
       />
-      <div className={`relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl ${closing ? 'modal-panel-out' : 'modal-panel-in'}`}>
+      <div
+        style={panelStyle}
+        className={panelClass}
+      >
+        {isPopover && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${arrowLeft}px`,
+              transform: 'translateX(-50%)',
+              width: '0',
+              height: '0',
+              borderLeft: '8px solid transparent',
+              borderRight: '8px solid transparent',
+              borderBottom: showBelow ? '8px solid white' : undefined,
+              borderTop: !showBelow ? '8px solid white' : undefined,
+              top: showBelow ? '-8px' : undefined,
+              bottom: !showBelow ? '-8px' : undefined,
+              zIndex: 10,
+            }}
+          />
+        )}
         <div className="flex items-center justify-between p-6 border-b border-black/10 shrink-0">
           <h3 className="text-lg font-semibold text-black">{editTxn ? 'Edit Transaction' : 'Add Transaction'}</h3>
           <button onClick={handleClose} className="text-black/40 hover:text-black active:scale-90 transition-all duration-150">

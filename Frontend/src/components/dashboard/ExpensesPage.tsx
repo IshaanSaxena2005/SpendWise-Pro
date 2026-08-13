@@ -34,6 +34,7 @@ export function ExpensesPage() {
   });
   const [page, setPage] = useState(1);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
@@ -212,13 +213,15 @@ export function ExpensesPage() {
     setModalOpen(true);
   };
 
-  const handleEdit = (txn: Transaction) => {
+  const handleEdit = (txn: Transaction, event: React.MouseEvent<HTMLButtonElement>) => {
     if (isDemoUser) {
       setReadOnlyMessage(true);
       setTimeout(() => setReadOnlyMessage(false), 3000);
       return;
     }
+    const rect = event.currentTarget.closest('tr')?.getBoundingClientRect() || null;
     setEditTxn(txn);
+    setAnchorRect(rect);
   };
 
   return (
@@ -582,7 +585,7 @@ export function ExpensesPage() {
                       <td className="px-5 py-3">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleEdit(t)}
+                            onClick={(e) => handleEdit(t, e)}
                             disabled={isDemoUser}
                             className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
@@ -647,8 +650,10 @@ export function ExpensesPage() {
         onClose={() => {
           setModalOpen(false);
           setEditTxn(null);
+          setAnchorRect(null);
         }}
         editTxn={editTxn}
+        anchorRect={anchorRect}
         onTransactionChanged={notifyFinanceDataChanged}
       />
 

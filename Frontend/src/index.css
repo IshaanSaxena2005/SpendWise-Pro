@@ -224,6 +224,24 @@ html, body {
   animation: autoDetectIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes bottomSheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes bottomSheetOut {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.bottom-sheet-in {
+  animation: bottomSheetIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bottom-sheet-out {
+  animation: bottomSheetOut 180ms ease both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .modal-motion,
   .modal-motion *,
@@ -232,7 +250,9 @@ html, body {
   .modal-panel-in,
   .modal-panel-out,
   .dropdown-in,
-  .auto-detect-in {
+  .auto-detect-in,
+  .bottom-sheet-in,
+  .bottom-sheet-out {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
