@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ArrowRight, Repeat2 } from 'lucide-react';
 import { expenseAPI, categoryAPI, recurringAPI, aiAPI, goalsAPI, type Transaction, type Category, type Goal } from '../../lib/api';
 import { AddCategoryModal } from './AddCategoryModal';
@@ -760,7 +761,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
     ? mobileSheetClass
     : `relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl pointer-events-auto ${closing ? 'modal-panel-out' : 'modal-panel-in'}`;
 
-  return (
+  return createPortal(
     <div className={modalContainerClass}>
       <div
         className={backdropClass}
@@ -815,6 +816,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
           onCreated={handleCategoryCreated}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
