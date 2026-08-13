@@ -133,7 +133,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
       const serverMsg = err.response?.data?.message || err.response?.data?.error;
       const errorType = err.response?.data?.errorType;
 
-      if (errorType === 'unverified') {
+      if (errorType === 'unverified' || errorType === 'verification_email_failed') {
         setError('unverified');
       } else if (serverMsg) {
         setError(serverMsg);

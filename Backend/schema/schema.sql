@@ -4,10 +4,24 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    auth_provider VARCHAR(20) NOT NULL DEFAULT 'email',
+    has_local_password BOOLEAN NOT NULL DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT FALSE,
     verification_token VARCHAR(255) NULL,
+    verification_token_expires_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_email UNIQUE (email)
+) ENGINE=InnoDB;
+
+CREATE TABLE user_notification_preferences (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    budget_alerts BOOLEAN NOT NULL DEFAULT TRUE,
+    overspending_warnings BOOLEAN NOT NULL DEFAULT TRUE,
+    ai_forecasts BOOLEAN NOT NULL DEFAULT TRUE,
+    email_reports BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notification_preferences_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE profile_photos (

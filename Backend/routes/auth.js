@@ -1,5 +1,5 @@
 const express = require('express');
-const { signup, login, updateProfile, verifyEmail, resendVerification, deleteAccount, forgotPassword, resetPassword } = require('../controllers/authController');
+const { signup, login, updateProfile, verifyEmail, resendVerification, deleteAccount, forgotPassword, resetPassword, getAccountSecurity, updatePassword } = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validateRequest = require('../middleware/validateRequest');
 const { authLimiter } = require('../middleware/rateLimiters');
@@ -8,6 +8,7 @@ const {
   loginValidation,
   forgotPasswordValidation,
   resetPasswordValidation,
+  passwordUpdateValidation,
   profileValidation,
   deleteAccountValidation,
   googleAuthValidation,
@@ -23,6 +24,8 @@ router.post('/resend-verification', forgotPasswordValidation, validateRequest, r
 router.delete('/delete-account', authMiddleware, deleteAccountValidation, validateRequest, deleteAccount);
 router.post('/forgot-password', authLimiter, forgotPasswordValidation, validateRequest, forgotPassword);
 router.post('/reset-password', authLimiter, resetPasswordValidation, validateRequest, resetPassword);
+router.get('/account-security', authMiddleware, getAccountSecurity);
+router.put('/password', authMiddleware, passwordUpdateValidation, validateRequest, updatePassword);
 
 // Google Sign-In
 const { googleLogin } = require('../controllers/authController');

@@ -13,6 +13,19 @@ interface JSZipInstance {
   generateAsync(options: { type: 'blob' }): Promise<Blob>;
 }
 interface JSZipConstructor { new (): JSZipInstance; }
+type NotificationPreferences = {
+  budgetAlerts: boolean;
+  overspendingWarnings: boolean;
+  aiForecasts: boolean;
+  emailReports: boolean;
+};
+
+const defaultNotifications: NotificationPreferences = {
+  budgetAlerts: true,
+  overspendingWarnings: true,
+  aiForecasts: true,
+  emailReports: false,
+};
 declare global { interface Window { JSZip?: JSZipConstructor; } }
 async function loadJSZip(): Promise<JSZipConstructor> {
   if (window.JSZip) return window.JSZip;
@@ -42,13 +55,18 @@ export function SettingsPage() {
   const isDemoUser = currentUser.email === DEMO_EMAIL;
 
   // Notifications
-  const [notifs, setNotifs] = useState(() => {
-    const saved = localStorage.getItem('notifications');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return { budgetAlerts: true, overspendingWarnings: true, aiForecasts: true, emailReports: false };
-  });
+  const [notifs, setNotifs] = useState<NotificationPreferences>(defaultNotifications);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const [notificationsSaving, setNotificationsSaving] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+
+  const [hasLocalPassword, setHasLocalPassword] = useState<boolean | null>(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Delete Account state
   const [deleteStep, setDeleteStep] = useState<0 | 1>(0);
@@ -77,6 +95,25 @@ export function SettingsPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    const loadAccountSettings = async () => {
+      try {
+        const [preferencesResponse, securityResponse] = await Promise.all([
+          api.get<{ success: boolean; preferences: NotificationPreferences }>('/notifications/preferences'),
+          api.get<{ success: boolean; hasLocalPassword: boolean }>('/auth/account-security'),
+        ]);
+        setNotifs(preferencesResponse.data.preferences);
+        setHasLocalPassword(securityResponse.data.hasLocalPassword);
+      } catch (err) {
+        console.error('Failed to load account settings:', err);
+        setNotificationsError('Could not load notification preferences. Please refresh and try again.');
+      } finally {
+        setNotificationsLoading(false);
+      }
+    };
+    loadAccountSettings();
+  }, []);
+
   const handleSave = async () => {
     if (isDemoUser) {
       setReadOnlyMessage(true);
@@ -93,10 +130,44 @@ export function SettingsPage() {
     finally { setTimeout(() => setSaveToast('idle'), 3000); }
   };
 
-  const handleNotifToggle = (key: keyof typeof notifs) => {
-    const updated = { ...notifs, [key]: !notifs[key] };
+  const handleNotificationChange = async (key: keyof NotificationPreferences, value: boolean) => {
+    if (notificationsSaving || notifs[key] === value || isDemoUser) return;
+    const previous = notifs;
+    const updated = { ...previous, [key]: value };
     setNotifs(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
+    setNotificationsSaving(true);
+    setNotificationsError(null);
+    try {
+      const response = await api.put<{ success: boolean; preferences: NotificationPreferences }>('/notifications/preferences', updated);
+      setNotifs(response.data.preferences);
+    } catch (err: any) {
+      setNotifs(previous);
+      setNotificationsError(err?.response?.data?.message || 'Could not save notification preferences. Please try again.');
+    } finally {
+      setNotificationsSaving(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordMessage(null);
+    if (newPassword.length < 6) return setPasswordMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
+    if (newPassword !== confirmNewPassword) return setPasswordMessage({ type: 'error', text: 'New password and confirmation do not match.' });
+    setPasswordSaving(true);
+    try {
+      const response = await api.put<{ success: boolean; message: string; hasLocalPassword: boolean }>('/auth/password', {
+        currentPassword: hasLocalPassword ? currentPassword : undefined,
+        newPassword,
+      });
+      setHasLocalPassword(response.data.hasLocalPassword);
+      setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword('');
+      setPasswordMessage({ type: 'success', text: response.data.message });
+      setShowPasswordForm(false);
+    } catch (err: any) {
+      setPasswordMessage({ type: 'error', text: err?.response?.data?.message || 'Could not update your password. Please try again.' });
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -257,19 +328,30 @@ export function SettingsPage() {
             <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 md:p-8">
               <h2 className="text-lg font-bold text-black mb-6">Notifications</h2>
               <div className="space-y-6">
+                {notificationsError && <p className="text-xs font-medium text-rose-600">{notificationsError}</p>}
                 {[{ key: 'budgetAlerts', title: 'Budget Alerts', desc: 'Get notified when you approach your budget limits' },
                   { key: 'overspendingWarnings', title: 'Overspending Warnings', desc: 'Receive alerts for unusual spending patterns' },
                   { key: 'aiForecasts', title: 'AI Forecast Summaries', desc: 'Weekly predictions and financial health updates' },
                   { key: 'emailReports', title: 'Email Reports', desc: 'Receive monthly financial summary reports via email' }].map(item => (
-                  <div key={item.key} className="flex items-center justify-between py-2 cursor-pointer" onClick={() => handleNotifToggle(item.key as keyof typeof notifs)}>
+                  <div key={item.key} className="flex items-center justify-between py-2">
                     <div>
                       <h3 className="text-sm font-semibold text-black">{item.title}</h3>
                       <p className="text-xs text-black/50 mt-1">{item.desc}</p>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input type="checkbox" className="sr-only peer" checked={notifs[item.key as keyof typeof notifs]} readOnly />
-                      <div className="w-11 h-6 bg-[#F5F5F5] border border-black/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-black/10 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black" />
-                    </label>
+                    <div className="flex rounded-full bg-[#F5F5F5] border border-black/10 p-1 shrink-0" aria-label={`${item.title} preference`}>
+                      {([['Yes', true], ['No', false]] as const).map(([label, value]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => handleNotificationChange(item.key as keyof NotificationPreferences, value)}
+                          disabled={notificationsLoading || notificationsSaving || isDemoUser}
+                          aria-pressed={notifs[item.key as keyof NotificationPreferences] === value}
+                          className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${notifs[item.key as keyof NotificationPreferences] === value ? 'bg-black text-white shadow-sm' : 'text-black/55 hover:text-black'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -280,10 +362,26 @@ export function SettingsPage() {
             <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 md:p-8">
               <h2 className="text-lg font-bold text-black mb-6">Security</h2>
               <div className="space-y-6 max-w-md">
-                {/* Change Password UI retained but not functional – placeholder */}
                 <div>
-                  <h3 className="text-sm font-semibold text-black mb-4">Change Password</h3>
-                  <button className="bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-gray-800 transition-colors">Update Password</button>
+                  <h3 className="text-sm font-semibold text-black mb-2">{hasLocalPassword ? 'Change Password' : 'Set Password'}</h3>
+                  <p className="text-xs text-black/50 mb-4">{hasLocalPassword ? 'Use your current password to choose a new one.' : 'Set a password to also sign in with your email address.'}</p>
+                  {!showPasswordForm && (
+                    <button onClick={() => setShowPasswordForm(true)} disabled={hasLocalPassword === null || isDemoUser} className="bg-black text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {hasLocalPassword ? 'Update Password' : 'Set Password'}
+                    </button>
+                  )}
+                  {showPasswordForm && (
+                    <form onSubmit={handlePasswordUpdate} className="space-y-3">
+                      {hasLocalPassword && <input type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} placeholder="Current Password" required disabled={passwordSaving} autoComplete="current-password" className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5" />}
+                      <input type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} placeholder="New Password" required minLength={6} disabled={passwordSaving} autoComplete="new-password" className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5" />
+                      <input type="password" value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)} placeholder="Confirm New Password" required minLength={6} disabled={passwordSaving} autoComplete="new-password" className="w-full bg-[#F5F5F5] border border-transparent rounded-xl px-4 py-2.5 text-sm focus:border-black/20 focus:bg-white focus:outline-none focus:ring-4 focus:ring-black/5" />
+                      <div className="flex gap-3">
+                        <button type="submit" disabled={passwordSaving} className="bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-gray-800 transition-colors disabled:opacity-50">{passwordSaving ? 'Saving...' : hasLocalPassword ? 'Update Password' : 'Set Password'}</button>
+                        <button type="button" onClick={() => setShowPasswordForm(false)} disabled={passwordSaving} className="text-sm font-semibold px-4 py-2.5 text-black/60 hover:text-black">Cancel</button>
+                      </div>
+                    </form>
+                  )}
+                  {passwordMessage && <p className={`mt-3 text-xs font-medium ${passwordMessage.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>{passwordMessage.text}</p>}
                 </div>
                 <hr className="border-black/5" />
                 <div>

@@ -92,10 +92,13 @@ function isoWeekKey(date) {
 async function checkAndSendBudgetEmails(userId) {
   try {
     const [users] = await pool.query(
-      'SELECT email, full_name FROM users WHERE id = ? LIMIT 1',
+      `SELECT u.email, u.full_name, COALESCE(p.budget_alerts, TRUE) AS budget_alerts
+       FROM users u
+       LEFT JOIN user_notification_preferences p ON p.user_id = u.id
+       WHERE u.id = ? LIMIT 1`,
       [userId],
     );
-    if (!users.length || !users[0].email || users[0].email === DEMO_EMAIL) return;
+    if (!users.length || !users[0].email || users[0].email === DEMO_EMAIL || !users[0].budget_alerts) return;
     const { email, full_name } = users[0];
 
     const now = new Date();
@@ -216,13 +219,15 @@ async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null
     const monthKey = monthKeyOf(prev);
     const monthLabel = monthLabelOf(prev);
 
+    const usersQuery = `SELECT u.id, u.email, u.full_name, COALESCE(p.email_reports, FALSE) AS email_reports
+      FROM users u LEFT JOIN user_notification_preferences p ON p.user_id = u.id`;
     const [users] = targetUserId
-      ? await pool.query('SELECT id, email, full_name FROM users WHERE id = ? LIMIT 1', [targetUserId])
-      : await pool.query('SELECT id, email, full_name FROM users WHERE email <> ?', [DEMO_EMAIL]);
+      ? await pool.query(`${usersQuery} WHERE u.id = ? LIMIT 1`, [targetUserId])
+      : await pool.query(`${usersQuery} WHERE u.email <> ?`, [DEMO_EMAIL]);
 
     for (const user of users) {
       summary.processed++;
-      if (!user.email || user.email === DEMO_EMAIL) { summary.skipped++; continue; }
+      if (!user.email || user.email === DEMO_EMAIL || !user.email_reports) { summary.skipped++; continue; }
       try {
         const report = await buildMonthlyReport(user.id, year, month);
         if (!report.hasActivity && !force) { summary.skipped++; continue; }
@@ -377,13 +382,15 @@ async function sendWeeklyInsightsToAllUsers({ force = false, targetUserId = null
     const weekKey = isoWeekKey(now);
     const weekLabel = `week of ${now.toLocaleDateString('en-US', { day: 'numeric', month: 'long' })}`;
 
+    const usersQuery = `SELECT u.id, u.email, u.full_name, COALESCE(p.ai_forecasts, TRUE) AS ai_forecasts
+      FROM users u LEFT JOIN user_notification_preferences p ON p.user_id = u.id`;
     const [users] = targetUserId
-      ? await pool.query('SELECT id, email, full_name FROM users WHERE id = ? LIMIT 1', [targetUserId])
-      : await pool.query('SELECT id, email, full_name FROM users WHERE email <> ?', [DEMO_EMAIL]);
+      ? await pool.query(`${usersQuery} WHERE u.id = ? LIMIT 1`, [targetUserId])
+      : await pool.query(`${usersQuery} WHERE u.email <> ?`, [DEMO_EMAIL]);
 
     for (const user of users) {
       summary.processed++;
-      if (!user.email || user.email === DEMO_EMAIL) { summary.skipped++; continue; }
+      if (!user.email || user.email === DEMO_EMAIL || !user.ai_forecasts) { summary.skipped++; continue; }
       try {
         const ctx = await buildWeeklyContext(user.id);
         if (ctx.thisWeekTotal <= 0 && !force) { summary.skipped++; continue; }

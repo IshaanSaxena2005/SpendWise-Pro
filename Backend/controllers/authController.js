@@ -36,8 +36,10 @@ const signup = async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
     const [result] = await pool.query(
-      'INSERT INTO users (full_name, email, password_hash, is_verified, verification_token) VALUES (?, ?, ?, ?, ?)',
-      [full_name, email, passwordHash, true, verificationToken]
+      `INSERT INTO users
+        (full_name, email, password_hash, is_verified, verification_token, verification_token_expires_at, auth_provider, has_local_password)
+       VALUES (?, ?, ?, ?, ?, ?, 'email', TRUE)`,
+      [full_name, email, passwordHash, false, verificationToken, new Date(Date.now() + 24 * 60 * 60 * 1000)]
     );
     const userId = result.insertId;
 
@@ -60,11 +62,17 @@ const signup = async (req, res) => {
       );
     }
 
-    // Send verification email
+    // Do not claim that the verification email was sent if Brevo rejected it.
+    // The account remains unverified and the user can use resend-verification.
     try {
       await sendVerificationEmail(email, verificationToken);
     } catch (emailErr) {
       console.error('Failed to send verification email:', emailErr.message);
+      return res.status(502).json({
+        success: false,
+        errorType: 'verification_email_failed',
+        message: 'Your account was created, but we could not send the verification email. Please try again using resend verification.',
+      });
     }
 
     res.status(201).json({
@@ -115,13 +123,13 @@ const login = async (req, res) => {
       });
     }
 
-    // if (!user.is_verified) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     errorType: 'unverified',
-    //     message: 'Please verify your email before logging in.',
-    //   });
-    // }
+    if (!user.is_verified) {
+      return res.status(403).json({
+        success: false,
+        errorType: 'unverified',
+        message: 'Please verify your email before logging in.',
+      });
+    }
 
     const token = jwt.sign(
       { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
@@ -205,7 +213,7 @@ const verifyEmail = async (req, res) => {
     const { token } = req.params;
 
     const [rows] = await pool.query(
-      'SELECT id FROM users WHERE verification_token = ?',
+      'SELECT id FROM users WHERE verification_token = ? AND verification_token_expires_at > NOW()',
       [token]
     );
 
@@ -219,7 +227,7 @@ const verifyEmail = async (req, res) => {
     const userId = rows[0].id;
 
     await pool.query(
-      'UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE id = ?',
+      'UPDATE users SET is_verified = TRUE, verification_token = NULL, verification_token_expires_at = NULL WHERE id = ?',
       [userId]
     );
 
@@ -260,7 +268,10 @@ const resendVerification = async (req, res) => {
     }
 
     const verificationToken = crypto.randomBytes(32).toString('hex');
-    await pool.query('UPDATE users SET verification_token = ? WHERE id = ?', [verificationToken, user.id]);
+    await pool.query(
+      'UPDATE users SET verification_token = ?, verification_token_expires_at = ? WHERE id = ?',
+      [verificationToken, new Date(Date.now() + 24 * 60 * 60 * 1000), user.id],
+    );
 
     await sendVerificationEmail(email, verificationToken);
 
@@ -416,6 +427,62 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const getAccountSecurity = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT has_local_password FROM users WHERE id = ? LIMIT 1',
+      [req.user.id],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({ success: true, hasLocalPassword: Boolean(rows[0].has_local_password) });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const updatePassword = async (req, res) => {
+  try {
+    if (req.user.email === DEMO_EMAIL) {
+      return res.status(403).json({ success: false, message: 'Demo mode is read-only.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const [rows] = await pool.query(
+      'SELECT password_hash, has_local_password FROM users WHERE id = ? LIMIT 1',
+      [req.user.id],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    if (user.has_local_password) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: 'Current password is required.' });
+      }
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = ?, has_local_password = TRUE WHERE id = ?',
+      [passwordHash, req.user.id],
+    );
+    return res.json({
+      success: true,
+      message: user.has_local_password ? 'Password updated successfully.' : 'Password set successfully. You can now sign in with email and password.',
+      hasLocalPassword: true,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
@@ -437,12 +504,16 @@ const googleLogin = async (req, res) => {
       user = rows[0];
       // Note: we could also optionally update is_verified to true here if not already verified
     } else {
-      // Create new user securely bypassing NOT NULL password_hash constraint
+      // Retain a non-usable random hash for legacy NOT NULL schemas. The explicit
+      // marker below, rather than the presence of this hash, determines whether
+      // the user must provide a current password in Settings.
       const randomPassword = crypto.randomBytes(16).toString('hex');
       const passwordHash = await bcrypt.hash(randomPassword, 10);
       
       const [result] = await pool.query(
-        'INSERT INTO users (full_name, email, password_hash, is_verified) VALUES (?, ?, ?, ?)',
+        `INSERT INTO users
+          (full_name, email, password_hash, is_verified, auth_provider, has_local_password)
+         VALUES (?, ?, ?, ?, 'google', FALSE)`,
         [name, email, passwordHash, true]
       );
       
@@ -491,5 +562,7 @@ module.exports = {
   deleteAccount,
   forgotPassword,
   resetPassword,
+  getAccountSecurity,
+  updatePassword,
   googleLogin,
 };

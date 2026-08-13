@@ -125,6 +125,29 @@ async function start() {
         ON DELETE CASCADE
     ) ENGINE=InnoDB
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_notification_preferences (
+      user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+      budget_alerts BOOLEAN NOT NULL DEFAULT TRUE,
+      overspending_warnings BOOLEAN NOT NULL DEFAULT TRUE,
+      ai_forecasts BOOLEAN NOT NULL DEFAULT TRUE,
+      email_reports BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_notification_preferences_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+  for (const migration of [
+    "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) NOT NULL DEFAULT 'email'",
+    'ALTER TABLE users ADD COLUMN has_local_password BOOLEAN NOT NULL DEFAULT TRUE',
+    'ALTER TABLE users ADD COLUMN verification_token_expires_at TIMESTAMP NULL',
+  ]) {
+    try {
+      await pool.query(migration);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+    }
+  }
   try {
     await pool.query('ALTER TABLE categories ADD COLUMN icon VARCHAR(16) NULL AFTER name');
   } catch (err) {
