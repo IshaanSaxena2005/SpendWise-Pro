@@ -9,6 +9,7 @@ import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib
 import { toAmount } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
 import { getUser } from '../../lib/auth';
+import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 
 const PAGE_SIZE = 30;
@@ -40,7 +41,7 @@ export function ExpensesPage() {
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [upcomingRecurring, setUpcomingRecurring] = useState<any[]>([]);
 
-  const user = getUser();
+  const { user } = useAuth();
   const isDemoUser = user?.email === DEMO_EMAIL;
 
   const fetchFinanceData = useCallback(async () => {

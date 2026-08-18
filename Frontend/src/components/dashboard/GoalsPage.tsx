@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { goalsAPI, type Goal } from '../../lib/api';
 import { getUser } from '../../lib/auth';
+import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -520,7 +521,7 @@ export function GoalsPage() {
   const [confetti, setConfetti] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const user = getUser();
+  const { user } = useAuth();
   const isDemo = (user?.email ?? '') === DEMO_EMAIL;
 
   const fetchGoals = useCallback(async () => {

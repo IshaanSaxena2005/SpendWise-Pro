@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { AddTransactionModal } from './AddTransactionModal';
 import { AskSpendWiseAI } from './AskSpendWiseAI';
-import { getUser, type User as UserType } from '../../lib/auth';
+import { useAuth } from '../../context/AuthContext';
+import type { AuthUser } from '../../context/AuthContext';
 import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 import { DEMO_EMAIL } from '../../lib/constants';
@@ -23,7 +24,7 @@ const navItems = [
 ];
 
 interface SidebarProps {
-  user: UserType;
+  user: AuthUser;
   pathname: string;
   onNavClick: () => void;
   onLogout: () => void;
@@ -161,7 +162,7 @@ export function DashboardLayout() {
     return localStorage.getItem('sw_notif_read') !== 'true';
   });
   
-  const user = getUser();
+  const { user, logout } = useAuth();
 
   if (!user) return null;
 
@@ -171,8 +172,8 @@ export function DashboardLayout() {
   const bellRef = useRef<HTMLButtonElement>(null);
   const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    await logout(); // clears cookies server-side + clears AuthContext state
     navigate('/');
   };
 

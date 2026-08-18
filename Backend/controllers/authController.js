@@ -8,6 +8,143 @@ const { DEMO_EMAIL } = require('../config/constants');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// ─── Cookie helpers ───────────────────────────────────────────────────────────
+// Durations
+const ACCESS_TOKEN_TTL_SECONDS  = 15 * 60;           // 15 minutes
+const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
+function cookieOptions(maxAge) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProduction,          // HTTPS only in production
+    sameSite: isProduction ? 'none' : 'lax', // cross-site in prod (Vercel ↔ Render)
+    maxAge: maxAge * 1000,         // ms
+    path: '/',
+  };
+}
+
+function signAccessToken(user) {
+  return jwt.sign(
+    { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_TTL_SECONDS },
+  );
+}
+
+async function issueTokens(res, user) {
+  // 1. Short-lived access token as cookie
+  const accessToken = signAccessToken(user);
+  res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL_SECONDS));
+
+  // 2. Long-lived refresh token — random opaque value, hashed before storage
+  const rawRefresh = crypto.randomBytes(40).toString('hex');
+  const tokenHash  = crypto.createHash('sha256').update(rawRefresh).digest('hex');
+  const expiresAt  = new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000);
+
+  // Delete any previous refresh tokens for this user (one device / one token)
+  await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [user.id]);
+  await pool.query(
+    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [user.id, tokenHash, expiresAt],
+  );
+
+  res.cookie('refresh_token', rawRefresh, cookieOptions(REFRESH_TOKEN_TTL_SECONDS));
+}
+
+function clearTokenCookies(res) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const base = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
+  };
+  res.clearCookie('access_token', base);
+  res.clearCookie('refresh_token', base);
+}
+
+// ─── /me — validate session & return user data ────────────────────────────────
+const me = async (req, res) => {
+  try {
+    // req.user is populated by authMiddleware (already verified the access token)
+    const [rows] = await pool.query(
+      'SELECT id, full_name, email, role, auth_provider, has_local_password, is_verified FROM users WHERE id = ? LIMIT 1',
+      [req.user.id],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    const user = rows[0];
+    return res.json({
+      success: true,
+      user: {
+        id:               user.id,
+        full_name:        user.full_name,
+        email:            user.email,
+        role:             user.role || 'Member',
+        auth_provider:    user.auth_provider,
+        has_local_password: Boolean(user.has_local_password),
+        is_verified:      Boolean(user.is_verified),
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── /refresh — rotate access token using refresh token cookie ────────────────
+const refresh = async (req, res) => {
+  try {
+    const rawRefresh = req.cookies?.refresh_token;
+    if (!rawRefresh) {
+      return res.status(401).json({ success: false, message: 'No refresh token.' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(rawRefresh).digest('hex');
+    const [rows] = await pool.query(
+      'SELECT rt.user_id, rt.expires_at, u.id, u.full_name, u.email, u.role FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id WHERE rt.token_hash = ? LIMIT 1',
+      [tokenHash],
+    );
+
+    if (!rows.length) {
+      clearTokenCookies(res);
+      return res.status(401).json({ success: false, message: 'Invalid refresh token.' });
+    }
+
+    const record = rows[0];
+    if (new Date() > new Date(record.expires_at)) {
+      await pool.query('DELETE FROM refresh_tokens WHERE token_hash = ?', [tokenHash]);
+      clearTokenCookies(res);
+      return res.status(401).json({ success: false, message: 'Refresh token expired. Please log in again.' });
+    }
+
+    // Issue a new access token cookie (keep the same refresh token)
+    const newAccessToken = signAccessToken(record);
+    res.cookie('access_token', newAccessToken, cookieOptions(ACCESS_TOKEN_TTL_SECONDS));
+
+    return res.json({ success: true, message: 'Token refreshed.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── /logout ──────────────────────────────────────────────────────────────────
+const logout = async (req, res) => {
+  try {
+    const rawRefresh = req.cookies?.refresh_token;
+    if (rawRefresh) {
+      const tokenHash = crypto.createHash('sha256').update(rawRefresh).digest('hex');
+      await pool.query('DELETE FROM refresh_tokens WHERE token_hash = ?', [tokenHash]);
+    }
+    clearTokenCookies(res);
+    return res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── /signup ──────────────────────────────────────────────────────────────────
 const signup = async (req, res) => {
   try {
     const { full_name, email, password } = req.body;
@@ -88,6 +225,7 @@ const signup = async (req, res) => {
   }
 };
 
+// ─── /login ───────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -131,16 +269,19 @@ const login = async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    await issueTokens(res, user);
 
     res.json({
       success: true,
       message: 'Login successful.',
-      token,
+      user: {
+        id:            user.id,
+        full_name:     user.full_name,
+        email:         user.email,
+        role:          user.role || 'Member',
+        auth_provider: user.auth_provider,
+        has_local_password: Boolean(user.has_local_password),
+      },
     });
   } catch (err) {
     res.status(500).json({
@@ -150,6 +291,7 @@ const login = async (req, res) => {
   }
 };
 
+// ─── /profile ─────────────────────────────────────────────────────────────────
 const updateProfile = async (req, res) => {
   try {
     if (req.user.email === DEMO_EMAIL) {
@@ -174,7 +316,7 @@ const updateProfile = async (req, res) => {
       [full_name, userId]
     );
 
-    // Fetch updated user to generate new token
+    // Fetch updated user to regenerate access token with new name
     const [rows] = await pool.query(
       'SELECT * FROM users WHERE id = ?',
       [userId]
@@ -189,16 +331,19 @@ const updateProfile = async (req, res) => {
 
     const user = rows[0];
 
-    const token = jwt.sign(
-      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    // Re-issue only the access token (name changed → stale JWT)
+    const accessToken = signAccessToken(user);
+    res.cookie('access_token', accessToken, cookieOptions(ACCESS_TOKEN_TTL_SECONDS));
 
     res.json({
       success: true,
       message: 'Profile updated successfully.',
-      token,
+      user: {
+        id:        user.id,
+        full_name: user.full_name,
+        email:     user.email,
+        role:      user.role || 'Member',
+      },
     });
   } catch (err) {
     res.status(500).json({
@@ -208,6 +353,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// ─── /verify-email ────────────────────────────────────────────────────────────
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
@@ -248,6 +394,7 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+// ─── /resend-verification ─────────────────────────────────────────────────────
 const resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
@@ -281,6 +428,7 @@ const resendVerification = async (req, res) => {
   }
 };
 
+// ─── /delete-account ──────────────────────────────────────────────────────────
 const deleteAccount = async (req, res) => {
   let connection;
   try {
@@ -304,13 +452,17 @@ const deleteAccount = async (req, res) => {
 
     try {
       // Execute deletions in order (child tables first, though CASCADE handles it, explicit is safer)
+      await connection.query('DELETE FROM refresh_tokens WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM budgets WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM expenses WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM categories WHERE user_id = ?', [userId]);
       await connection.query('DELETE FROM users WHERE id = ?', [userId]);
 
       await connection.commit();
-      // No additional session or token tables exist, so no extra cleanup is required here
+
+      // Clear auth cookies after successful deletion
+      clearTokenCookies(res);
+
       res.json({
         success: true,
         message: "Your account and all associated data have been permanently deleted."
@@ -328,6 +480,7 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+// ─── /forgot-password ─────────────────────────────────────────────────────────
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -364,6 +517,7 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+// ─── /reset-password ──────────────────────────────────────────────────────────
 const resetPassword = async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
@@ -427,6 +581,7 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// ─── /account-security ────────────────────────────────────────────────────────
 const getAccountSecurity = async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -442,6 +597,7 @@ const getAccountSecurity = async (req, res) => {
   }
 };
 
+// ─── /password ────────────────────────────────────────────────────────────────
 const updatePassword = async (req, res) => {
   try {
     if (req.user.email === DEMO_EMAIL) {
@@ -483,6 +639,7 @@ const updatePassword = async (req, res) => {
   }
 };
 
+// ─── /google ──────────────────────────────────────────────────────────────────
 const googleLogin = async (req, res) => {
   try {
     const { token } = req.body;
@@ -498,25 +655,24 @@ const googleLogin = async (req, res) => {
     const { email, name } = payload;
 
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    
+
     let user;
     if (rows.length > 0) {
       user = rows[0];
-      // Note: we could also optionally update is_verified to true here if not already verified
     } else {
       // Retain a non-usable random hash for legacy NOT NULL schemas. The explicit
       // marker below, rather than the presence of this hash, determines whether
       // the user must provide a current password in Settings.
       const randomPassword = crypto.randomBytes(16).toString('hex');
       const passwordHash = await bcrypt.hash(randomPassword, 10);
-      
+
       const [result] = await pool.query(
         `INSERT INTO users
           (full_name, email, password_hash, is_verified, auth_provider, has_local_password)
          VALUES (?, ?, ?, ?, 'google', FALSE)`,
         [name, email, passwordHash, true]
       );
-      
+
       user = {
         id: result.insertId,
         email,
@@ -537,16 +693,19 @@ const googleLogin = async (req, res) => {
       }
     }
 
-    const appToken = jwt.sign(
-      { id: user.id, user_id: user.id, email: user.email, full_name: user.full_name, role: user.role || 'Member' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    await issueTokens(res, user);
 
     res.json({
       success: true,
       message: 'Google login successful.',
-      token: appToken,
+      user: {
+        id:            user.id,
+        full_name:     user.full_name,
+        email:         user.email,
+        role:          user.role || 'Member',
+        auth_provider: user.auth_provider || 'google',
+        has_local_password: Boolean(user.has_local_password),
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -554,6 +713,9 @@ const googleLogin = async (req, res) => {
 };
 
 module.exports = {
+  me,
+  refresh,
+  logout,
   signup,
   login,
   updateProfile,

@@ -1,6 +1,7 @@
 import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { expenseAPI, budgetAPI, analyticsAPI, getUser } from '../../lib/api';
+import { expenseAPI, budgetAPI, analyticsAPI } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 import { useState, useEffect } from 'react';
 import type { Transaction, Budget } from '../../lib/api';
@@ -13,7 +14,7 @@ function fmt(n: any) {
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const user = getUser();
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalIncome: 0,
@@ -169,7 +170,7 @@ export function ProfilePage() {
                 </div>
                 <span className="text-xs text-black/40 group-hover:text-black/60 transition-colors">→</span>
               </button>
-              <button onClick={() => navigate('/')} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition-colors group mt-2">
+              <button onClick={async () => { await logout(); navigate('/'); }} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition-colors group mt-2">
                 <div className="flex items-center gap-3">
                   <LogOut className="w-4 h-4 text-rose-500" />
                   <span className="text-sm font-semibold text-rose-600">Logout</span>

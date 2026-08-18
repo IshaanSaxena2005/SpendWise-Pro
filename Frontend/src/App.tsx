@@ -1,6 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { trackPageView } from './lib/analytics';
+import { useAuth } from './context/AuthContext';
 
 // Component to handle tracking page views on route change
 function AnalyticsTracker() {
@@ -46,11 +47,18 @@ import TermsPage from './pages/TermsPage';
 
 // ─── Landing Page ────────────────────────────────────────────────────────────
 function LandingPage() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authView, setAuthView]     = useState<'login' | 'signup' | 'forgot-password' | 'reset-password'>('login');
   const [searchParams, setSearchParams] = useSearchParams();
   const [verificationSuccess, setVerificationSuccess] = useState(false);
   const [deletedToast, setDeletedToast] = useState(false);
+
+  // Redirect already-authenticated users straight to the dashboard.
+  // Only redirect once the session check is complete (isLoading === false).
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   useEffect(() => {
     let shouldUpdateParams = false;

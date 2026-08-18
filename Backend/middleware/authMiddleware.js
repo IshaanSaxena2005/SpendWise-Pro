@@ -1,16 +1,23 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  // Prefer the httpOnly cookie; fall back to Authorization header for
+  // non-browser clients (e.g. Postman, future mobile app).
+  let token = req.cookies?.access_token;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  if (!token) {
     return res.status(401).json({
       success: false,
       message: 'Access denied. No token provided.',
     });
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

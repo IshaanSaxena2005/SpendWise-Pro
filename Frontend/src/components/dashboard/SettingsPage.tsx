@@ -1,8 +1,9 @@
 // SettingsPage component with simplified Delete Account flow
 import { useState, useEffect } from 'react';
 import { Bell, Database, AlertTriangle, Shield, Save, LogOut, Download, User as UserIcon, AlertCircle } from 'lucide-react';
-import { getUser, expenseAPI, budgetAPI, categoryAPI, type Transaction, type Budget, type Category } from '../../lib/api';
+import { expenseAPI, budgetAPI, categoryAPI, type Transaction, type Budget, type Category } from '../../lib/api';
 import api from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 import { formatDate } from '../../lib/dateUtils';
 import { DEMO_EMAIL } from '../../lib/constants';
@@ -40,11 +41,11 @@ async function loadJSZip(): Promise<JSZipConstructor> {
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
-  const currentUser = getUser();
-  const [email] = useState(() => currentUser.email);
+  const { user: currentUser, updateUser, logout } = useAuth();
+  const [email] = useState(() => currentUser?.email ?? '');
   const [name, setName] = useState(() => {
     const saved = localStorage.getItem('sw_display_name');
-    return saved || currentUser.full_name;
+    return saved || currentUser?.full_name || '';
   });
   const [timezone, setTimezone] = useState(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
@@ -52,7 +53,7 @@ export function SettingsPage() {
   const [saveToast, setSaveToast] = useState<'idle' | 'success' | 'error'>('idle');
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
 
-  const isDemoUser = currentUser.email === DEMO_EMAIL;
+  const isDemoUser = currentUser?.email === DEMO_EMAIL;
 
   // Notifications
   const [notifs, setNotifs] = useState<NotificationPreferences>(defaultNotifications);
@@ -123,7 +124,8 @@ export function SettingsPage() {
     try {
       if (!name.trim()) throw new Error('Name cannot be empty');
       const res = await api.put('/auth/profile', { full_name: name.trim() });
-      if (res.data?.token) localStorage.setItem('token', res.data.token);
+      // Server re-issues the access token cookie and returns updated user data
+      if (res.data?.user) updateUser(res.data.user);
       localStorage.setItem('sw_display_name', name.trim());
       setSaveToast('success');
     } catch { setSaveToast('error'); }
@@ -180,7 +182,10 @@ export function SettingsPage() {
     setDeleteError(null);
     try {
       await api.delete('/auth/delete-account');
-      localStorage.clear();
+      // Server clears auth cookies; clear any remaining local preferences
+      localStorage.removeItem('sw_display_name');
+      localStorage.removeItem('sw_notif_read');
+      await logout(); // clear AuthContext state
       window.location.href = '/?deleted=true';
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Failed to delete account. Please try again.';

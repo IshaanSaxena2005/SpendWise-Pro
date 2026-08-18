@@ -3,6 +3,7 @@ import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [searchParams] = useSearchParams();
   const emailFromUrl = searchParams.get('email');
 
@@ -120,12 +122,12 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
         return;
       }
 
-      if (response.data?.token) {
-        localStorage.setItem('token', response.data.token);
+      if (response.data?.user) {
+        login(response.data.user);
         onClose();
         navigate('/dashboard');
       } else {
-        throw new Error('No token received from server.');
+        throw new Error('No user data received from server.');
       }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
@@ -162,12 +164,12 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
       
       const response = await api.post('/auth/google', { token: credentialResponse.credential });
       
-      if (response.data?.token) {
-        localStorage.setItem('token', response.data.token);
+      if (response.data?.user) {
+        login(response.data.user);
         onClose();
         navigate('/dashboard');
       } else {
-        throw new Error('No token received from server.');
+        throw new Error('No user data received from server.');
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Google authentication failed.');

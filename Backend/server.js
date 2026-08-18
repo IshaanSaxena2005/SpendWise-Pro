@@ -1,4 +1,5 @@
 require('dotenv').config();
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const express = require('express');
 const fs = require('fs/promises');
@@ -54,6 +55,7 @@ app.use(cors({
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(cookieParser());
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({
@@ -190,6 +192,21 @@ async function start() {
       created_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uniq_user_event (user_id, event_key),
       CONSTRAINT fk_email_events_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+
+  // ── Refresh tokens table (idempotent migration) ─────────────────────────────
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id    BIGINT UNSIGNED NOT NULL,
+      token_hash VARCHAR(255)    NOT NULL,
+      expires_at TIMESTAMP       NOT NULL,
+      created_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_refresh_token (token_hash),
+      CONSTRAINT fk_refresh_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB

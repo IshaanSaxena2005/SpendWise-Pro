@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { DEMO_EMAIL } from '../lib/constants';
+import { useAuth } from '../context/AuthContext';
 
 const DEMO_PASSWORD = 'SpendWiseDemo@2026';
 
 export function Hero() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleDemoLogin = async () => {
     try {
@@ -18,8 +20,8 @@ export function Hero() {
         password: DEMO_PASSWORD
       });
 
-      if (response.data.success && response.data.token) {
-        localStorage.setItem('token', response.data.token);
+      if (response.data.success && response.data.user) {
+        login(response.data.user);
         navigate('/dashboard');
       } else {
         console.error('Demo login failed:', response.data);

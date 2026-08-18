@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { InternalAxiosRequestConfig } from 'axios';
+import type { InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
 // Normalize the base URL so it always ends with exactly one `/api`,
 // regardless of whether VITE_API_BASE_URL includes it. This prevents both
@@ -9,21 +9,84 @@ const baseURL = rawBaseURL.replace(/\/+$/, '').replace(/\/api$/, '') + '/api';
 
 const api = axios.create({
   baseURL,
+  withCredentials: true, // send httpOnly cookies on every cross-origin request
 });
 
-// Interceptor: attach JWT token from localStorage on every request
+// ─── Request interceptor ─────────────────────────────────────────────────────
+// Tokens are now in httpOnly cookies; we no longer read from localStorage.
+// We only need to handle the special FormData case.
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     if (config.data instanceof FormData && config.headers) {
       delete config.headers['Content-Type'];
     }
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// ─── Response interceptor — transparent token refresh ────────────────────────
+// On a 401, attempt a single token refresh, then retry the original request.
+// If the refresh also fails the user is treated as unauthenticated.
+let isRefreshing = false;
+let refreshSubscribers: Array<(ok: boolean) => void> = [];
+
+function subscribeTokenRefresh(cb: (ok: boolean) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(ok: boolean) {
+  refreshSubscribers.forEach(cb => cb(ok));
+  refreshSubscribers = [];
+}
+
+api.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  async (error) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+    // Only intercept 401s that haven't already been retried,
+    // and skip the /auth/refresh and /auth/me endpoints themselves
+    // to avoid infinite loops.
+    const isAuthEndpoint =
+      originalRequest.url?.includes('/auth/refresh') ||
+      originalRequest.url?.includes('/auth/me') ||
+      originalRequest.url?.includes('/auth/logout');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        // Queue this request until the in-flight refresh resolves
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((ok) => {
+            if (ok) {
+              originalRequest._retry = true;
+              resolve(api(originalRequest));
+            } else {
+              reject(error);
+            }
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await api.post('/auth/refresh');
+        isRefreshing = false;
+        onRefreshed(true);
+        return api(originalRequest);
+      } catch (refreshError) {
+        isRefreshing = false;
+        onRefreshed(false);
+        // Emit a custom event so AuthContext can clear state without a circular import
+        window.dispatchEvent(new CustomEvent('sw:auth:expired'));
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 // ──────────────────────────────────────────────────────
@@ -313,20 +376,10 @@ export const goalsAPI = {
   delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/goals/delete/${id}`),
 };
 
+// Legacy getUser — kept for backward-compatibility with any remaining callers.
+// Prefer useAuth() from AuthContext in new code.
 export const getUser = () => {
-  const token = localStorage.getItem('token');
-  if (!token) return { full_name: 'User', email: '', role: 'User' };
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return {
-      full_name: payload.full_name || 'User',
-      email: payload.email || '',
-      role: payload.role || 'User',
-      user_id: payload.user_id,
-    };
-  } catch {
-    return { full_name: 'User', email: '', role: 'User' };
-  }
+  return { full_name: 'User', email: '', role: 'User', user_id: undefined as number | undefined };
 };
 
 export const userAPI = {

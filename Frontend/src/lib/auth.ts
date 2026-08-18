@@ -1,3 +1,7 @@
+// auth.ts — thin type definitions kept for backward-compatibility.
+// Authentication state is now managed by AuthContext (src/context/AuthContext.tsx).
+// Use the useAuth() hook to access user, isLoading, isAuthenticated, login, logout.
+
 export interface User {
   full_name: string;
   email: string;
@@ -5,43 +9,13 @@ export interface User {
   joined: string;
 }
 
-function decodeToken(token: string): Record<string, unknown> {
-  return JSON.parse(atob(token.split('.')[1]));
-}
-
-function isTokenValid(token: string): boolean {
-  try {
-    const payload = decodeToken(token);
-    const exp = payload.exp;
-    if (typeof exp === 'number' && exp * 1000 <= Date.now()) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
+// Legacy stubs — no longer read from localStorage.
+// Retained so that any outstanding import of these names doesn't cause a
+// compile error. Migrate callers to useAuth().
 export function isAuthenticated(): boolean {
-  const token = localStorage.getItem('token');
-  if (!token) return false;
-  return isTokenValid(token);
+  return false; // AuthContext is the authoritative source; this stub is unused.
 }
 
 export function getUser(): User | null {
-  const token = localStorage.getItem('token');
-  if (!token || !isTokenValid(token)) return null;
-
-  try {
-    const payload = decodeToken(token);
-
-    return {
-      full_name: (payload.full_name as string) || 'User',
-      email: (payload.email as string) || '',
-      role: (payload.role as string) || 'Member',
-      joined: 'Joined recently',
-    };
-  } catch {
-    return null;
-  }
+  return null; // Use useAuth().user instead.
 }

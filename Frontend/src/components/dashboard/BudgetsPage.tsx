@@ -16,6 +16,7 @@ import {
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { getCurrentMonthForInput } from '../../lib/dateUtils';
 import { getUser } from '../../lib/auth';
+import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 
 export function BudgetsPage() {
@@ -33,7 +34,7 @@ export function BudgetsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
 
-  const user = getUser();
+  const { user } = useAuth();
   const isDemoUser = user?.email === DEMO_EMAIL;
 
   const fetchFinanceData = useCallback(async () => {
