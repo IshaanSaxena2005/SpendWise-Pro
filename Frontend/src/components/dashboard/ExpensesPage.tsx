@@ -8,7 +8,6 @@ import { RecurringManagementModal } from './RecurringManagementModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
-import { getUser } from '../../lib/auth';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 

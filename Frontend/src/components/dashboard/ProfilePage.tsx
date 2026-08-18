@@ -63,6 +63,9 @@ export function ProfilePage() {
     );
   }
 
+  // ProtectedRoute guarantees user is non-null here, but narrow the type for TypeScript.
+  if (!user) return null;
+
   return (
     <div className="max-w-4xl mx-auto pb-12 space-y-6">
       <div>

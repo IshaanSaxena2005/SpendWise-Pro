@@ -230,6 +230,9 @@ export function SettingsPage() {
     { id: 'data', label: 'Data Management', icon: Database },
   ];
 
+  // ProtectedRoute guarantees currentUser is non-null here, but narrow the type for TypeScript.
+  if (!currentUser) return null;
+
   return (
     <div className="max-w-5xl mx-auto pb-12">
       <div className="mb-8">

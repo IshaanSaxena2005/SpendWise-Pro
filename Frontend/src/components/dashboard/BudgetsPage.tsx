@@ -15,7 +15,6 @@ import {
 } from '../../lib/budgetUtils';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { getCurrentMonthForInput } from '../../lib/dateUtils';
-import { getUser } from '../../lib/auth';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 

@@ -10,7 +10,6 @@ import {
   ResponsiveContainer, BarChart, Bar, Cell
 } from 'recharts';
 import { goalsAPI, type Goal } from '../../lib/api';
-import { getUser } from '../../lib/auth';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 
