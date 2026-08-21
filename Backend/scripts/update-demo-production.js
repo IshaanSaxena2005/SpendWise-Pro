@@ -1,13 +1,25 @@
+/**
+ * SAFE DEMO ACCOUNT UPDATE SCRIPT FOR PRODUCTION
+ * 
+ * This script safely updates ONLY the demo account (demo@spendwise.ai)
+ * with rolling demo data based on the current system date.
+ * 
+ * It will NOT affect any real user accounts.
+ * 
+ * Usage:
+ *   CONFIRM_DEMO_SEED=true node scripts/update-demo-production.js
+ */
+
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
 
-// Safety check: confirm this is intentional for production
-if (process.env.NODE_ENV === 'production' && !process.env.CONFIRM_DEMO_SEED) {
-  console.error('❌ SAFETY ERROR: Running demo seed in production requires CONFIRM_DEMO_SEED=true');
+// Safety check
+if (!process.env.CONFIRM_DEMO_SEED) {
+  console.error('❌ SAFETY ERROR: This script requires CONFIRM_DEMO_SEED=true');
   console.error('This will DELETE and RECREATE all demo user data.');
-  console.error('To proceed, run: CONFIRM_DEMO_SEED=true node scripts/seed-demo-user.js');
+  console.error('To proceed, run: CONFIRM_DEMO_SEED=true node scripts/update-demo-production.js');
   process.exit(1);
 }
 
@@ -133,43 +145,37 @@ const RECURRING_TRANSACTIONS = [
   { type: 'income', amount: 5000, category: 'Freelance', note: 'Freelance Income', frequency: 'weekly', start_day: 7, never_ends: true },
 ];
 
-async function seedDemoUser() {
+async function updateDemoUser() {
   try {
-    console.log('Starting demo user seed...');
+    console.log('🔄 Starting demo account update for production...');
+    console.log(`📅 Current date: ${new Date().toISOString()}`);
+    console.log(`👤 Demo email: ${DEMO_EMAIL}`);
 
-    // Check if demo user already exists
+    // Check if demo user exists
     const [existingUsers] = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [DEMO_EMAIL]
     );
 
-    if (existingUsers.length > 0) {
-      console.log('Demo user already exists. Deleting existing demo data...');
-      const userId = existingUsers[0].id;
-
-      // Delete in correct order due to foreign key constraints
-      await pool.query('DELETE FROM ai_insights WHERE user_id = ?', [userId]);
-      await pool.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
-      await pool.query('DELETE FROM budgets WHERE user_id = ?', [userId]);
-      await pool.query('DELETE FROM expenses WHERE user_id = ?', [userId]);
-      await pool.query('DELETE FROM categories WHERE user_id = ?', [userId]);
-      await pool.query('DELETE FROM users WHERE id = ?', [userId]);
-      console.log('✅ Existing demo data deleted');
+    if (existingUsers.length === 0) {
+      console.log('❌ Demo user not found. Cannot update non-existent account.');
+      process.exit(1);
     }
 
-    console.log('Creating new demo user...');
+    const userId = existingUsers[0].id;
+    console.log(`✅ Found demo user with ID: ${userId}`);
 
-    // Create demo user
-    const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
-    const [userResult] = await pool.query(
-      'INSERT INTO users (full_name, email, password_hash, is_verified) VALUES (?, ?, ?, ?)',
-      [DEMO_NAME, DEMO_EMAIL, passwordHash, true]
-    );
-    const userId = userResult.insertId;
-    console.log(`✅ Demo user created with ID: ${userId}`);
+    console.log('🗑️  Deleting existing demo data...');
+    // Delete in correct order due to foreign key constraints
+    await pool.query('DELETE FROM ai_insights WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM budgets WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM expenses WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM categories WHERE user_id = ?', [userId]);
+    // Note: We do NOT delete the user itself, just their data
+    console.log('✅ Existing demo data deleted');
 
-    // Create categories
-    console.log('Creating categories...');
+    console.log('📝 Creating categories...');
     const categoryMap = {};
     for (const categoryName of CATEGORIES) {
       const [catResult] = await pool.query(
@@ -181,7 +187,7 @@ async function seedDemoUser() {
     console.log(`✅ Created ${CATEGORIES.length} categories`);
 
     // Generate transactions for 6 months (current month + 5 previous)
-    console.log('Generating transactions...');
+    console.log('💰 Generating transactions...');
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
@@ -196,10 +202,11 @@ async function seedDemoUser() {
       });
     }
 
+    console.log(`📅 Generating data for months: ${months.map(m => `${m.year}-${String(m.month + 1).padStart(2, '0')}`).join(', ')}`);
+
     let transactionCount = 0;
 
     for (const { year, month, isCurrentMonth } of months) {
-      
       // Add monthly pattern transactions
       for (const pattern of MONTHLY_PATTERN) {
         const transactionDate = new Date(year, month, pattern.day);
@@ -259,7 +266,7 @@ async function seedDemoUser() {
     console.log(`✅ Generated ${transactionCount} transactions over 6 months`);
 
     // Create budgets
-    console.log('Creating budgets...');
+    console.log('🎯 Creating budgets...');
 
     const budgets = generateBudgets(currentDate);
     for (const budget of budgets) {
@@ -274,14 +281,14 @@ async function seedDemoUser() {
     console.log(`✅ Created ${budgets.length} budgets for recent months`);
 
     // Create recurring transactions
-    console.log('Creating recurring transactions...');
+    console.log('🔄 Creating recurring transactions...');
 
     for (const recurring of RECURRING_TRANSACTIONS) {
       const categoryId = recurring.category ? categoryMap[recurring.category] : null;
 
       // Calculate start date (current month)
       const startDate = new Date(currentYear, currentMonth, recurring.start_day);
-      
+
       // Calculate next execution date based on frequency
       let nextExecutionDate = new Date(startDate);
       switch (recurring.frequency) {
@@ -319,72 +326,14 @@ async function seedDemoUser() {
 
     console.log(`✅ Created ${RECURRING_TRANSACTIONS.length} recurring transactions`);
 
-    // Create demo goals
-    console.log('Creating demo goals...');
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-
-    const DEMO_GOALS = [
-      {
-        name: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
-        target_amount: 110000, saved_amount: 62000, monthly_contribution: 7500,
-        target_date: `${currentYear}-12-31`, priority: 'High',
-        notes: 'Latest iPhone with Pro camera system',
-        is_completed: false
-      },
-      {
-        name: 'Japan Trip', icon: '✈️', category: 'Travel',
-        target_amount: 85000, saved_amount: 28000, monthly_contribution: 4000,
-        target_date: `${currentYear + 1}-03-31`, priority: 'Medium',
-        notes: 'Cherry blossom season — March / April',
-        is_completed: false
-      },
-      {
-        name: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
-        target_amount: 150000, saved_amount: 95000, monthly_contribution: 10000,
-        target_date: `${currentYear}-09-30`, priority: 'High',
-        notes: '6 months of living expenses covered',
-        is_completed: false
-      },
-      {
-        name: 'MacBook Pro M4', icon: '💻', category: 'Technology',
-        target_amount: 200000, saved_amount: 15000, monthly_contribution: 2500,
-        target_date: `${currentYear + 1}-12-31`, priority: 'Low',
-        notes: 'For development and video editing',
-        is_completed: false
-      }
-    ];
-
-    for (const goal of DEMO_GOALS) {
-      await pool.query(
-        `INSERT INTO goals (user_id, name, icon, category, target_amount, saved_amount, monthly_contribution, target_date, priority, notes, is_completed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          userId,
-          goal.name,
-          goal.icon,
-          goal.category,
-          goal.target_amount,
-          goal.saved_amount,
-          goal.monthly_contribution,
-          goal.target_date,
-          goal.priority,
-          goal.notes,
-          goal.is_completed
-        ]
-      );
-    }
-
-    console.log(`✅ Created ${DEMO_GOALS.length} demo goals`);
-
-    console.log('✅ Demo user seed completed successfully!');
-    console.log(`Demo credentials: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+    console.log('✅ Demo account update completed successfully!');
+    console.log(`🔐 Demo credentials: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+    console.log('📊 Current month now contains realistic demo transactions.');
     process.exit(0);
   } catch (err) {
-    console.error('❌ Error seeding demo user:', err);
+    console.error('❌ Error updating demo account:', err);
     process.exit(1);
   }
 }
 
-seedDemoUser();
+updateDemoUser();

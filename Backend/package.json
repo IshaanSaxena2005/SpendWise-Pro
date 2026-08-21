@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "lint": "eslint .",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed-demo": "node scripts/seed-demo-user.js",
+    "update-demo-production": "node scripts/update-demo-production.js"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
