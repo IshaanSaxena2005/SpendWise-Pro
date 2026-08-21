@@ -54,8 +54,8 @@ const RANDOM_TRANSACTIONS = [
   { category: 'Travel', amount: 6000, note: 'Flight tickets' }
 ];
 
-// Specific transactions for July to match exact totals
-const JULY_SPECIFIC_TRANSACTIONS = [
+// Specific transactions for current month to match exact totals
+const CURRENT_MONTH_SPECIFIC_TRANSACTIONS = [
   { category: 'Food', amount: 500, note: 'Coffee' },
   { category: 'Food', amount: 500, note: 'Snacks' },
   { category: 'Food', amount: 500, note: 'Tea' },
@@ -77,21 +77,40 @@ const JULY_SPECIFIC_TRANSACTIONS = [
   { category: 'Food', amount: 300, note: 'Ice cream' }
 ];
 
-// Budget patterns (specific months for recent months)
-const BUDGETS = [
-  { month: '2026-05-01', category: null, amount: 50000 }, // Overall May
-  { month: '2026-05-01', category: 'Food', amount: 12000 },
-  { month: '2026-05-01', category: 'Shopping', amount: 8000 },
-  { month: '2026-05-01', category: 'Entertainment', amount: 4000 },
-  { month: '2026-06-01', category: null, amount: 55000 }, // Overall June
-  { month: '2026-06-01', category: 'Food', amount: 13000 },
-  { month: '2026-06-01', category: 'Shopping', amount: 9000 },
-  { month: '2026-06-01', category: 'Travel', amount: 5000 },
-  { month: '2026-07-01', category: null, amount: 55000 }, // Overall July (current month)
-  { month: '2026-07-01', category: 'Food', amount: 12500 },
-  { month: '2026-07-01', category: 'Shopping', amount: 8500 },
-  { month: '2026-07-01', category: 'Entertainment', amount: 4500 }
-];
+// Budget patterns (dynamic based on current date)
+function generateBudgets(currentDate) {
+  const budgets = [];
+  const year = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+
+  // Generate budgets for the last 3 months (current month + 2 previous)
+  for (let i = 2; i >= 0; i--) {
+    const budgetMonth = new Date(year, currentMonth - i, 1);
+    const monthStr = budgetMonth.toISOString().split('T')[0];
+
+    if (i === 0) {
+      // Current month budgets
+      budgets.push({ month: monthStr, category: null, amount: 55000 });
+      budgets.push({ month: monthStr, category: 'Food', amount: 12500 });
+      budgets.push({ month: monthStr, category: 'Shopping', amount: 8500 });
+      budgets.push({ month: monthStr, category: 'Entertainment', amount: 4500 });
+    } else if (i === 1) {
+      // Previous month budgets
+      budgets.push({ month: monthStr, category: null, amount: 55000 });
+      budgets.push({ month: monthStr, category: 'Food', amount: 13000 });
+      budgets.push({ month: monthStr, category: 'Shopping', amount: 9000 });
+      budgets.push({ month: monthStr, category: 'Travel', amount: 5000 });
+    } else {
+      // Two months ago budgets
+      budgets.push({ month: monthStr, category: null, amount: 50000 });
+      budgets.push({ month: monthStr, category: 'Food', amount: 12000 });
+      budgets.push({ month: monthStr, category: 'Shopping', amount: 8000 });
+      budgets.push({ month: monthStr, category: 'Entertainment', amount: 4000 });
+    }
+  }
+
+  return budgets;
+}
 
 // Recurring transactions for demo user
 const RECURRING_TRANSACTIONS = [
@@ -153,30 +172,34 @@ async function seedDemoUser() {
     }
     console.log(`✅ Created ${CATEGORIES.length} categories`);
 
-    // Generate transactions for 6 months (February-July 2026)
+    // Generate transactions for 6 months (current month + 5 previous)
     console.log('Generating transactions...');
-    const months = [
-      { year: 2026, month: 1 }, // February (0-indexed)
-      { year: 2026, month: 2 }, // March
-      { year: 2026, month: 3 }, // April
-      { year: 2026, month: 4 }, // May
-      { year: 2026, month: 5 }, // June
-      { year: 2026, month: 6 }  // July
-    ];
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(currentYear, currentMonth - i, 1);
+      months.push({
+        year: monthDate.getFullYear(),
+        month: monthDate.getMonth(),
+        isCurrentMonth: i === 0
+      });
+    }
 
     let transactionCount = 0;
 
-    for (const { year, month } of months) {
-      const isJuly = year === 2026 && month === 6;
+    for (const { year, month, isCurrentMonth } of months) {
       
       // Add monthly pattern transactions
       for (const pattern of MONTHLY_PATTERN) {
         const transactionDate = new Date(year, month, pattern.day);
         const categoryId = categoryMap[pattern.category];
 
-        // For July, use exact amounts; for other months, add slight variation
+        // For current month, use exact amounts; for other months, add slight variation
         let amount;
-        if (isJuly) {
+        if (isCurrentMonth) {
           amount = pattern.amount;
         } else {
           const variation = 0.95 + Math.random() * 0.1;
@@ -192,16 +215,16 @@ async function seedDemoUser() {
 
       // Add some random transactions for variety
       let numRandom = 4 + Math.floor(Math.random() * 4); // 4-7 random transactions per month
-      // For July (current month), use specific transactions to get exact totals
-      if (isJuly) {
-        for (const julyTx of JULY_SPECIFIC_TRANSACTIONS) {
+      // For current month, use specific transactions to get exact totals
+      if (isCurrentMonth) {
+        for (const currentMonthTx of CURRENT_MONTH_SPECIFIC_TRANSACTIONS) {
           const randomDay = 1 + Math.floor(Math.random() * 28);
           const transactionDate = new Date(year, month, randomDay);
-          const categoryId = categoryMap[julyTx.category];
+          const categoryId = categoryMap[currentMonthTx.category];
 
           await pool.query(
             'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-            [userId, categoryId, julyTx.amount, transactionDate, julyTx.note]
+            [userId, categoryId, currentMonthTx.amount, transactionDate, currentMonthTx.note]
           );
           transactionCount++;
         }
@@ -225,12 +248,13 @@ async function seedDemoUser() {
       }
     }
 
-    console.log(`✅ Generated ${transactionCount} transactions over 6 months (Feb-July 2026)`);
+    console.log(`✅ Generated ${transactionCount} transactions over 6 months`);
 
     // Create budgets
     console.log('Creating budgets...');
 
-    for (const budget of BUDGETS) {
+    const budgets = generateBudgets(currentDate);
+    for (const budget of budgets) {
       const categoryId = budget.category ? categoryMap[budget.category] : null;
 
       await pool.query(
@@ -239,16 +263,16 @@ async function seedDemoUser() {
       );
     }
 
-    console.log(`✅ Created ${BUDGETS.length} budgets for May-July 2026`);
+    console.log(`✅ Created ${budgets.length} budgets for recent months`);
 
     // Create recurring transactions
     console.log('Creating recurring transactions...');
 
     for (const recurring of RECURRING_TRANSACTIONS) {
       const categoryId = recurring.category ? categoryMap[recurring.category] : null;
-      
-      // Calculate start date
-      const startDate = new Date(2026, 6, recurring.start_day); // July 2026
+
+      // Calculate start date (current month)
+      const startDate = new Date(currentYear, currentMonth, recurring.start_day);
       
       // Calculate next execution date based on frequency
       let nextExecutionDate = new Date(startDate);
@@ -286,6 +310,65 @@ async function seedDemoUser() {
     }
 
     console.log(`✅ Created ${RECURRING_TRANSACTIONS.length} recurring transactions`);
+
+    // Create demo goals
+    console.log('Creating demo goals...');
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    const DEMO_GOALS = [
+      {
+        name: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
+        target_amount: 110000, saved_amount: 62000, monthly_contribution: 7500,
+        target_date: `${currentYear}-12-31`, priority: 'High',
+        notes: 'Latest iPhone with Pro camera system',
+        is_completed: false
+      },
+      {
+        name: 'Japan Trip', icon: '✈️', category: 'Travel',
+        target_amount: 85000, saved_amount: 28000, monthly_contribution: 4000,
+        target_date: `${currentYear + 1}-03-31`, priority: 'Medium',
+        notes: 'Cherry blossom season — March / April',
+        is_completed: false
+      },
+      {
+        name: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
+        target_amount: 150000, saved_amount: 95000, monthly_contribution: 10000,
+        target_date: `${currentYear}-09-30`, priority: 'High',
+        notes: '6 months of living expenses covered',
+        is_completed: false
+      },
+      {
+        name: 'MacBook Pro M4', icon: '💻', category: 'Technology',
+        target_amount: 200000, saved_amount: 15000, monthly_contribution: 2500,
+        target_date: `${currentYear + 1}-12-31`, priority: 'Low',
+        notes: 'For development and video editing',
+        is_completed: false
+      }
+    ];
+
+    for (const goal of DEMO_GOALS) {
+      await pool.query(
+        `INSERT INTO goals (user_id, name, icon, category, target_amount, saved_amount, monthly_contribution, target_date, priority, notes, is_completed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          goal.name,
+          goal.icon,
+          goal.category,
+          goal.target_amount,
+          goal.saved_amount,
+          goal.monthly_contribution,
+          goal.target_date,
+          goal.priority,
+          goal.notes,
+          goal.is_completed
+        ]
+      );
+    }
+
+    console.log(`✅ Created ${DEMO_GOALS.length} demo goals`);
 
     console.log('✅ Demo user seed completed successfully!');
     console.log(`Demo credentials: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);

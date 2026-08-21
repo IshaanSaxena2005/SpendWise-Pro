@@ -71,7 +71,7 @@ const TermsPage: React.FC = () => {
           </p>
         </section>
         <footer className="mt-12 text-sm text-gray-500">
-          <p>Last Updated: June 2026</p>
+          <p>Last Updated: August 2026</p>
         </footer>
         <div className="flex justify-center mt-6">
           <button

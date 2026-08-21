@@ -25,6 +25,7 @@
 - [Environment Variables](#environment-variables)
 - [API Overview](#api-overview)
 - [Deployment](#deployment)
+- [Copyright & License](#copyright--license)
 - [Author](#author)
 
 ---
@@ -326,6 +327,18 @@ SpendWise Pro is deployed using a cloud-based architecture:
 - 📈 ML-Powered Spending Forecasting
 - 🚨 Isolation Forest Anomaly Detection
 - 🔐 Secure Authentication & Cloud Deployment
+
+---
+
+## Copyright & License
+
+SpendWise Pro is developed by Ishaan Saxena. The project source code is proprietary.
+
+No permission is granted for unauthorized copying, redistribution, modification, or commercial use without prior written permission from the copyright holder.
+
+Third-party libraries, frameworks, fonts, icons, APIs and services used in this project remain subject to their respective licenses.
+
+For details, see the [LICENSE](LICENSE) file.
 
 ---
 

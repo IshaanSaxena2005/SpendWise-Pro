@@ -153,7 +153,7 @@ export function Footer() {
 
           {/* Copyright */}
           <div className="text-xs text-black/35 font-medium whitespace-nowrap">
-            &copy; {new Date().getFullYear()} SpendWise Pro. All rights reserved.
+            &copy; 2026 Ishaan Saxena — SpendWise Pro
           </div>
         </div>
       </div>

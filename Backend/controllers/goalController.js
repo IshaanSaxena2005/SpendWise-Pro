@@ -1,44 +1,53 @@
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
 
-const DEMO_GOALS = [
-  {
-    id: 1, user_id: 0,
-    name: 'iPhone 16 Pro', title: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
-    target_amount: 110000, saved_amount: 62000, monthly_contribution: 7500,
-    target_date: '2026-12-31', priority: 'High',
-    notes: 'Latest iPhone with Pro camera system',
-    is_completed: false,
-    created_at: '2026-01-15T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
-  },
-  {
-    id: 2, user_id: 0,
-    name: 'Japan Trip', title: 'Japan Trip', icon: '✈️', category: 'Travel',
-    target_amount: 85000, saved_amount: 28000, monthly_contribution: 4000,
-    target_date: '2027-03-31', priority: 'Medium',
-    notes: 'Cherry blossom season — March / April',
-    is_completed: false,
-    created_at: '2026-02-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
-  },
-  {
-    id: 3, user_id: 0,
-    name: 'Emergency Fund', title: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
-    target_amount: 150000, saved_amount: 95000, monthly_contribution: 10000,
-    target_date: '2026-09-30', priority: 'High',
-    notes: '6 months of living expenses covered',
-    is_completed: false,
-    created_at: '2025-12-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
-  },
-  {
-    id: 4, user_id: 0,
-    name: 'MacBook Pro M4', title: 'MacBook Pro M4', icon: '💻', category: 'Technology',
-    target_amount: 200000, saved_amount: 15000, monthly_contribution: 2500,
-    target_date: '2027-12-31', priority: 'Low',
-    notes: 'For development and video editing',
-    is_completed: false,
-    created_at: '2026-03-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
-  },
-];
+// Generate dynamic demo goals based on current date
+function generateDemoGoals() {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+
+  return [
+    {
+      id: 1, user_id: 0,
+      name: 'iPhone 16 Pro', title: 'iPhone 16 Pro', icon: '📱', category: 'Technology',
+      target_amount: 110000, saved_amount: 62000, monthly_contribution: 7500,
+      target_date: `${currentYear}-12-31`, priority: 'High',
+      notes: 'Latest iPhone with Pro camera system',
+      is_completed: false,
+      created_at: `${currentYear}-01-15T00:00:00Z`, updated_at: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01T00:00:00Z`,
+    },
+    {
+      id: 2, user_id: 0,
+      name: 'Japan Trip', title: 'Japan Trip', icon: '✈️', category: 'Travel',
+      target_amount: 85000, saved_amount: 28000, monthly_contribution: 4000,
+      target_date: `${currentYear + 1}-03-31`, priority: 'Medium',
+      notes: 'Cherry blossom season — March / April',
+      is_completed: false,
+      created_at: `${currentYear}-02-01T00:00:00Z`, updated_at: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01T00:00:00Z`,
+    },
+    {
+      id: 3, user_id: 0,
+      name: 'Emergency Fund', title: 'Emergency Fund', icon: '🛡️', category: 'Emergency',
+      target_amount: 150000, saved_amount: 95000, monthly_contribution: 10000,
+      target_date: `${currentYear}-09-30`, priority: 'High',
+      notes: '6 months of living expenses covered',
+      is_completed: false,
+      created_at: `${currentYear - 1}-12-01T00:00:00Z`, updated_at: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01T00:00:00Z`,
+    },
+    {
+      id: 4, user_id: 0,
+      name: 'MacBook Pro M4', title: 'MacBook Pro M4', icon: '💻', category: 'Technology',
+      target_amount: 200000, saved_amount: 15000, monthly_contribution: 2500,
+      target_date: `${currentYear + 1}-12-31`, priority: 'Low',
+      notes: 'For development and video editing',
+      is_completed: false,
+      created_at: `${currentYear}-03-01T00:00:00Z`, updated_at: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01T00:00:00Z`,
+    },
+  ];
+}
+
+const DEMO_GOALS = generateDemoGoals();
 
 function enrichGoal(goal) {
   const current_amount = Number(goal.current_amount !== undefined ? goal.current_amount : goal.saved_amount) || 0;
