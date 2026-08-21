@@ -11,9 +11,21 @@
  */
 
 require('dotenv').config();
-const bcrypt = require('bcrypt');
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
+
+/**
+ * Format a Date object as a local YYYY-MM-DD string.
+ * Using .toISOString() is WRONG on non-UTC machines because it converts to UTC first,
+ * which shifts midnight dates back by up to 12 hours (e.g. IST midnight Aug 1 → UTC July 31).
+ * This function reads the local year/month/day directly to avoid that bug.
+ */
+function toLocalDateString(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 // Safety check
 if (!process.env.CONFIRM_DEMO_SEED) {
@@ -24,7 +36,6 @@ if (!process.env.CONFIRM_DEMO_SEED) {
 }
 
 const DEMO_PASSWORD = 'SpendWiseDemo@2026';
-const DEMO_NAME = 'Demo User';
 
 // Categories to create
 const CATEGORIES = [
@@ -37,6 +48,9 @@ const CATEGORIES = [
   'Salary',
   'Freelance'
 ];
+
+// Income categories (used to set transaction_type correctly on insert)
+const INCOME_CATEGORIES = new Set(['Salary', 'Freelance']);
 
 // Monthly transaction pattern (day of month, category, amount, note)
 const MONTHLY_PATTERN = [
@@ -106,7 +120,7 @@ function generateBudgets(currentDate) {
   // Generate budgets for the last 3 months (current month + 2 previous)
   for (let i = 2; i >= 0; i--) {
     const budgetMonth = new Date(year, currentMonth - i, 1);
-    const monthStr = budgetMonth.toISOString().split('T')[0];
+    const monthStr = toLocalDateString(budgetMonth);
 
     if (i === 0) {
       // Current month budgets
@@ -170,6 +184,8 @@ async function updateDemoUser() {
     await pool.query('DELETE FROM ai_insights WHERE user_id = ?', [userId]);
     await pool.query('DELETE FROM notifications WHERE user_id = ?', [userId]);
     await pool.query('DELETE FROM budgets WHERE user_id = ?', [userId]);
+    // recurring_transactions.linked_transaction_id → expenses.id, must delete recurring first
+    await pool.query('DELETE FROM recurring_transactions WHERE user_id = ?', [userId]);
     await pool.query('DELETE FROM expenses WHERE user_id = ?', [userId]);
     await pool.query('DELETE FROM categories WHERE user_id = ?', [userId]);
     // Note: We do NOT delete the user itself, just their data
@@ -210,6 +226,7 @@ async function updateDemoUser() {
       // Add monthly pattern transactions
       for (const pattern of MONTHLY_PATTERN) {
         const transactionDate = new Date(year, month, pattern.day);
+        const dateString = toLocalDateString(transactionDate); // Format as local YYYY-MM-DD
         const categoryId = categoryMap[pattern.category];
 
         // For current month, use exact amounts; for other months, add slight variation
@@ -221,9 +238,10 @@ async function updateDemoUser() {
           amount = Math.round(pattern.amount * variation);
         }
 
+        const txType = INCOME_CATEGORIES.has(pattern.category) ? 'income' : 'expense';
         await pool.query(
-          'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-          [userId, categoryId, amount, transactionDate, pattern.note]
+          'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, transaction_type) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, categoryId, amount, dateString, pattern.note, txType]
         );
         transactionCount++;
       }
@@ -235,11 +253,13 @@ async function updateDemoUser() {
         for (const currentMonthTx of CURRENT_MONTH_SPECIFIC_TRANSACTIONS) {
           const randomDay = 1 + Math.floor(Math.random() * 28);
           const transactionDate = new Date(year, month, randomDay);
+          const dateString = toLocalDateString(transactionDate); // Format as local YYYY-MM-DD
           const categoryId = categoryMap[currentMonthTx.category];
 
+          const txType = INCOME_CATEGORIES.has(currentMonthTx.category) ? 'income' : 'expense';
           await pool.query(
-            'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-            [userId, categoryId, currentMonthTx.amount, transactionDate, currentMonthTx.note]
+            'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, transaction_type) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, categoryId, currentMonthTx.amount, dateString, currentMonthTx.note, txType]
           );
           transactionCount++;
         }
@@ -248,15 +268,17 @@ async function updateDemoUser() {
           const randomTx = RANDOM_TRANSACTIONS[Math.floor(Math.random() * RANDOM_TRANSACTIONS.length)];
           const randomDay = 1 + Math.floor(Math.random() * 28);
           const transactionDate = new Date(year, month, randomDay);
+          const dateString = toLocalDateString(transactionDate); // Format as local YYYY-MM-DD
           const categoryId = categoryMap[randomTx.category];
 
           // Add variation
           const variation = 0.9 + Math.random() * 0.2;
           const amount = Math.round(randomTx.amount * variation);
 
+          const txType = INCOME_CATEGORIES.has(randomTx.category) ? 'income' : 'expense';
           await pool.query(
-            'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-            [userId, categoryId, amount, transactionDate, randomTx.note]
+            'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, transaction_type) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, categoryId, amount, dateString, randomTx.note, txType]
           );
           transactionCount++;
         }
@@ -288,6 +310,7 @@ async function updateDemoUser() {
 
       // Calculate start date (current month)
       const startDate = new Date(currentYear, currentMonth, recurring.start_day);
+      const startDateString = toLocalDateString(startDate); // Format as local YYYY-MM-DD
 
       // Calculate next execution date based on frequency
       let nextExecutionDate = new Date(startDate);
@@ -305,10 +328,11 @@ async function updateDemoUser() {
           nextExecutionDate.setFullYear(nextExecutionDate.getFullYear() + 1);
           break;
       }
+      const nextExecutionDateString = toLocalDateString(nextExecutionDate); // Format as local YYYY-MM-DD
 
       await pool.query(
-        `INSERT INTO recurring_transactions 
-         (user_id, type, amount, category_id, note, frequency, start_date, next_execution_date, never_ends, is_active) 
+        `INSERT INTO recurring_transactions
+         (user_id, type, amount, category_id, note, frequency, start_date, next_execution_date, never_ends, is_active)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
         [
           userId,
@@ -317,8 +341,8 @@ async function updateDemoUser() {
           categoryId,
           recurring.note,
           recurring.frequency,
-          startDate.toISOString().split('T')[0],
-          nextExecutionDate.toISOString().split('T')[0],
+          startDateString,
+          nextExecutionDateString,
           recurring.never_ends
         ]
       );

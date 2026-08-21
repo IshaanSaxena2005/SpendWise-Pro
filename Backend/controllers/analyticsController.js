@@ -23,8 +23,8 @@ const getDashboardSummary = async (req, res) => {
       FROM expenses e
       WHERE e.user_id = ?
         AND e.transaction_type = 'expense'
-        AND MONTH(e.expense_date) = MONTH(CURDATE())
-        AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+        AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
       [userId]
     );
     console.log(`[getDashboardSummary] currentMonth query result:`, currentMonth);
@@ -35,8 +35,8 @@ const getDashboardSummary = async (req, res) => {
       FROM expenses e
       WHERE e.user_id = ?
         AND e.transaction_type = 'income'
-        AND MONTH(e.expense_date) = MONTH(CURDATE())
-        AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+        AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
       [userId]
     );
     console.log(`[getDashboardSummary] currentMonthIncome query result:`, currentMonthIncome);
@@ -98,8 +98,8 @@ const getCategoryBreakdown = async (req, res) => {
         ON e.category_id = c.id
         AND e.user_id = ?
         AND e.transaction_type = 'expense'
-        AND MONTH(e.expense_date) = MONTH(CURDATE())
-        AND YEAR(e.expense_date) = YEAR(CURDATE())
+        AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
       WHERE c.user_id = ?
       GROUP BY c.id, c.name
       HAVING total_amount > 0
@@ -189,8 +189,8 @@ const getTopSpendingCategory = async (req, res) => {
       JOIN categories c ON c.id = e.category_id
       WHERE e.user_id = ?
         AND e.transaction_type = 'expense'
-        AND MONTH(e.expense_date) = MONTH(CURDATE())
-        AND YEAR(e.expense_date) = YEAR(CURDATE())
+        AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
       GROUP BY c.id, c.name
       ORDER BY total_amount DESC
       LIMIT 1`,

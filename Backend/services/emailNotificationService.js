@@ -118,8 +118,8 @@ async function checkAndSendBudgetEmails(userId) {
            WHERE e.user_id = b.user_id
              AND e.transaction_type = 'expense'
              AND (b.category_id IS NULL OR e.category_id = b.category_id)
-             AND MONTH(e.expense_date) = MONTH(CURDATE())
-             AND YEAR(e.expense_date) = YEAR(CURDATE())
+             AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+             AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
          ), 0) AS spent
        FROM budgets b
        LEFT JOIN categories c ON c.id = b.category_id

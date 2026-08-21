@@ -35,8 +35,8 @@ async function getThisMonthSpending(userId) {
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
       AND c.name NOT IN ('Salary', 'Freelance')
-      AND MONTH(e.expense_date) = MONTH(CURDATE())
-      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+      AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
     [userId]
   );
   return `You have spent ₹${Number(currentMonth.current_month_spending).toFixed(2)} this month.`;
@@ -51,8 +51,8 @@ async function getTopSpendingCategory(userId) {
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
       AND c.name NOT IN ('Salary', 'Freelance')
-      AND MONTH(e.expense_date) = MONTH(CURDATE())
-      AND YEAR(e.expense_date) = YEAR(CURDATE())
+      AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
     GROUP BY c.id, c.name
     ORDER BY total_amount DESC
     LIMIT 1`,
@@ -100,8 +100,8 @@ async function checkOverspending(userId) {
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
       AND c.name NOT IN ('Salary', 'Freelance')
-      AND MONTH(e.expense_date) = MONTH(CURDATE())
-      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+      AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
     [userId]
   );
   
@@ -215,8 +215,8 @@ async function compareThisVsLastMonth(userId) {
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
       AND c.name NOT IN ('Salary', 'Freelance')
-      AND MONTH(e.expense_date) = MONTH(CURDATE())
-      AND YEAR(e.expense_date) = YEAR(CURDATE())`,
+      AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
     [userId]
   );
 
@@ -227,8 +227,8 @@ async function compareThisVsLastMonth(userId) {
     JOIN categories c ON c.id = e.category_id
     WHERE e.user_id = ?
       AND c.name NOT IN ('Salary', 'Freelance')
-      AND MONTH(e.expense_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-      AND YEAR(e.expense_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)`,
+      AND e.expense_date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+      AND e.expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
     [userId]
   );
 
@@ -278,9 +278,9 @@ async function buildFinancialContext(userId) {
      JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
        AND c.name NOT IN ('Salary', 'Freelance')
-       AND MONTH(e.expense_date) = MONTH(CURDATE())
-       AND YEAR(e.expense_date) = YEAR(CURDATE())`,
-    [userId]
+       AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
+     [userId]
   );
 
   const [[lastMonth]] = await pool.query(
@@ -289,9 +289,9 @@ async function buildFinancialContext(userId) {
      JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
        AND c.name NOT IN ('Salary', 'Freelance')
-       AND MONTH(e.expense_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-       AND YEAR(e.expense_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)`,
-    [userId]
+       AND e.expense_date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
+     [userId]
   );
 
   const [topCategories] = await pool.query(
@@ -300,8 +300,8 @@ async function buildFinancialContext(userId) {
      JOIN categories c ON c.id = e.category_id
      WHERE e.user_id = ?
        AND c.name NOT IN ('Salary', 'Freelance')
-       AND MONTH(e.expense_date) = MONTH(CURDATE())
-       AND YEAR(e.expense_date) = YEAR(CURDATE())
+       AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
      GROUP BY c.id, c.name
      ORDER BY total_amount DESC
      LIMIT 5`,

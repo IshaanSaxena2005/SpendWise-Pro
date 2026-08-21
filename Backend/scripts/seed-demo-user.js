@@ -203,6 +203,7 @@ async function seedDemoUser() {
       // Add monthly pattern transactions
       for (const pattern of MONTHLY_PATTERN) {
         const transactionDate = new Date(year, month, pattern.day);
+        const dateString = transactionDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
         const categoryId = categoryMap[pattern.category];
 
         // For current month, use exact amounts; for other months, add slight variation
@@ -216,7 +217,7 @@ async function seedDemoUser() {
 
         await pool.query(
           'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-          [userId, categoryId, amount, transactionDate, pattern.note]
+          [userId, categoryId, amount, dateString, pattern.note]
         );
         transactionCount++;
       }
@@ -228,11 +229,12 @@ async function seedDemoUser() {
         for (const currentMonthTx of CURRENT_MONTH_SPECIFIC_TRANSACTIONS) {
           const randomDay = 1 + Math.floor(Math.random() * 28);
           const transactionDate = new Date(year, month, randomDay);
+          const dateString = transactionDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
           const categoryId = categoryMap[currentMonthTx.category];
 
           await pool.query(
             'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-            [userId, categoryId, currentMonthTx.amount, transactionDate, currentMonthTx.note]
+            [userId, categoryId, currentMonthTx.amount, dateString, currentMonthTx.note]
           );
           transactionCount++;
         }
@@ -241,6 +243,7 @@ async function seedDemoUser() {
           const randomTx = RANDOM_TRANSACTIONS[Math.floor(Math.random() * RANDOM_TRANSACTIONS.length)];
           const randomDay = 1 + Math.floor(Math.random() * 28);
           const transactionDate = new Date(year, month, randomDay);
+          const dateString = transactionDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
           const categoryId = categoryMap[randomTx.category];
 
           // Add variation
@@ -249,7 +252,7 @@ async function seedDemoUser() {
 
           await pool.query(
             'INSERT INTO expenses (user_id, category_id, amount, expense_date, note) VALUES (?, ?, ?, ?, ?)',
-            [userId, categoryId, amount, transactionDate, randomTx.note]
+            [userId, categoryId, amount, dateString, randomTx.note]
           );
           transactionCount++;
         }
@@ -281,7 +284,8 @@ async function seedDemoUser() {
 
       // Calculate start date (current month)
       const startDate = new Date(currentYear, currentMonth, recurring.start_day);
-      
+      const startDateString = startDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
       // Calculate next execution date based on frequency
       let nextExecutionDate = new Date(startDate);
       switch (recurring.frequency) {
@@ -298,10 +302,11 @@ async function seedDemoUser() {
           nextExecutionDate.setFullYear(nextExecutionDate.getFullYear() + 1);
           break;
       }
+      const nextExecutionDateString = nextExecutionDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
 
       await pool.query(
-        `INSERT INTO recurring_transactions 
-         (user_id, type, amount, category_id, note, frequency, start_date, next_execution_date, never_ends, is_active) 
+        `INSERT INTO recurring_transactions
+         (user_id, type, amount, category_id, note, frequency, start_date, next_execution_date, never_ends, is_active)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
         [
           userId,
@@ -310,8 +315,8 @@ async function seedDemoUser() {
           categoryId,
           recurring.note,
           recurring.frequency,
-          startDate.toISOString().split('T')[0],
-          nextExecutionDate.toISOString().split('T')[0],
+          startDateString,
+          nextExecutionDateString,
           recurring.never_ends
         ]
       );
@@ -321,9 +326,6 @@ async function seedDemoUser() {
 
     // Create demo goals
     console.log('Creating demo goals...');
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
 
     const DEMO_GOALS = [
       {
