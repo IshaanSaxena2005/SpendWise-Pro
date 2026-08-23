@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard, Receipt, Target, BarChart2,
   Lightbulb, LogOut, Menu, X, Bell, Plus, Settings, History
@@ -163,6 +163,10 @@ export function DashboardLayout() {
   });
   
   const { user, logout } = useAuth();
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   if (!user) return null;
 
