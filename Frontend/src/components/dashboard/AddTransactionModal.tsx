@@ -144,7 +144,7 @@ function TransactionForm({
     if (editTxn?.transaction_type === 'expense') return 'expense';
     return 'expense';
   });
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(() => Boolean(editTxn?.recurring_transaction_id));
   const [frequency, setFrequency] = useState('monthly');
   const [startDate, setStartDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
   const [endDate, setEndDate] = useState('');
@@ -174,6 +174,29 @@ function TransactionForm({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!editTxn?.recurring_transaction_id) return;
+
+    let cancelled = false;
+    void recurringAPI.getAll()
+      .then((res) => {
+        if (cancelled) return;
+        const recurring = res.data.recurring_transactions?.find(
+          (item: { id: number }) => item.id === editTxn.recurring_transaction_id,
+        );
+        if (!recurring) return;
+        setFrequency(recurring.frequency);
+        setStartDate(formatDateForInput(recurring.start_date) || formatDateForInput(editTxn.expense_date) || getCurrentDateForInput());
+        setEndDate(formatDateForInput(recurring.end_date) || '');
+        setNeverEnds(Boolean(recurring.never_ends));
+      })
+      .catch((err) => console.error('Error loading recurring transaction:', err));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editTxn?.recurring_transaction_id]);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const aiRequestRef = useRef<number>(0);
@@ -341,8 +364,33 @@ function TransactionForm({
     try {
       setLoading(true);
       
-      if (isRecurring) {
-        await recurringAPI.add({
+      if (editTxn) {
+        await expenseAPI.updateExpense(editTxn.id, {
+          title,
+          category_id: Number(catId),
+          amount: numAmount,
+          expense_date: date,
+          note: notes.trim() || title,
+          transaction_type: transactionType,
+          goal_id: goalId ? Number(goalId) : null,
+        });
+
+        // A linked recurring record is managed through the existing recurring API.
+        // Never create a second schedule while editing an existing transaction.
+        if (editTxn.recurring_transaction_id) {
+          await recurringAPI.update(editTxn.recurring_transaction_id, {
+            type: transactionType,
+            amount: numAmount,
+            category_id: Number(catId),
+            note: notes.trim() || title,
+            frequency: frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
+            start_date: startDate,
+            end_date: endDate || undefined,
+            never_ends: neverEnds,
+          });
+        }
+      } else if (isRecurring) {
+        const recurringResponse = await recurringAPI.add({
           type: transactionType,
           amount: numAmount,
           category_id: Number(catId),
@@ -352,7 +400,7 @@ function TransactionForm({
           end_date: endDate || undefined,
           never_ends: neverEnds,
         });
-        
+
         await expenseAPI.addExpense({
           title,
           category_id: Number(catId),
@@ -360,16 +408,7 @@ function TransactionForm({
           expense_date: date,
           note: notes.trim() || title,
           is_recurring: true,
-          transaction_type: transactionType,
-          goal_id: goalId ? Number(goalId) : null,
-        });
-      } else if (editTxn) {
-        await expenseAPI.updateExpense(editTxn.id, {
-          title,
-          category_id: Number(catId),
-          amount: numAmount,
-          expense_date: date,
-          note: notes.trim() || title,
+          recurring_transaction_id: recurringResponse.data.id,
           transaction_type: transactionType,
           goal_id: goalId ? Number(goalId) : null,
         });
@@ -401,8 +440,8 @@ function TransactionForm({
     : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
-      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain space-y-4 p-6">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain space-y-4 p-6">
         <div>
           <label className="block text-xs font-medium text-black/60 mb-1.5">Transaction Type</label>
           <div className="flex gap-2">
@@ -517,18 +556,19 @@ function TransactionForm({
           </div>
         )}
 
-        {!editTxn && (
+        {(!editTxn || editTxn.recurring_transaction_id) && (
           <div className="border-t border-black/10 pt-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isRecurring}
                 onChange={(e) => setIsRecurring(e.target.checked)}
-                className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
+                disabled={Boolean(editTxn?.recurring_transaction_id)}
+                className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20 disabled:cursor-not-allowed"
               />
               <span className="text-sm font-medium text-black flex items-center gap-1.5">
                 <Repeat2 className="w-4 h-4" />
-                Make this recurring
+                {editTxn?.recurring_transaction_id ? 'Recurring transaction' : 'Make this recurring'}
               </span>
             </label>
 
@@ -587,7 +627,7 @@ function TransactionForm({
         )}
       </div>
 
-      <div className="flex gap-3 pt-4 border-t border-black/10 shrink-0">
+      <div className="flex shrink-0 gap-3 border-t border-black/10 bg-white p-4 sm:px-6">
         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-black/10 text-sm font-medium text-black/60 hover:bg-black/5 active:scale-[0.98] transition-all duration-200">
           Cancel
         </button>
@@ -596,7 +636,7 @@ function TransactionForm({
           disabled={loading || !catId}
           className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-medium flex items-center justify-center gap-2 hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 disabled:opacity-60 disabled:active:scale-100"
         >
-          {loading ? 'Saving...' : 'Save'}
+          {loading ? 'Saving...' : editTxn ? 'Save Changes' : 'Save'}
           {!loading && <ArrowRight className="w-4 h-4" />}
         </button>
       </div>
@@ -646,6 +686,20 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, handleClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     return () => {
@@ -752,6 +806,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
         top: topPos !== undefined ? `${topPos}px` : undefined,
         bottom: bottomPos !== undefined ? `${bottomPos}px` : undefined,
         maxHeight: `${maxHeight}px`,
+        height: `${maxHeight}px`,
         width: `${popoverWidth}px`,
         maxWidth: 'calc(100vw - 32px)',
       }
@@ -759,7 +814,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
 
   const panelClass = mobileSheetClass
     ? mobileSheetClass
-    : `relative bg-white rounded-2xl w-full max-w-md max-h-[calc(100vh-32px)] flex flex-col shadow-2xl pointer-events-auto ${closing ? 'modal-panel-out' : 'modal-panel-in'}`;
+    : `relative h-[min(720px,calc(100vh-32px))] w-full max-w-md flex flex-col rounded-2xl bg-white shadow-2xl pointer-events-auto ${closing ? 'modal-panel-out' : 'modal-panel-in'}`;
 
   return createPortal(
     <div className={modalContainerClass}>
@@ -796,7 +851,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <TransactionForm
             key={editTxn?.id ?? 'new'}
             editTxn={editTxn}

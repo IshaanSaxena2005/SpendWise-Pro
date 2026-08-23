@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Repeat2, Pause, Play, Trash2, Calendar, Clock, Edit2 } from 'lucide-react';
 import { recurringAPI } from '../../lib/api';
 
@@ -60,6 +61,20 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
     return () => {
       cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
     };
   }, [isOpen]);
 
@@ -133,6 +148,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
       setSavingEdit(true);
       
       await recurringAPI.update(editingItem.id, {
+        type: editingItem.type,
         amount: Number(editForm.amount),
         frequency: editForm.frequency,
         start_date: editForm.start_date,
@@ -199,10 +215,10 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[calc(100vh-32px)] overflow-hidden shadow-2xl flex flex-col">
+      <div className="relative flex h-[min(720px,calc(100vh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-black/10 shrink-0">
           <div className="flex items-center gap-2">
             <Repeat2 className="w-5 h-5 text-black" />
@@ -213,7 +229,7 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-behavior-contain p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-5">
           {recurring.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Repeat2 className="w-12 h-12 text-black/20 mb-3" />
@@ -412,7 +428,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

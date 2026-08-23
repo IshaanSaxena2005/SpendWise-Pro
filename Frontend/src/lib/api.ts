@@ -339,7 +339,7 @@ export const recurringAPI = {
   getAll: () => api.get<{ success: boolean; recurring_transactions: any[] }>('/recurring'),
   add: (data: { type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date: string; end_date?: string; never_ends: boolean }) =>
     api.post<{ success: boolean; message?: string; id?: number }>('/recurring', data),
-  update: (id: number, data: Partial<{ amount: number; category_id?: number; note?: string; frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date?: string; end_date?: string; never_ends?: boolean; is_active?: boolean }>) =>
+  update: (id: number, data: Partial<{ type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date?: string; end_date?: string; never_ends?: boolean; is_active?: boolean }>) =>
     api.put<{ success: boolean; message?: string }>(`/recurring/${id}`, data),
   delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/recurring/${id}`),
   pause: (id: number) => api.patch<{ success: boolean; message?: string }>(`/recurring/${id}/pause`),
