@@ -15,7 +15,7 @@
 require('dotenv').config();
 const pool = require('../config/db');
 
-const DEMO_USER_ID = 39;
+const DEMO_EMAIL = 'demo@spendwise.ai';
 
 async function diagnose() {
   const conn = await pool.getConnection();
@@ -23,6 +23,18 @@ async function diagnose() {
     console.log('═══════════════════════════════════════════════════════════');
     console.log('  SpendWise Pro — Production DB Diagnostic');
     console.log('═══════════════════════════════════════════════════════════\n');
+
+    // Resolve the demo account on the target database. This script is read-only;
+    // every following diagnostic query is scoped to this resolved user ID.
+    const [demoUsers] = await conn.query(
+      'SELECT id FROM users WHERE email = ? LIMIT 1',
+      [DEMO_EMAIL]
+    );
+    if (demoUsers.length === 0) {
+      throw new Error(`Demo user not found for email: ${DEMO_EMAIL}`);
+    }
+    const demoUserId = demoUsers[0].id;
+    console.log(`Demo user ID: ${demoUserId}\n`);
 
     // ── STEP 2: DB timezone / date ──────────────────────────────────────
     console.log('── STEP 2: Database timezone / date ──────────────────────');
@@ -46,17 +58,17 @@ async function diagnose() {
     console.log();
 
     // ── STEP 1a: Sample recent transactions ─────────────────────────────
-    console.log('── STEP 1a: 30 most recent transactions (user_id 39) ─────');
+    console.log(`── STEP 1a: 30 most recent transactions (user_id ${demoUserId}) ─────`);
     const [recent] = await conn.query(
       `SELECT id, user_id, amount, transaction_type, expense_date, created_at, note
        FROM expenses
        WHERE user_id = ?
        ORDER BY expense_date DESC, id DESC
        LIMIT 30`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     if (recent.length === 0) {
-      console.log('  ⚠️  NO TRANSACTIONS FOUND for user_id', DEMO_USER_ID);
+      console.log('  ⚠️  NO TRANSACTIONS FOUND for user_id', demoUserId);
     } else {
       recent.forEach(r =>
         console.log(`  id=${r.id} | ${r.expense_date} | ${r.transaction_type.padEnd(7)} | ₹${r.amount} | ${r.note}`)
@@ -69,7 +81,7 @@ async function diagnose() {
     const [[range]] = await conn.query(
       `SELECT MIN(expense_date) AS min_date, MAX(expense_date) AS max_date, COUNT(*) AS total
        FROM expenses WHERE user_id = ?`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     console.log('  min_date :', range.min_date);
     console.log('  max_date :', range.max_date);
@@ -85,7 +97,7 @@ async function diagnose() {
          AND expense_date >= '2026-08-01'
          AND expense_date <  '2026-09-01'
        ORDER BY expense_date DESC`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     console.log(`  Rows found: ${aug.length}`);
     aug.forEach(r =>
@@ -104,7 +116,7 @@ async function diagnose() {
        WHERE user_id = ?
          AND expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
          AND expense_date <  DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     console.log('  current_month_spending  :', cm.spending);
     console.log('  current_month_expenses  :', cm.expenses);
@@ -122,7 +134,7 @@ async function diagnose() {
        WHERE user_id = ?
          AND expense_date >= '2026-08-01'
          AND expense_date <  '2026-09-01'`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     console.log('  spending  :', cm2.spending);
     console.log('  expenses  :', cm2.expenses);
@@ -140,7 +152,7 @@ async function diagnose() {
        WHERE user_id = ?
        GROUP BY month
        ORDER BY month ASC`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     months.forEach(m =>
       console.log(`  ${m.month}  txns=${m.tx_count}  expense=₹${m.expense_total}  income=₹${m.income_total}`)
@@ -148,10 +160,10 @@ async function diagnose() {
     console.log();
 
     // ── STEP 7: Budgets ──────────────────────────────────────────────────
-    console.log('── STEP 7: Budgets for user_id 39 ───────────────────────');
+    console.log(`── STEP 7: Budgets for user_id ${demoUserId} ───────────────────────`);
     const [budgets] = await conn.query(
       `SELECT id, category_id, month, amount_limit FROM budgets WHERE user_id = ? ORDER BY month DESC`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     if (budgets.length === 0) {
       console.log('  ⚠️  NO BUDGETS FOUND');
@@ -167,7 +179,7 @@ async function diagnose() {
        WHERE user_id = ? AND category_id IS NULL
          AND month = DATE_FORMAT(CURDATE(), '%Y-%m-01')
        LIMIT 1`,
-      [DEMO_USER_ID]
+      [demoUserId]
     );
     console.log('\n  Budget for CURDATE() current month:', bm ? `₹${bm.amount_limit}` : 'NULL (not found)');
     console.log();
