@@ -84,6 +84,33 @@ function isoWeekKey(date) {
 // ── Budget threshold emails ───────────────────────────────────────────────────
 
 /**
+ * Insert a notification into the notifications table.
+ * Deduplicates by (user_id, type, event_key) to avoid spamming.
+ */
+async function insertNotification(userId, { title, description, type, eventKey }) {
+  try {
+    // Check for existing notification with same event_key today
+    if (eventKey) {
+      const [existing] = await pool.query(
+        `SELECT id FROM notifications 
+         WHERE user_id = ? AND type = ? AND description = ? 
+         AND DATE(created_at) = CURDATE()`,
+        [userId, type, description]
+      );
+      if (existing.length > 0) return; // Already notified today
+    }
+    
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type, read_status) 
+       VALUES (?, ?, ?, ?, FALSE)`,
+      [userId, title, description, type]
+    );
+  } catch (err) {
+    console.error('[notification] insertNotification failed:', err.message);
+  }
+}
+
+/**
  * Check the user's current-month budgets and send warning / exceeded emails.
  * Fire-and-forget safe: swallows all errors so it can never break an API call.
  * Warning fires at >= WARNING_THRESHOLD (default 80%); exceeded fires above 100%.
@@ -139,9 +166,23 @@ async function checkAndSendBudgetEmails(userId) {
       if (usage > 1) {
         await sendOnce(userId, `budget_exceeded:${b.id}:${monthKey}`, () =>
           sendBudgetExceededEmail(email, payload));
+        // Also insert notification into database
+        await insertNotification(userId, {
+          title: 'Budget Exceeded',
+          description: `${b.label} budget exceeded! You've spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${Math.round(limit).toLocaleString('en-IN')} limit (${usagePct}%).`,
+          type: 'budget_exceeded',
+          eventKey: `budget_exceeded:${b.id}:${monthKey}`
+        });
       } else if (usage >= WARNING_THRESHOLD) {
         await sendOnce(userId, `budget_warning:${b.id}:${monthKey}`, () =>
           sendBudgetWarningEmail(email, payload));
+        // Also insert notification into database
+        await insertNotification(userId, {
+          title: 'Budget Warning',
+          description: `${b.label} is approaching its limit. You've spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${Math.round(limit).toLocaleString('en-IN')} budget (${usagePct}%).`,
+          type: 'budget_warning',
+          eventKey: `budget_warning:${b.id}:${monthKey}`
+        });
       }
     }
   } catch (err) {
@@ -422,5 +463,6 @@ module.exports = {
   checkAndSendBudgetEmails,
   sendMonthlyReportsToAllUsers,
   sendWeeklyInsightsToAllUsers,
+  insertNotification,
   WARNING_THRESHOLD,
 };

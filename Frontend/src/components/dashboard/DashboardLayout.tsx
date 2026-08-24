@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { useEffect, useLayoutEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import {
   LayoutDashboard, Receipt, Target, BarChart2,
   Lightbulb, LogOut, Menu, X, Bell, Plus, Settings, History
@@ -12,6 +12,7 @@ import type { AuthUser } from '../../context/AuthContext';
 import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 import { DEMO_EMAIL } from '../../lib/constants';
+import { notificationAPI, type Notification } from '../../lib/api';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -158,11 +159,55 @@ export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modalOpen,   setModalOpen]   = useState(false);
   const [notifOpen,   setNotifOpen]   = useState(false);
-  const [hasUnread,   setHasUnread]   = useState(() => {
-    return localStorage.getItem('sw_notif_read') !== 'true';
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState<string | null>(null);
   
   const { user, logout } = useAuth();
+  const prevUserIdRef = useRef<number | null>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    setNotifLoading(true);
+    setNotifError(null);
+    try {
+      const res = await notificationAPI.getAll();
+      if (res.data.success) {
+        const data = res.data.data || [];
+        setNotifications(data);
+        setUnreadCount(data.filter(n => !n.read).length);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+      setNotifError('Could not load notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [user]);
+
+  // Fetch notifications when user changes (login/logout/demo switch)
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+    if (currentUserId !== prevUserIdRef.current) {
+      prevUserIdRef.current = currentUserId;
+      if (currentUserId) {
+        fetchNotifications();
+      } else {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    }
+  }, [user, fetchNotifications]);
+
+  // Refresh notifications periodically (every 5 minutes)
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user, fetchNotifications]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -178,6 +223,8 @@ export function DashboardLayout() {
 
   const handleLogout = async () => {
     await logout(); // clears cookies server-side + clears AuthContext state
+    setNotifications([]);
+    setUnreadCount(0);
     navigate('/');
   };
 
@@ -187,9 +234,25 @@ export function DashboardLayout() {
       setNotifPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
     }
     setNotifOpen(v => !v);
-    if (!notifOpen) {
-      setHasUnread(false);
-      localStorage.setItem('sw_notif_read', 'true');
+  };
+
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await notificationAPI.markRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationAPI.markAllRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
     }
   };
 
@@ -263,7 +326,7 @@ export function DashboardLayout() {
                 className="relative p-2 text-black/50 hover:text-black hover:bg-black/5 rounded-full transition-colors"
               >
                 <Bell className="w-5 h-5" />
-                {hasUnread && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />}
+                {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />}
               </button>
 
               {/* Notification Dropdown — rendered via portal so it always floats above every page element */}
@@ -276,33 +339,63 @@ export function DashboardLayout() {
                   >
                     <div className="px-4 py-3 border-b border-black/5 flex justify-between items-center">
                       <span className="font-semibold text-black text-sm">Notifications</span>
-                      <span className="text-xs font-medium text-violet-600 cursor-pointer">Mark all read</span>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-xs font-medium text-violet-600 hover:text-violet-700 cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
                     </div>
                     <div className="divide-y divide-black/5 max-h-[300px] overflow-y-auto">
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-rose-500 rounded-full mt-1.5 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-black">Budget Warning</p>
-                          <p className="text-xs text-black/50 mt-0.5">Shopping is approaching 90% of its limit.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">2 hours ago</p>
+                      {notifLoading ? (
+                        <div className="p-6 text-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-violet-600 mx-auto" />
+                          <p className="text-xs text-black/50 mt-2">Loading...</p>
                         </div>
-                      </div>
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-violet-500 rounded-full mt-1.5 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-black">New AI Insight Available</p>
-                          <p className="text-xs text-black/50 mt-0.5">We found a new way for you to save ₹2,400.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">5 hours ago</p>
+                      ) : notifError ? (
+                        <div className="p-6 text-center">
+                          <p className="text-xs text-rose-500">{notifError}</p>
+                          <button
+                            onClick={fetchNotifications}
+                            className="text-xs text-violet-600 hover:underline mt-2"
+                          >
+                            Retry
+                          </button>
                         </div>
-                      </div>
-                      <div className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3">
-                        <div className="w-2 h-2 bg-transparent rounded-full mt-1.5 shrink-0 border border-black/20" />
-                        <div>
-                          <p className="text-sm font-medium text-black">Monthly Report Ready</p>
-                          <p className="text-xs text-black/50 mt-0.5">Your financial summary for May is ready to view.</p>
-                          <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">1 day ago</p>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <Bell className="w-8 h-8 text-black/20 mx-auto mb-2" />
+                          <p className="text-sm text-black/50">No new notifications</p>
                         </div>
-                      </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div
+                            key={n.id}
+                            className="p-4 hover:bg-black/5 transition-colors cursor-pointer flex gap-3"
+                            onClick={() => handleMarkAsRead(n.id)}
+                          >
+                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                              n.read ? 'bg-transparent border border-black/20' : 
+                              n.type.includes('exceeded') ? 'bg-rose-500' : 
+                              n.type.includes('warning') ? 'bg-amber-500' : 'bg-violet-500'
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-black">{n.title}</p>
+                              <p className="text-xs text-black/50 mt-0.5 line-clamp-2">{n.description}</p>
+                              <p className="text-[10px] text-black/30 mt-1 uppercase tracking-widest">
+                                {new Date(n.created_at).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </>,
