@@ -3,6 +3,17 @@ const { BrevoClient } = require('@getbrevo/brevo');
 const SENDER_NAME = 'SpendWise Pro';
 const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'spendwisepro5@gmail.com';
 
+// Public logo URL for email headers — must be an absolute HTTPS URL that
+// email clients can fetch.  We derive it from FRONTEND_URL when it points
+// to a real deployment, otherwise fall back to the known production domain.
+const LOGO_URL = (() => {
+  const raw = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  if (raw && !raw.startsWith('http://localhost') && !raw.startsWith('http://127.')) {
+    return `${raw}/logo2.png`;
+  }
+  return 'https://spendwise-pro-nu.vercel.app/logo2.png';
+})();
+
 const hasBrevoApiKey = Boolean(process.env.BREVO_API_KEY);
 console.log(`BREVO_API_KEY exists: ${hasBrevoApiKey}`);
 
@@ -191,7 +202,7 @@ function renderEmailShell({ heading, headingColor = '#6d28d9', bodyHtml, showFoo
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
                     <tr>
                       <td style="padding-right: 12px; vertical-align: middle;">
-                        <img src="https://spendwise-pro.vercel.app/logo2.png" alt="SpendWise Pro" width="40" height="40" style="display: block; border-radius: 8px;">
+                        <img src="${LOGO_URL}" alt="SpendWise Pro" width="40" height="40" style="display: block; border-radius: 8px;">
                       </td>
                       <td style="vertical-align: middle;">
                         <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">${heading}</h1>
