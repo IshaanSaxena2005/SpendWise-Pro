@@ -338,6 +338,80 @@ const sendBudgetWarningEmail = async (toEmail, data) => {
 };
 
 /**
+ * Budget critical email — spending reached 90% of the limit.
+ * @param {string} toEmail
+ * @param {{ userName?: string, label: string, spent: number, limit: number, usagePct: number, monthLabel: string }} data
+ */
+const sendBudgetCriticalEmail = async (toEmail, data) => {
+  const { userName, label, spent, limit, usagePct, monthLabel } = data;
+  const remaining = Math.max(0, Number(limit) - Number(spent));
+  
+  const bodyHtml = `
+    <p style="margin: 0 0 20px 0; font-size: 16px; color: #334155;">Hi ${escapeHtml(userName || 'there')},</p>
+    
+    <!-- Critical Warning Banner -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="vertical-align: top; padding-right: 12px; font-size: 24px;">⚠️</td>
+              <td>
+                <p style="margin: 0; font-size: 15px; font-weight: 600; color: #f59e0b;">You're very close to your budget limit</p>
+                <p style="margin: 4px 0 0 0; font-size: 14px; color: #64748b;">${escapeHtml(monthLabel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Budget Details -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; background-color: #f8fafc; border-radius: 12px; padding: 4px;">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">${escapeHtml(label)} Budget</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            ${metricRow('Spent so far', formatINR(spent), '#f59e0b')}
+            ${metricRow('Budget limit', formatINR(limit), '#1e293b')}
+            ${metricRow('Remaining', formatINR(remaining), '#059669')}
+          </table>
+          <!-- Progress bar -->
+          <div style="margin-top: 16px; background-color: #e2e8f0; border-radius: 8px; height: 8px; overflow: hidden;">
+            <div style="width: ${Math.min(usagePct, 100)}%; height: 100%; background-color: #f59e0b; border-radius: 8px;"></div>
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px; color: #f59e0b; text-align: right; font-weight: 600;">${usagePct}% used</p>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Recommendation -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td style="background-color: #fffbeb; border-radius: 8px; padding: 16px 20px;">
+          <p style="margin: 0; font-size: 14px; color: #92400e;">
+            <strong>💡 Tip:</strong> You're at ${usagePct}% — consider pausing non-essential expenses in this category to avoid exceeding your budget.
+          </p>
+        </td>
+      </tr>
+    </table>
+  `;
+  
+  try {
+    await sendBrevoEmail({
+      toEmail,
+      subject: `⚠️ Critical: ${label} at ${usagePct}% — SpendWise Pro`,
+      htmlContent: renderEmailShell({ heading: 'Budget Critical', headingColor: '#f59e0b', bodyHtml }),
+      logLabel: 'budget critical email',
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending budget critical email:', error.message);
+    throw error;
+  }
+};
+
+/**
  * Budget exceeded email — spending went over 100% of the limit.
  * @param {string} toEmail
  * @param {{ userName?: string, label: string, spent: number, limit: number, usagePct: number, monthLabel: string }} data
@@ -573,6 +647,7 @@ module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendBudgetWarningEmail,
+  sendBudgetCriticalEmail,
   sendBudgetExceededEmail,
   sendMonthlyReportEmail,
   sendWeeklyInsightsEmail,

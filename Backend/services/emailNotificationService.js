@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
 const {
   sendBudgetWarningEmail,
+  sendBudgetCriticalEmail,
   sendBudgetExceededEmail,
   sendMonthlyReportEmail,
   sendWeeklyInsightsEmail,
@@ -165,19 +166,29 @@ async function checkAndSendBudgetEmails(userId) {
       const payload = { userName: full_name, label: b.label, spent, limit, usagePct, monthLabel };
 
       if (usage > 1) {
+        // Budget exceeded (over 100%)
         await sendOnce(userId, `budget_exceeded:${b.id}:${monthKey}`, () =>
           sendBudgetExceededEmail(email, payload));
-        // Also insert notification into database
         await insertNotification(userId, {
           title: 'Budget Exceeded',
           description: `${b.label} budget exceeded! You've spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${Math.round(limit).toLocaleString('en-IN')} limit (${usagePct}%).`,
           type: 'budget_exceeded',
           eventKey: `budget_exceeded:${b.id}:${monthKey}`
         });
+      } else if (usage >= 0.9) {
+        // Critical warning (90-100%)
+        await sendOnce(userId, `budget_critical:${b.id}:${monthKey}`, () =>
+          sendBudgetCriticalEmail(email, payload));
+        await insertNotification(userId, {
+          title: 'Budget Critical',
+          description: `${b.label} is very close to its limit! You've spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${Math.round(limit).toLocaleString('en-IN')} budget (${usagePct}%).`,
+          type: 'budget_critical',
+          eventKey: `budget_critical:${b.id}:${monthKey}`
+        });
       } else if (usage >= WARNING_THRESHOLD) {
+        // Early warning (80-89%)
         await sendOnce(userId, `budget_warning:${b.id}:${monthKey}`, () =>
           sendBudgetWarningEmail(email, payload));
-        // Also insert notification into database
         await insertNotification(userId, {
           title: 'Budget Warning',
           description: `${b.label} is approaching its limit. You've spent ₹${Math.round(spent).toLocaleString('en-IN')} of ₹${Math.round(limit).toLocaleString('en-IN')} budget (${usagePct}%).`,

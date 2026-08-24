@@ -192,6 +192,11 @@ const deleteExpense = async (req, res) => {
       success: true,
       message: 'Expense deleted',
     });
+
+    // Fire-and-forget: recalculate budget usage after deletion.
+    // No new threshold emails will be sent for already-reached thresholds
+    // because email_events deduplication prevents duplicate sends.
+    checkAndSendBudgetEmails(userId).catch(() => {});
   } catch (err) {
     res.status(500).json({
       success: false,
