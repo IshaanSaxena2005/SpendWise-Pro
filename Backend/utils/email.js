@@ -169,18 +169,68 @@ function escapeHtml(text) {
 /**
  * Wrap inner HTML in the shared SpendWise Pro branded shell so every
  * notification email looks consistent with the verification/reset emails.
+ * Professional, mobile-responsive design with consistent branding.
  */
-function renderEmailShell({ heading, headingColor = '#6d28d9', bodyHtml }) {
+function renderEmailShell({ heading, headingColor = '#6d28d9', bodyHtml, showFooter = true }) {
   return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-        <h2 style="color: ${headingColor}; text-align: center;">${heading}</h2>
-        ${bodyHtml}
-        <hr style="border: 1px solid #eee; margin: 30px 0;" />
-        <p style="font-size: 12px; color: #999; text-align: center;">
-          You're receiving this because you use SpendWise Pro. Manage alerts anytime from your dashboard.
-        </p>
-      </div>
-    `;
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8fafc;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <!-- Main container -->
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+              <!-- Header -->
+              <tr>
+                <td style="background: linear-gradient(135deg, ${headingColor} 0%, ${headingColor}dd 100%); padding: 32px 40px; text-align: center;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+                    <tr>
+                      <td style="padding-right: 12px; vertical-align: middle;">
+                        <img src="https://spendwise-pro.vercel.app/logo2.png" alt="SpendWise Pro" width="40" height="40" style="display: block; border-radius: 8px;">
+                      </td>
+                      <td style="vertical-align: middle;">
+                        <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">${heading}</h1>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <!-- Body -->
+              <tr>
+                <td style="padding: 40px;">
+                  ${bodyHtml}
+                </td>
+              </tr>
+              ${showFooter ? `<!-- Footer -->
+              <tr>
+                <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                      <td style="text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 13px; color: #64748b;">
+                          SpendWise Pro — Smart Personal Finance
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                          You're receiving this because you use SpendWise Pro. 
+                          <a href="#" style="color: #6d28d9; text-decoration: none;">Manage notification preferences</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>` : ''}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
 }
 
 /** Small key/value metric row used across the report emails. */
@@ -200,22 +250,84 @@ function metricRow(label, valueHtml, valueColor = '#111') {
 const sendBudgetWarningEmail = async (toEmail, data) => {
   const { userName, label, spent, limit, usagePct, monthLabel } = data;
   const remaining = Math.max(0, Number(limit) - Number(spent));
+  
+  // Determine urgency level based on usage percentage
+  let urgencyMessage, urgencyColor, urgencyIcon;
+  if (usagePct >= 100) {
+    urgencyMessage = 'Your budget has been exceeded';
+    urgencyColor = '#dc2626';
+    urgencyIcon = '🚨';
+  } else if (usagePct >= 90) {
+    urgencyMessage = 'You\'re very close to your budget limit';
+    urgencyColor = '#f59e0b';
+    urgencyIcon = '⚠️';
+  } else {
+    urgencyMessage = 'You\'re approaching your budget limit';
+    urgencyColor = '#d97706';
+    urgencyIcon = '📊';
+  }
+  
   const bodyHtml = `
-    <p>Hi ${escapeHtml(userName || 'there')},</p>
-    <p>Heads up — you've used <strong>${usagePct}%</strong> of your
-       <strong>${escapeHtml(label)}</strong> budget for <strong>${escapeHtml(monthLabel)}</strong>.</p>
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-      ${metricRow('Spent so far', formatINR(spent), '#d97706')}
-      ${metricRow('Budget limit', formatINR(limit))}
-      ${metricRow('Remaining', formatINR(remaining), '#059669')}
+    <p style="margin: 0 0 20px 0; font-size: 16px; color: #334155;">Hi ${escapeHtml(userName || 'there')},</p>
+    
+    <!-- Urgency Banner -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td style="background-color: ${urgencyColor}15; border-left: 4px solid ${urgencyColor}; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="vertical-align: top; padding-right: 12px; font-size: 24px;">${urgencyIcon}</td>
+              <td>
+                <p style="margin: 0; font-size: 15px; font-weight: 600; color: ${urgencyColor};">${urgencyMessage}</p>
+                <p style="margin: 4px 0 0 0; font-size: 14px; color: #64748b;">${escapeHtml(monthLabel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
     </table>
-    <p style="color: #666; font-size: 14px;">A little mindful spending now keeps you on track for the rest of the month.</p>
+    
+    <!-- Budget Details -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; background-color: #f8fafc; border-radius: 12px; padding: 4px;">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">${escapeHtml(label)} Budget</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            ${metricRow('Spent so far', formatINR(spent), '#d97706')}
+            ${metricRow('Budget limit', formatINR(limit), '#1e293b')}
+            ${metricRow('Remaining', formatINR(remaining), '#059669')}
+          </table>
+          <!-- Progress bar -->
+          <div style="margin-top: 16px; background-color: #e2e8f0; border-radius: 8px; height: 8px; overflow: hidden;">
+            <div style="width: ${Math.min(usagePct, 100)}%; height: 100%; background-color: ${urgencyColor}; border-radius: 8px;"></div>
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px; color: #94a3b8; text-align: right;">${usagePct}% used</p>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Recommendation -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td style="background-color: #f0fdf4; border-radius: 8px; padding: 16px 20px;">
+          <p style="margin: 0; font-size: 14px; color: #166534;">
+            <strong>💡 Tip:</strong> A little mindful spending now keeps you on track for the rest of the month. 
+            ${usagePct >= 90 ? 'Consider pausing non-essential expenses in this category.' : ''}
+          </p>
+        </td>
+      </tr>
+    </table>
   `;
+  
+  const subjectLine = usagePct >= 100 
+    ? `🚨 Budget Exceeded: ${label} — SpendWise Pro`
+    : `⚠️ Budget Alert: ${label} at ${usagePct}% — SpendWise Pro`;
+  
   try {
     await sendBrevoEmail({
       toEmail,
-      subject: `⚠️ Budget Alert: ${label} at ${usagePct}% — SpendWise Pro`,
-      htmlContent: renderEmailShell({ heading: '⚠️ Budget Warning', headingColor: '#d97706', bodyHtml }),
+      subject: subjectLine,
+      htmlContent: renderEmailShell({ heading: 'Budget Alert', headingColor: urgencyColor, bodyHtml }),
       logLabel: 'budget warning email',
     });
     return true;
@@ -233,22 +345,63 @@ const sendBudgetWarningEmail = async (toEmail, data) => {
 const sendBudgetExceededEmail = async (toEmail, data) => {
   const { userName, label, spent, limit, usagePct, monthLabel } = data;
   const over = Math.max(0, Number(spent) - Number(limit));
+  
   const bodyHtml = `
-    <p>Hi ${escapeHtml(userName || 'there')},</p>
-    <p>Your <strong>${escapeHtml(label)}</strong> budget for <strong>${escapeHtml(monthLabel)}</strong>
-       has been <strong style="color:#dc2626;">exceeded</strong> (${usagePct}% used).</p>
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-      ${metricRow('Spent', formatINR(spent), '#dc2626')}
-      ${metricRow('Budget limit', formatINR(limit))}
-      ${metricRow('Over budget by', formatINR(over), '#dc2626')}
+    <p style="margin: 0 0 20px 0; font-size: 16px; color: #334155;">Hi ${escapeHtml(userName || 'there')},</p>
+    
+    <!-- Critical Alert Banner -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="vertical-align: top; padding-right: 12px; font-size: 24px;">🚨</td>
+              <td>
+                <p style="margin: 0; font-size: 15px; font-weight: 600; color: #dc2626;">Your budget has been exceeded</p>
+                <p style="margin: 4px 0 0 0; font-size: 14px; color: #64748b;">${escapeHtml(monthLabel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
     </table>
-    <p style="color: #666; font-size: 14px;">Consider pausing non-essential spending in this category, or adjust the budget if your plans have changed.</p>
+    
+    <!-- Budget Details -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; background-color: #f8fafc; border-radius: 12px; padding: 4px;">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">${escapeHtml(label)} Budget</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            ${metricRow('Total spent', formatINR(spent), '#dc2626')}
+            ${metricRow('Budget limit', formatINR(limit), '#1e293b')}
+            ${metricRow('Over budget by', formatINR(over), '#dc2626')}
+          </table>
+          <!-- Progress bar (over 100%) -->
+          <div style="margin-top: 16px; background-color: #e2e8f0; border-radius: 8px; height: 8px; overflow: hidden;">
+            <div style="width: 100%; height: 100%; background-color: linear-gradient(90deg, #dc2626 0%, #dc2626 ${Math.min(usagePct, 150)}%, #991b1b 100%); border-radius: 8px;"></div>
+          </div>
+          <p style="margin: 8px 0 0 0; font-size: 12px; color: #dc2626; text-align: right; font-weight: 600;">${usagePct}% used</p>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Recommendation -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td style="background-color: #fffbeb; border-radius: 8px; padding: 16px 20px;">
+          <p style="margin: 0; font-size: 14px; color: #92400e;">
+            <strong>💡 What to do:</strong> Consider pausing non-essential spending in this category, or adjust your budget if your plans have changed.
+          </p>
+        </td>
+      </tr>
+    </table>
   `;
+  
   try {
     await sendBrevoEmail({
       toEmail,
       subject: `🚨 Budget Exceeded: ${label} — SpendWise Pro`,
-      htmlContent: renderEmailShell({ heading: '🚨 Budget Exceeded', headingColor: '#dc2626', bodyHtml }),
+      htmlContent: renderEmailShell({ heading: 'Budget Exceeded', headingColor: '#dc2626', bodyHtml }),
       logLabel: 'budget exceeded email',
     });
     return true;
@@ -263,31 +416,118 @@ const sendBudgetExceededEmail = async (toEmail, data) => {
  * @param {string} toEmail
  * @param {{ userName?: string, monthLabel: string, income: number, expenses: number,
  *           savings: number, topCategory?: { name: string, amount: number } | null,
- *           budgetStatus?: string | null }} data
+ *           budgetStatus?: string | null, reportToken?: string, year?: number, month?: number }} data
  */
 const sendMonthlyReportEmail = async (toEmail, data) => {
-  const { userName, monthLabel, income, expenses, savings, topCategory, budgetStatus } = data;
+  const { userName, monthLabel, income, expenses, savings, topCategory, budgetStatus, reportToken, year, month } = data;
   const savingsColor = Number(savings) >= 0 ? '#059669' : '#dc2626';
+  const savingsIcon = Number(savings) >= 0 ? '📈' : '📉';
+  const savingsMessage = Number(savings) >= 0 
+    ? 'Great job! You saved money this month.' 
+    : 'Your expenses exceeded your income this month.';
+  
   const topCategoryHtml = topCategory && topCategory.name
-    ? `${escapeHtml(topCategory.name)} — ${formatINR(topCategory.amount)}`
-    : '—';
+    ? `<strong>${escapeHtml(topCategory.name)}</strong> — ${formatINR(topCategory.amount)}`
+    : 'No spending recorded';
+  
+  // Build download button URL
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const downloadUrl = reportToken 
+    ? `${backendUrl}/api/reports/monthly/${reportToken}`
+    : null;
+  
   const bodyHtml = `
-    <p>Hi ${escapeHtml(userName || 'there')},</p>
-    <p>Here's your money summary for <strong>${escapeHtml(monthLabel)}</strong>.</p>
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-      ${metricRow('Total income', formatINR(income), '#059669')}
-      ${metricRow('Total expenses', formatINR(expenses), '#dc2626')}
-      ${metricRow('Net savings', formatINR(savings), savingsColor)}
-      ${metricRow('Top spending category', topCategoryHtml)}
-      ${budgetStatus ? metricRow('Budget status', escapeHtml(budgetStatus)) : ''}
+    <p style="margin: 0 0 20px 0; font-size: 16px; color: #334155;">Hi ${escapeHtml(userName || 'there')},</p>
+    
+    <!-- Month Header -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td style="background-color: #f5f3ff; border-radius: 12px; padding: 20px 24px; text-align: center;">
+          <p style="margin: 0 0 4px 0; font-size: 13px; color: #6d28d9; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Monthly Financial Summary</p>
+          <p style="margin: 0; font-size: 22px; font-weight: 700; color: #1e1b4b;">${escapeHtml(monthLabel)}</p>
+        </td>
+      </tr>
     </table>
-    <p style="color: #666; font-size: 14px;">Keep it up! Small consistent habits compound into big results.</p>
+    
+    <!-- Key Metrics -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td width="33%" style="padding: 12px; background-color: #f0fdf4; border-radius: 8px; text-align: center;">
+          <p style="margin: 0 0 4px 0; font-size: 11px; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Income</p>
+          <p style="margin: 0; font-size: 18px; font-weight: 700; color: #059669;">${formatINR(income)}</p>
+        </td>
+        <td width="4%"></td>
+        <td width="33%" style="padding: 12px; background-color: #fef2f2; border-radius: 8px; text-align: center;">
+          <p style="margin: 0 0 4px 0; font-size: 11px; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Expenses</p>
+          <p style="margin: 0; font-size: 18px; font-weight: 700; color: #dc2626;">${formatINR(expenses)}</p>
+        </td>
+        <td width="4%"></td>
+        <td width="33%" style="padding: 12px; background-color: ${Number(savings) >= 0 ? '#f5f3ff' : '#fef2f2'}; border-radius: 8px; text-align: center;">
+          <p style="margin: 0 0 4px 0; font-size: 11px; color: ${savingsColor}; text-transform: uppercase; letter-spacing: 0.5px;">Net Savings</p>
+          <p style="margin: 0; font-size: 18px; font-weight: 700; color: ${savingsColor};">${formatINR(savings)}</p>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Savings Insight -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td style="background-color: ${Number(savings) >= 0 ? '#f0fdf4' : '#fef2f2'}; border-radius: 8px; padding: 16px 20px;">
+          <p style="margin: 0; font-size: 14px; color: ${savingsColor};">
+            <span style="font-size: 18px; margin-right: 8px;">${savingsIcon}</span>
+            <strong>${savingsMessage}</strong>
+          </p>
+        </td>
+      </tr>
+    </table>
+    
+    <!-- Detailed Breakdown -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; background-color: #f8fafc; border-radius: 12px;">
+      <tr>
+        <td style="padding: 20px 24px;">
+          <p style="margin: 0 0 12px 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Details</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            ${metricRow('Top spending category', topCategoryHtml)}
+            ${budgetStatus ? metricRow('Budget status', escapeHtml(budgetStatus)) : ''}
+          </table>
+        </td>
+      </tr>
+    </table>
+    
+    ${downloadUrl ? `
+    <!-- Download Button -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px;">
+      <tr>
+        <td align="center">
+          <a href="${downloadUrl}" style="display: inline-block; background-color: #6d28d9; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; text-align: center;">📊 Download Monthly Report</a>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding-top: 8px;">
+          <p style="margin: 0; font-size: 12px; color: #94a3b8;">Download includes detailed transaction breakdown</p>
+        </td>
+      </tr>
+    </table>
+    ` : ''}
+    
+    <!-- Footer Message -->
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td style="background-color: #f8fafc; border-radius: 8px; padding: 16px 20px;">
+          <p style="margin: 0; font-size: 14px; color: #64748b;">
+            💡 <strong>Keep it up!</strong> Small consistent habits compound into big results. 
+            Keep tracking your spending to stay on top of your finances.
+          </p>
+        </td>
+      </tr>
+    </table>
   `;
+  
   try {
     await sendBrevoEmail({
       toEmail,
       subject: `📊 Your ${monthLabel} Spending Report — SpendWise Pro`,
-      htmlContent: renderEmailShell({ heading: '📊 Monthly Spending Report', bodyHtml }),
+      htmlContent: renderEmailShell({ heading: 'Monthly Report', headingColor: '#6d28d9', bodyHtml }),
       logLabel: 'monthly report email',
     });
     return true;

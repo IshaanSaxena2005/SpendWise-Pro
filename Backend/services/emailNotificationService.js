@@ -7,6 +7,7 @@ const {
   sendWeeklyInsightsEmail,
 } = require('../utils/email');
 const { generateContent, hasGeminiApiKey } = require('./geminiService');
+const { createReportToken } = require('../controllers/reportController');
 
 // Configurable warning threshold (fraction of the limit). Defaults to 80%.
 // Never breaks: any invalid value falls back to 0.8.
@@ -273,6 +274,14 @@ async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null
         const report = await buildMonthlyReport(user.id, year, month);
         if (!report.hasActivity && !force) { summary.skipped++; continue; }
 
+        // Generate secure report token for download link
+        let reportToken = null;
+        try {
+          reportToken = await createReportToken(user.id, 'monthly_report', `${year}-${String(month).padStart(2, '0')}-01`);
+        } catch (tokenErr) {
+          console.error(`[email] failed to generate report token for user ${user.id}:`, tokenErr.message);
+        }
+
         const result = await sendOnce(user.id, `monthly_report:${monthKey}`, () =>
           sendMonthlyReportEmail(user.email, {
             userName: user.full_name,
@@ -282,6 +291,9 @@ async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null
             savings: report.savings,
             topCategory: report.topCategory,
             budgetStatus: report.budgetStatus,
+            reportToken,
+            year,
+            month,
           }), { force });
 
         if (result.sent) summary.sent++;

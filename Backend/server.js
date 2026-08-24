@@ -22,6 +22,7 @@ const anomalyRoutes = require('./routes/anomaly');
 const goalRoutes   = require('./routes/goal');
 const recurringRoutes = require('./routes/recurring');
 const emailRoutes = require('./routes/email');
+const reportRoutes = require('./routes/reports');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -83,6 +84,7 @@ app.use('/api/anomaly', anomalyRoutes);
 app.use('/api/goals',  goalRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.get('/api/health', async (req, res) => {
   try {
