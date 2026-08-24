@@ -365,20 +365,12 @@ function TransactionForm({
       setLoading(true);
       
       if (editTxn) {
-        await expenseAPI.updateExpense(editTxn.id, {
-          title,
-          category_id: Number(catId),
-          amount: numAmount,
-          expense_date: date,
-          note: notes.trim() || title,
-          transaction_type: transactionType,
-          goal_id: goalId ? Number(goalId) : null,
-        });
+        const hasExistingRecurring = Boolean(editTxn.recurring_transaction_id);
 
-        // A linked recurring record is managed through the existing recurring API.
-        // Never create a second schedule while editing an existing transaction.
-        if (editTxn.recurring_transaction_id) {
-          await recurringAPI.update(editTxn.recurring_transaction_id, {
+        if (hasExistingRecurring && isRecurring) {
+          // Existing recurring → still recurring: UPDATE the existing recurring record
+          const recurringId = editTxn.recurring_transaction_id!;
+          await recurringAPI.update(recurringId, {
             type: transactionType,
             amount: numAmount,
             category_id: Number(catId),
@@ -387,6 +379,65 @@ function TransactionForm({
             start_date: startDate,
             end_date: endDate || undefined,
             never_ends: neverEnds,
+            is_active: true,
+          });
+          await expenseAPI.updateExpense(editTxn.id, {
+            title,
+            category_id: Number(catId),
+            amount: numAmount,
+            expense_date: date,
+            note: notes.trim() || title,
+            transaction_type: transactionType,
+            goal_id: goalId ? Number(goalId) : null,
+          });
+        } else if (hasExistingRecurring && !isRecurring) {
+          // Existing recurring → now non-recurring: PAUSE the recurring record, clear link
+          const recurringId = editTxn.recurring_transaction_id!;
+          await recurringAPI.pause(recurringId);
+          await expenseAPI.updateExpense(editTxn.id, {
+            title,
+            category_id: Number(catId),
+            amount: numAmount,
+            expense_date: date,
+            note: notes.trim() || title,
+            transaction_type: transactionType,
+            goal_id: goalId ? Number(goalId) : null,
+            is_recurring: false,
+            recurring_transaction_id: null,
+          });
+        } else if (!hasExistingRecurring && isRecurring) {
+          // Non-recurring → now recurring: CREATE new recurring record, link to transaction
+          const recurringResponse = await recurringAPI.add({
+            type: transactionType,
+            amount: numAmount,
+            category_id: Number(catId),
+            note: notes.trim() || title,
+            frequency: frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
+            start_date: startDate,
+            end_date: endDate || undefined,
+            never_ends: neverEnds,
+          });
+          await expenseAPI.updateExpense(editTxn.id, {
+            title,
+            category_id: Number(catId),
+            amount: numAmount,
+            expense_date: date,
+            note: notes.trim() || title,
+            transaction_type: transactionType,
+            goal_id: goalId ? Number(goalId) : null,
+            is_recurring: true,
+            recurring_transaction_id: recurringResponse.data.id,
+          });
+        } else {
+          // Non-recurring → still non-recurring: just update the transaction
+          await expenseAPI.updateExpense(editTxn.id, {
+            title,
+            category_id: Number(catId),
+            amount: numAmount,
+            expense_date: date,
+            note: notes.trim() || title,
+            transaction_type: transactionType,
+            goal_id: goalId ? Number(goalId) : null,
           });
         }
       } else if (isRecurring) {
@@ -556,15 +607,13 @@ function TransactionForm({
           </div>
         )}
 
-        {(!editTxn || editTxn.recurring_transaction_id) && (
-          <div className="border-t border-black/10 pt-4">
+        <div className="border-t border-black/10 pt-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isRecurring}
                 onChange={(e) => setIsRecurring(e.target.checked)}
-                disabled={Boolean(editTxn?.recurring_transaction_id)}
-                className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20 disabled:cursor-not-allowed"
+                className="w-4 h-4 rounded border-black/20 text-black focus:ring-black/20"
               />
               <span className="text-sm font-medium text-black flex items-center gap-1.5">
                 <Repeat2 className="w-4 h-4" />
@@ -624,7 +673,6 @@ function TransactionForm({
               </div>
             )}
           </div>
-        )}
       </div>
 
       <div className="flex shrink-0 gap-3 border-t border-black/10 bg-white p-4 sm:px-6">

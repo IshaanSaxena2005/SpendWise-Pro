@@ -114,7 +114,7 @@ const updateExpense = async (req, res) => {
 
     const userId = req.user.id;
     const { id } = req.params;
-    const { amount, category_id, expense_date, note, title, goal_id, transaction_type } = req.body;
+    const { amount, category_id, expense_date, note, title, goal_id, transaction_type, is_recurring, recurring_transaction_id } = req.body;
     const expenseNote = note || title;
 
     const fields = ['amount = ?', 'category_id = ?', 'expense_date = ?', 'note = ?'];
@@ -128,6 +128,16 @@ const updateExpense = async (req, res) => {
     if (transaction_type !== undefined) {
       fields.push('transaction_type = ?');
       params.push(transaction_type === 'income' ? 'income' : 'expense');
+    }
+
+    if (is_recurring !== undefined) {
+      fields.push('is_recurring = ?');
+      params.push(Boolean(is_recurring));
+    }
+
+    if (recurring_transaction_id !== undefined) {
+      fields.push('recurring_transaction_id = ?');
+      params.push(recurring_transaction_id || null);
     }
 
     params.push(id, userId);

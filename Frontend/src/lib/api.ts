@@ -253,7 +253,7 @@ export const expenseAPI = {
   getAllExpenses: () => api.get<{ success: boolean; expenses: Transaction[] }>('/expenses/all'),
   addExpense: (data: { category_id: number; amount: number; expense_date: string; note?: string; title?: string; is_recurring?: boolean; recurring_transaction_id?: number | null; goal_id?: number | null; transaction_type?: 'income' | 'expense' }) =>
     api.post<{ success: boolean; message?: string; is_anomaly?: boolean }>('/expenses/add', data),
-  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string; goal_id?: number | null; transaction_type?: 'income' | 'expense' }>) =>
+  updateExpense: (id: number, data: Partial<{ amount: number; category_id: number; expense_date: string; note?: string; title?: string; goal_id?: number | null; transaction_type?: 'income' | 'expense'; is_recurring?: boolean; recurring_transaction_id?: number | null }>) =>
     api.put<{ success: boolean; message?: string }>(`/expenses/update/${id}`, data),
   deleteExpense: (id: number) => api.delete<{ success: boolean; message?: string }>(`/expenses/delete/${id}`),
 };
