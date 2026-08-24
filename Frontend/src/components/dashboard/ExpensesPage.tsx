@@ -8,6 +8,7 @@ import { RecurringManagementModal } from './RecurringManagementModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
+import { toCSV, downloadCSV } from '../../lib/csvExport';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
 
@@ -182,18 +183,19 @@ export function ExpensesPage() {
   };
 
   const exportCSV = () => {
-    const rows = [
-      ['Date', 'Description', 'Category', 'Amount', 'Notes'],
-      ...filtered.map((t) => {
-        const cat = categories.find((c) => c.id === t.category_id);
-        return [formatDate(t.expense_date), t.note || 'Expense', cat?.name || '', t.amount, t.note];
-      }),
-    ];
-    const csv = rows.map((r) => r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'transactions.csv';
-    a.click();
+    const header = ['Date', 'Description', 'Category', 'Amount', 'Notes'];
+    const rows = filtered.map((t) => {
+      const cat = categories.find((c) => c.id === t.category_id);
+      return [
+        formatDate(t.expense_date),
+        t.note || 'Expense',
+        cat?.name || '',
+        t.amount,
+        t.note,
+      ];
+    });
+    const csv = toCSV(header, rows);
+    downloadCSV('transactions.csv', csv);
   };
 
   if (loading) {

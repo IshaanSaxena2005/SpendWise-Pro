@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { ProfilePhotoUploader } from './ProfilePhotoUploader';
 import { formatDate } from '../../lib/dateUtils';
+import { toCSV, downloadCSV } from '../../lib/csvExport';
 import { DEMO_EMAIL } from '../../lib/constants';
 
 // Types for JSZip dynamic loading
@@ -194,18 +195,19 @@ export function SettingsPage() {
   };
 
   const exportCSV = () => {
-    const rows = [
-      ['Date', 'Description', 'Category', 'Amount', 'Notes'],
-      ...transactions.map(t => {
-        const cat = categories.find(c => c.id === t.category_id);
-        return [formatDate(t.expense_date), t.note || '', cat?.name || '', t.amount, t.note];
-      })
-    ];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'transactions.csv';
-    a.click();
+    const header = ['Date', 'Description', 'Category', 'Amount', 'Notes'];
+    const rows = transactions.map(t => {
+      const cat = categories.find(c => c.id === t.category_id);
+      return [
+        formatDate(t.expense_date),
+        t.note || '',
+        cat?.name || '',
+        t.amount,
+        t.note,
+      ];
+    });
+    const csv = toCSV(header, rows);
+    downloadCSV('transactions.csv', csv);
   };
 
   const exportZIP = async () => {
