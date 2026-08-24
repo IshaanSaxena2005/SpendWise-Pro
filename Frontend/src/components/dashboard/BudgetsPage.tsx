@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check } from 'lucide-react';
 import { budgetAPI, categoryAPI, expenseAPI, type Budget, type Category, type Transaction } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
@@ -35,13 +35,24 @@ export function BudgetsPage() {
 
   const { user } = useAuth();
   const isDemoUser = user?.email === DEMO_EMAIL;
+  const requestIdRef = useRef(0);
+
+  // Clear state when user changes
+  useEffect(() => {
+    setCategories([]);
+    setBudgets([]);
+    setExpenses([]);
+  }, [user?.id]);
 
   const fetchFinanceData = useCallback(async () => {
+    const currentRequestId = requestIdRef.current;
     const [budRes, catRes, expRes] = await Promise.all([
       budgetAPI.getAllBudgets(),
       categoryAPI.getAllCategories(),
       expenseAPI.getAllExpenses(),
     ]);
+
+    if (currentRequestId !== requestIdRef.current) return;
 
     const budgetsData = budRes.data.budgets || [];
     const categoriesData = catRes.data.categories || [];
@@ -60,6 +71,7 @@ export function BudgetsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
 
     void (async () => {
       try {
@@ -68,7 +80,7 @@ export function BudgetsPage() {
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoading(false);
         }
       }
@@ -84,7 +96,7 @@ export function BudgetsPage() {
       cancelled = true;
       unsubscribe();
     };
-  }, [fetchFinanceData]);
+  }, [user?.id, fetchFinanceData]);
 
   const currentMonthStr = useMemo(() => {
     const now = new Date();

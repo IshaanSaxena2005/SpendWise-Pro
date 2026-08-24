@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   TrendingUp, Activity, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle
 } from 'lucide-react';
@@ -7,6 +7,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
 import { analyticsAPI, type Transaction } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 const COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'];
 
@@ -59,10 +60,12 @@ const KPICard = ({ label, value, sub, icon: Icon, color, gradient }: {
 );
 
 export function HistoryPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [budgets, setBudgets] = useState<any[]>([]);
+  const requestIdRef = useRef(0);
 
   // Filters
   const [period, setPeriod] = useState<'all_time' | 'this_month' | 'last_3_months' | 'last_6_months' | 'this_year'>('all_time');
@@ -73,11 +76,22 @@ export function HistoryPage() {
   const [detailTransactions, setDetailTransactions] = useState<Transaction[] | null>(null);
   const [detailMonthLabel, setDetailMonthLabel] = useState<string>('');
 
+  // Clear state when user changes
   useEffect(() => {
+    setExpenses([]);
+    setBudgets([]);
+    setError(null);
+  }, [user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
+
     const fetchData = async () => {
       try {
         setLoading(true);
         const res = await analyticsAPI.getFinancialHistory();
+        if (cancelled || currentRequestId !== requestIdRef.current) return;
         if (res.data.success) {
           setExpenses(res.data.expenses);
           setBudgets(res.data.budgets);
@@ -85,13 +99,21 @@ export function HistoryPage() {
           setError('Failed to load history data');
         }
       } catch (err: any) {
-        setError(err.message || 'An error occurred while fetching data');
+        if (!cancelled && currentRequestId === requestIdRef.current) {
+          setError(err.message || 'An error occurred while fetching data');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled && currentRequestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     };
     void fetchData();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   // Compute unique years and months from the dataset
   const years = Array.from(new Set(expenses.map(e => new Date(e.expense_date).getFullYear().toString()))).sort((a, b) => b.localeCompare(a));

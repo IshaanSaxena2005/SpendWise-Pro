@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { TrendingUp, TrendingDown, CreditCard, Target, Wallet, Brain, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, goalsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly, type Goal } from '../../lib/api';
 import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
@@ -7,12 +7,14 @@ import { AddTransactionModal } from './AddTransactionModal';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { toAmount, computeBudgetUtilization } from '../../lib/budgetUtils';
 import { formatDate } from '../../lib/dateUtils';
+import { useAuth } from '../../context/AuthContext';
 
 function fmt(n: number | string) {
   return '₹' + Math.floor(toAmount(n)).toLocaleString('en-IN');
 }
 
 export function DashboardOverview() {
+  const { user } = useAuth();
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -25,36 +27,23 @@ export function DashboardOverview() {
   const [aiScore, setAiScore] = useState<number>(0);
   const [dashboardSummary, setDashboardSummary] = useState<any>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const requestIdRef = useRef(0);
 
-
-  // ──────────────────────────────────────────────────────
-  // Load Data
-  // ──────────────────────────────────────────────────────
-  async function loadData() {
-    try {
-      setLoading(true);
-      const [txRes, catRes, budRes, healthRes, summaryRes] = await Promise.all([
-        expenseAPI.getAllExpenses(),
-        categoryAPI.getAllCategories(),
-        budgetAPI.getAllBudgets(),
-        healthAPI.getHealthScore(),
-        analyticsAPI.getDashboardSummary(),
-      ]);
-      setTransactions(txRes.data.expenses || []);
-      setCategories(catRes.data.categories || []);
-      setBudgets(budRes.data.budgets || []);
-      setAiScore(healthRes.data.score || 0);
-      setDashboardSummary(summaryRes.data.summary || null);
-      try { const gRes = await goalsAPI.getAll(); setGoals(gRes.data.goals || []); } catch { /* non-critical */ }
-    } catch (err) {
-      console.error('Error loading dashboard data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Clear state when user changes
+  useEffect(() => {
+    setTransactions([]);
+    setBudgets([]);
+    setCategories([]);
+    setForecast(null);
+    setAnomalies([]);
+    setAiScore(0);
+    setDashboardSummary(null);
+    setGoals([]);
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
 
     void (async () => {
       try {
@@ -67,18 +56,19 @@ export function DashboardOverview() {
           analyticsAPI.getDashboardSummary(),
         ]);
 
-        if (cancelled) return;
+        // Abort if user changed during fetch
+        if (cancelled || currentRequestId !== requestIdRef.current) return;
 
         setTransactions(txRes.data.expenses || []);
         setCategories(catRes.data.categories || []);
         setBudgets(budRes.data.budgets || []);
         setAiScore(healthRes.data.score || 0);
         setDashboardSummary(summaryRes.data.summary || null);
-        try { const gRes = await goalsAPI.getAll(); if (!cancelled) setGoals(gRes.data.goals || []); } catch { /* non-critical */ }
+        try { const gRes = await goalsAPI.getAll(); if (!cancelled && currentRequestId === requestIdRef.current) setGoals(gRes.data.goals || []); } catch { /* non-critical */ }
       } catch (err) {
         console.error('Error loading dashboard data:', err);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoading(false);
         }
       }
@@ -87,29 +77,59 @@ export function DashboardOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     return subscribeFinanceDataChanged(() => {
-      void loadData();
+      // Re-fetch data on finance data changes
+      let cancelled = false;
+      const currentRequestId = requestIdRef.current;
+      void (async () => {
+        try {
+          const [txRes, catRes, budRes, healthRes, summaryRes] = await Promise.all([
+            expenseAPI.getAllExpenses(),
+            categoryAPI.getAllCategories(),
+            budgetAPI.getAllBudgets(),
+            healthAPI.getHealthScore(),
+            analyticsAPI.getDashboardSummary(),
+          ]);
+          if (!cancelled && currentRequestId === requestIdRef.current) {
+            setTransactions(txRes.data.expenses || []);
+            setCategories(catRes.data.categories || []);
+            setBudgets(budRes.data.budgets || []);
+            setAiScore(healthRes.data.score || 0);
+            setDashboardSummary(summaryRes.data.summary || null);
+            try {
+              const gRes = await goalsAPI.getAll();
+              if (!cancelled && currentRequestId === requestIdRef.current) {
+                setGoals(gRes.data.goals || []);
+              }
+            } catch { /* non-critical */ }
+          }
+        } catch (err) {
+          console.error('Error refreshing dashboard data:', err);
+        }
+      })();
+      return () => { cancelled = true; };
     });
   }, []);
 
   // Load Forecast
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = requestIdRef.current;
 
     void (async () => {
       try {
         setLoadingForecast(true);
         const response = await forecastAPI.getForecast();
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setForecast(response.data);
         }
       } catch (error) {
         console.error('Error fetching forecast:', error);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoadingForecast(false);
         }
       }
@@ -118,26 +138,27 @@ export function DashboardOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   // Load Anomalies
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = requestIdRef.current;
 
     void (async () => {
       try {
         setLoadingAnomalies(true);
         const response = await anomalyAPI.getAnomalyHistory();
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setAnomalies(response.data.anomalies || []);
         }
       } catch (error) {
         console.error('Error fetching anomalies:', error);
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setAnomalies([]);
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoadingAnomalies(false);
         }
       }
@@ -146,7 +167,7 @@ export function DashboardOverview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   const handleDelete = async (id: number) => {
     if (confirm('Delete this transaction?')) {

@@ -523,6 +523,12 @@ export function GoalsPage() {
   const { user } = useAuth();
   const isDemo = (user?.email ?? '') === DEMO_EMAIL;
 
+  // Clear goals when user changes
+  useEffect(() => {
+    setGoals([]);
+    setLoading(true);
+  }, [user?.id]);
+
   const fetchGoals = useCallback(async () => {
     try {
       const res = await goalsAPI.getAll();
@@ -534,7 +540,7 @@ export function GoalsPage() {
     }
   }, []);
 
-  useEffect(() => { void fetchGoals(); }, [fetchGoals]);
+  useEffect(() => { void fetchGoals(); }, [fetchGoals, user?.id]);
 
   function showToast(type: 'success' | 'error', msg: string) {
     setToast({ type, msg });

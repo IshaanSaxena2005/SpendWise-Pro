@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Brain, Flame, ShoppingBag, RefreshCw, TrendingUp, Info } from 'lucide-react';
 import { expenseAPI, budgetAPI, healthAPI, analyticsAPI } from '../../lib/api';
 import type { Transaction, Budget, CategoryBreakdownItem } from '../../lib/api';
 import { getCategoryIcon } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
+import { useAuth } from '../../context/AuthContext';
 
 type InsightType = 'danger' | 'warning' | 'success' | 'info';
 
@@ -225,15 +226,27 @@ const generateDynamicInsights = (
 };
 
 export function InsightsPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<{ category: string; total: number }[]>([]);
   const [aiScore, setAiScore] = useState(0);
   const [healthFactors, setHealthFactors] = useState<any>(null);
+  const requestIdRef = useRef(0);
+
+  // Clear state when user changes
+  useEffect(() => {
+    setTransactions([]);
+    setBudgets([]);
+    setCategoryBreakdown([]);
+    setAiScore(0);
+    setHealthFactors(null);
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
 
     void (async () => {
       try {
@@ -245,7 +258,7 @@ export function InsightsPage() {
           analyticsAPI.getCategoryBreakdown(),
         ]);
 
-        if (cancelled) return;
+        if (cancelled || currentRequestId !== requestIdRef.current) return;
 
         const txData = txRes.data.expenses || [];
         const budData = budRes.data.budgets || [];
@@ -267,7 +280,7 @@ export function InsightsPage() {
       } catch (err) {
         console.error(err);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoading(false);
         }
       }
@@ -276,7 +289,7 @@ export function InsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   const insights = generateDynamicInsights(transactions, budgets, categoryBreakdown, aiScore);
 

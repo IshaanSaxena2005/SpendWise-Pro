@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target, ArrowUp, ArrowDown, Calendar, DollarSign, Zap, Award, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../lib/api';
 import { getCategoryIcon } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
+import { useAuth } from '../../context/AuthContext';
 
 function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
 
@@ -135,13 +136,23 @@ const SkeletonCard = () => (
 );
 
 export function AnalyticsPage() {
+  const { user } = useAuth();
   const [categoryBreakdown, setCategoryBreakdown] = useState<{ category: string; total: number }[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<{ month: string; expenses: number }[]>([]);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestIdRef = useRef(0);
+
+  // Clear state when user changes
+  useEffect(() => {
+    setCategoryBreakdown([]);
+    setMonthlyTrend([]);
+    setForecast(null);
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
 
     void (async () => {
       try {
@@ -152,7 +163,7 @@ export function AnalyticsPage() {
           analyticsAPI.getMonthlyTrend(),
         ]);
 
-        if (cancelled) return;
+        if (cancelled || currentRequestId !== requestIdRef.current) return;
 
         setForecast(forecastRes.data);
 
@@ -176,7 +187,7 @@ export function AnalyticsPage() {
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoading(false);
         }
       }
@@ -185,7 +196,7 @@ export function AnalyticsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   // Calculate KPIs
   const highestCat = categoryBreakdown.length > 0 ? categoryBreakdown[0].category : 'N/A';

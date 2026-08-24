@@ -188,16 +188,16 @@ export function DashboardLayout() {
     }
   }, [user]);
 
-  // Fetch notifications when user changes (login/logout/demo switch)
+  // Clear and refetch notifications when user changes (login/logout/demo switch)
   useEffect(() => {
     const currentUserId = user?.id ?? null;
+    // Always clear state first when user changes
     if (currentUserId !== prevUserIdRef.current) {
       prevUserIdRef.current = currentUserId;
+      setNotifications([]);
+      setUnreadCount(0);
       if (currentUserId) {
         fetchNotifications();
-      } else {
-        setNotifications([]);
-        setUnreadCount(0);
       }
     }
   }, [user, fetchNotifications]);
@@ -222,9 +222,11 @@ export function DashboardLayout() {
   const [notifPos, setNotifPos] = useState<{ top: number; right: number } | null>(null);
 
   const handleLogout = async () => {
-    await logout(); // clears cookies server-side + clears AuthContext state
+    // Clear all user-specific state immediately
     setNotifications([]);
     setUnreadCount(0);
+    prevUserIdRef.current = null;
+    await logout(); // clears cookies server-side + clears AuthContext state
     navigate('/');
   };
 

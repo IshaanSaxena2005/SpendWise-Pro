@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Send, User } from 'lucide-react';
 import { aiAPI } from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../../context/AuthContext';
 
 interface Message {
   id: string;
@@ -16,15 +17,21 @@ const PREDEFINED_PROMPTS = [
   "Predict next month's expenses."
 ];
 
+const WELCOME_MESSAGE: Message = {
+  id: '1',
+  role: 'ai',
+  content: "Hello! I'm SpendWise AI. How can I help you optimize your finances today?"
+};
+
 export function AskSpendWiseAI() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'ai',
-      content: "Hello! I'm SpendWise AI. How can I help you optimize your finances today?"
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+
+  // Clear messages when user changes (login/logout/demo switch)
+  useEffect(() => {
+    setMessages([WELCOME_MESSAGE]);
+  }, [user?.id]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

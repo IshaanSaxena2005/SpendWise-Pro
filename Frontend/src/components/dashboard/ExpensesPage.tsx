@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus, Repeat2 } from 'lucide-react';
 import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, budgetAPI, type Transaction, type Category, type Budget } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
@@ -43,14 +43,26 @@ export function ExpensesPage() {
 
   const { user } = useAuth();
   const isDemoUser = user?.email === DEMO_EMAIL;
+  const requestIdRef = useRef(0);
+
+  // Clear state when user changes
+  useEffect(() => {
+    setTransactions([]);
+    setCategories([]);
+    setDashboardSummary(null);
+    setBudgets([]);
+    setUpcomingRecurring([]);
+  }, [user?.id]);
 
   const fetchFinanceData = useCallback(async () => {
+    const currentRequestId = requestIdRef.current;
     const [txRes, catRes, summaryRes, budRes] = await Promise.all([
       expenseAPI.getAllExpenses(),
       categoryAPI.getAllCategories(),
       analyticsAPI.getDashboardSummary(),
       budgetAPI.getAllBudgets(),
     ]);
+    if (currentRequestId !== requestIdRef.current) return;
     setTransactions(txRes.data.expenses || []);
     setCategories(catRes.data.categories || []);
     setDashboardSummary(summaryRes.data.summary || null);
@@ -58,8 +70,10 @@ export function ExpensesPage() {
   }, []);
 
   const fetchUpcomingRecurring = useCallback(async () => {
+    const currentRequestId = requestIdRef.current;
     try {
       const res = await recurringAPI.getAll();
+      if (currentRequestId !== requestIdRef.current) return;
       const allRecurring = res.data.recurring_transactions || [];
       
       // Filter for active recurring transactions
@@ -78,16 +92,19 @@ export function ExpensesPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const currentRequestId = ++requestIdRef.current;
 
     void (async () => {
       try {
         setLoading(true);
         await fetchFinanceData();
-        await fetchUpcomingRecurring();
+        if (!cancelled && currentRequestId === requestIdRef.current) {
+          await fetchUpcomingRecurring();
+        }
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && currentRequestId === requestIdRef.current) {
           setLoading(false);
         }
       }
@@ -106,7 +123,7 @@ export function ExpensesPage() {
       cancelled = true;
       unsubscribe();
     };
-  }, [fetchFinanceData, fetchUpcomingRecurring]);
+  }, [user?.id, fetchFinanceData, fetchUpcomingRecurring]);
 
   // --- Filtering ---
   const filtered = useMemo(() => {
