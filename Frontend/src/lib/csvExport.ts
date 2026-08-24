@@ -25,7 +25,7 @@ export function toCSV(header: string[], rows: unknown[][]): string {
   for (const row of rows) {
     lines.push(row.map(escapeCSVField).join(','));
   }
-  return lines.join('\n');
+  return lines.join('\r\n');
 }
 
 /**
