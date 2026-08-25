@@ -1,4 +1,4 @@
-# SpendWise Pro 💰🤖
+# SpendWise Pro 💰
 
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
 ![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js)
