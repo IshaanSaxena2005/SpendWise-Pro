@@ -12,15 +12,17 @@ interface Message {
 
 const PREDEFINED_PROMPTS = [
   "How much did I spend this month?",
-  "What is my top spending category?",
-  "Which category needs attention?",
-  "Predict next month's expenses."
+  "What's my top spending category?",
+  "Where am I overspending?",
+  "How can I save ₹5,000 next month?",
+  "What's my budget status?",
+  "Tell me a joke"
 ];
 
 const WELCOME_MESSAGE: Message = {
   id: '1',
   role: 'ai',
-  content: "Hello! I'm SpendWise AI. How can I help you optimize your finances today?"
+  content: "Hey there! 👋 I'm **SpendWise AI** — your personal finance assistant.\n\nI can help you with:\n- 💰 **Spending analysis** — where your money goes\n- 📊 **Budget tracking** — are you on track?\n- 💡 **Savings tips** — practical ways to save more\n- 🧠 **General questions** — ask me anything!\n\nYou can ask in English, Hindi, or Hinglish — whatever feels natural!"
 };
 
 export function AskSpendWiseAI() {
@@ -53,7 +55,12 @@ export function AskSpendWiseAI() {
     setIsTyping(true);
 
     try {
-      const response = await aiAPI.chat(text);
+      // Send conversation history for multi-turn context
+      const historyToSend = messages.slice(-6).map(m => ({
+        role: m.role as 'user' | 'ai',
+        content: m.content
+      }));
+      const response = await aiAPI.chat(text, historyToSend);
       const aiMsg: Message = { 
         id: crypto.randomUUID(), 
         role: 'ai', 
@@ -64,7 +71,7 @@ export function AskSpendWiseAI() {
         const errorMsg: Message = { 
           id: crypto.randomUUID(), 
           role: 'ai', 
-          content: "Sorry, I couldn't process your request right now." 
+          content: "Sorry, I couldn't process that right now. Please try again in a moment! 🔄" 
         };
         setMessages(prev => [...prev, errorMsg]);
       } finally {

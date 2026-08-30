@@ -3,29 +3,78 @@ const axios = require('axios');
 const { getAnomalyHistory } = require('./anomalyService');
 const { generateContent, hasGeminiApiKey, sanitizePromptText } = require('./geminiService');
 
-const SUPPORTED_QUERIES = {
-  'How much did I spend this month?': 'getThisMonthSpending',
-  'What is my top spending category?': 'getTopSpendingCategory',
-  'Which category needs attention?': 'getCategoryNeedingAttention',
-  'Am I overspending?': 'checkOverspending',
-  'How can I save money?': 'getSavingsTips',
-  'Predict next month\'s expenses': 'predictNextMonthExpenses',
-  'Predict next month\'s expenses.': 'predictNextMonthExpenses',
-  'What is my expense forecast?': 'predictNextMonthExpenses',
-  'Will I spend more next month?': 'predictNextMonthExpenses',
-  'What is my financial health score?': 'getFinancialHealthScore',
-  'Show budget status.': 'showBudgetStatus',
-  'Compare this month vs last month.': 'compareThisVsLastMonth',
-  'What is my name?': 'getProfileName',
-  'What is my email?': 'getProfileEmail',
-  'What is my role?': 'getProfileRole',
-  'When did I join?': 'getProfileJoinDate',
-  'Do I have an avatar?': 'checkAvatar',
-  'Did I make any unusual transactions?': 'getAnomalies',
-  'Show anomalous spending.': 'getAnomalies',
-  'Was my recent spending abnormal?': 'getAnomalies',
-  'Any suspicious expenses?': 'getAnomalies',
-};
+// Intent keywords → handler mapping for fast deterministic responses.
+// Each entry: { patterns: [regex, ...], handler: string }
+const INTENT_PATTERNS = [
+  {
+    patterns: [/how\s+much\s+(did\s+)?i\s+spend|month.*spend|spend.*month|total\s+spend|kharch.*month/i],
+    handler: 'getThisMonthSpending',
+  },
+  {
+    patterns: [/top\s+(spending\s+)?categor|biggest.*categor|highest.*spend|sabse.*zyada|sabse.*jyada/i],
+    handler: 'getTopSpendingCategory',
+  },
+  {
+    patterns: [/categor.*attention|which.*categor|konsa.*categor|kaunsa.*categor/i],
+    handler: 'getCategoryNeedingAttention',
+  },
+  {
+    patterns: [/overspend|budget\s+exceed|budget.*cross|zyada.*kharch|jyada.*kharch/i],
+    handler: 'checkOverspending',
+  },
+  {
+    patterns: [/save\s+money|savings?\s+tip|kaise\s+bachau|kaise\s+bacha|how.*save/i],
+    handler: 'getSavingsTips',
+  },
+  {
+    patterns: [/predict|forecast|next\s+month.*expense|agla.*mahina|agle.*month/i],
+    handler: 'predictNextMonthExpenses',
+  },
+  {
+    patterns: [/financial\s+health|health\s+score|sehat|health.*score/i],
+    handler: 'getFinancialHealthScore',
+  },
+  {
+    patterns: [/budget\s+status|budget.*kitna|budget.*status|budget.*baki|budget.*bacha/i],
+    handler: 'showBudgetStatus',
+  },
+  {
+    patterns: [/compare.*month|this.*vs.*last|pichla.*mahina|last.*month.*compar/i],
+    handler: 'compareThisVsLastMonth',
+  },
+  {
+    patterns: [/my\s+name|naam\s+kya|mera\s+naam|who\s+am\s+i/i],
+    handler: 'getProfileName',
+  },
+  {
+    patterns: [/my\s+email|email\s+kya|mera\s+email/i],
+    handler: 'getProfileEmail',
+  },
+  {
+    patterns: [/my\s+role|role\s+kya|mera\s+role/i],
+    handler: 'getProfileRole',
+  },
+  {
+    patterns: [/when\s+did.*join|join.*date|kab\s+join|kab\s+banaya/i],
+    handler: 'getProfileJoinDate',
+  },
+  {
+    patterns: [/avatar|profile.*photo|dp|photo/i],
+    handler: 'checkAvatar',
+  },
+  {
+    patterns: [/unusual|anomal|suspicious|fraud|weird.*transact|ajeeb.*kharch/i],
+    handler: 'getAnomalies',
+  },
+  {
+    patterns: [/today.*date|date.*today|aaj.*date|kya\s+date|what.*date/i],
+    handler: 'getTodayDate',
+  },
+  {
+    patterns: [/current\s+month|kaunsa\s+month|konsa\s+month|which\s+month|what.*month/i],
+    handler: 'getCurrentMonth',
+  },
+];
 
 async function getThisMonthSpending(userId) {
   const [[currentMonth]] = await pool.query(
@@ -269,9 +318,34 @@ async function getAnomalies(userId) {
     `- ${anomaly.description} (${new Date(anomaly.created_at).toLocaleDateString()})`
   );
   return `Here are your recent unusual transactions:\n${lines.join('\n')}`;
+}async function getTodayDate() {
+  const now = new Date();
+  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  const dateStr = now.toLocaleDateString('en-IN', options);
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return `Aaj ki date **${dateStr}** hai aur time **${timeStr}** IST hai.`;
+}
+
+async function getCurrentMonth() {
+  const now = new Date();
+  const month = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  return `Current month is **${month}**.`;
 }
 
 async function buildFinancialContext(userId) {
+  const now = new Date();
+  const currentMonthStart = now.toISOString().slice(0, 7) + '-01';
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  
+  // User profile
+  const [user] = await pool.query(
+    'SELECT id, full_name, email, created_at FROM users WHERE id = ? LIMIT 1',
+    [userId]
+  );
+
+  // This month spending
   const [[thisMonth]] = await pool.query(
     `SELECT COALESCE(SUM(e.amount), 0) AS total
      FROM expenses e
@@ -283,7 +357,8 @@ async function buildFinancialContext(userId) {
      [userId]
   );
 
-  const [[lastMonth]] = await pool.query(
+  // Last month spending
+  const [[lastMonthData]] = await pool.query(
     `SELECT COALESCE(SUM(e.amount), 0) AS total
      FROM expenses e
      JOIN categories c ON c.id = e.category_id
@@ -291,9 +366,21 @@ async function buildFinancialContext(userId) {
        AND c.name NOT IN ('Salary', 'Freelance')
        AND e.expense_date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
        AND e.expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')`,
-     [userId]
+    [userId]
   );
 
+  // This month income
+  const [[thisMonthIncome]] = await pool.query(
+    `SELECT COALESCE(SUM(e.amount), 0) AS total
+     FROM expenses e
+     WHERE e.user_id = ?
+       AND e.transaction_type = 'income'
+       AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
+    [userId]
+  );
+
+  // Top categories this month
   const [topCategories] = await pool.query(
     `SELECT c.name AS category_name, COALESCE(SUM(e.amount), 0) AS total_amount
      FROM expenses e
@@ -308,6 +395,21 @@ async function buildFinancialContext(userId) {
     [userId]
   );
 
+  // All categories this month with amounts
+  const [allCategories] = await pool.query(
+    `SELECT c.name AS category_name, COALESCE(SUM(e.amount), 0) AS total_amount
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+     GROUP BY c.id, c.name
+     ORDER BY total_amount DESC`,
+    [userId]
+  );
+
+  // Budgets
   const [budgets] = await pool.query(
     `SELECT
       COALESCE(c.name, 'Overall') AS name,
@@ -325,21 +427,65 @@ async function buildFinancialContext(userId) {
     [userId, userId]
   );
 
+  // Recent transactions (last 10)
+  const [recentTransactions] = await pool.query(
+    `SELECT e.title, e.amount, e.expense_date, c.name AS category_name, e.transaction_type
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+     ORDER BY e.expense_date DESC
+     LIMIT 10`,
+    [userId]
+  );
+
+  // Recurring transactions
+  const [recurringTransactions] = await pool.query(
+    `SELECT rt.type, rt.amount, c.name AS category_name, rt.frequency, rt.note
+     FROM recurring_transactions rt
+     LEFT JOIN categories c ON rt.category_id = c.id
+     WHERE rt.user_id = ? AND rt.is_active = 1
+     LIMIT 10`,
+    [userId]
+  );
+
+  // Goals
+  const [goals] = await pool.query(
+    `SELECT name, target_amount, saved_amount, target_date, priority
+     FROM goals
+     WHERE user_id = ? AND is_completed = 0
+     LIMIT 5`,
+    [userId]
+  );
+
+  // Health score
   const [health] = await pool.query(
     'SELECT score FROM financial_health WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
     [userId]
   );
 
-  const [user] = await pool.query(
-    'SELECT full_name FROM users WHERE id = ? LIMIT 1',
+  // Total transactions count
+  const [[txCount]] = await pool.query(
+    `SELECT COUNT(*) as count FROM expenses WHERE user_id = ?
+     AND expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+     AND expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`,
     [userId]
   );
 
   return {
     userFirstName: String(user[0]?.full_name || 'User').split(' ')[0],
+    userFullName: user[0]?.full_name || 'User',
+    today: now.toISOString().split('T')[0],
+    currentMonth: now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
     thisMonthSpending: Number(thisMonth.total) || 0,
-    lastMonthSpending: Number(lastMonth.total) || 0,
+    lastMonthSpending: Number(lastMonthData.total) || 0,
+    thisMonthIncome: Number(thisMonthIncome.total) || 0,
+    thisMonthSavings: (Number(thisMonthIncome.total) || 0) - (Number(thisMonth.total) || 0),
+    transactionCount: Number(txCount.count) || 0,
     topCategories: topCategories.map((r) => ({
+      category: r.category_name,
+      amount: Number(r.total_amount) || 0,
+    })),
+    allCategories: allCategories.map((r) => ({
       category: r.category_name,
       amount: Number(r.total_amount) || 0,
     })),
@@ -347,12 +493,35 @@ async function buildFinancialContext(userId) {
       name: b.name,
       limit: Number(b.amount_limit) || 0,
       spent: Number(b.spent) || 0,
+      remaining: (Number(b.amount_limit) || 0) - (Number(b.spent) || 0),
+      usagePercent: b.amount_limit > 0 ? Math.round((Number(b.spent) / Number(b.amount_limit)) * 100) : 0,
+    })),
+    recentTransactions: recentTransactions.map((t) => ({
+      title: t.title,
+      amount: Number(t.amount),
+      date: t.expense_date,
+      category: t.category_name,
+      type: t.transaction_type,
+    })),
+    recurringTransactions: recurringTransactions.map((r) => ({
+      type: r.type,
+      amount: Number(r.amount),
+      category: r.category_name,
+      frequency: r.frequency,
+      note: r.note,
+    })),
+    goals: goals.map((g) => ({
+      name: g.name,
+      target: Number(g.target_amount),
+      saved: Number(g.saved_amount),
+      targetDate: g.target_date,
+      priority: g.priority,
     })),
     healthScore: health[0] ? Number(health[0].score) : null,
   };
 }
 
-async function callGeminiChat(userId, userQuery) {
+async function callGeminiChat(userId, userQuery, conversationHistory = []) {
   if (!hasGeminiApiKey()) {
     return { ok: false, reason: 'missing_api_key', response: null, durationMs: 0 };
   }
@@ -366,28 +535,55 @@ async function callGeminiChat(userId, userQuery) {
   }
 
   const safeQuery = sanitizePromptText(userQuery, 500);
-  const prompt = `You are SpendWise AI, a personal finance assistant for Indian users (currency INR ₹).
-Answer ONLY using the provided financial context and general budgeting best practices.
-Do NOT invent transactions, balances, or account credentials.
-Do NOT ask for passwords, OTP, or sensitive identity details.
-Keep answers concise (max 120 words), practical, and friendly.
-Use ₹ and Indian formatting when mentioning money.
+
+  // Build conversation history context for multi-turn support
+  let historyBlock = '';
+  if (conversationHistory.length > 0) {
+    const recentHistory = conversationHistory.slice(-6); // last 6 messages for context
+    historyBlock = '\n\nConversation history (for context):\n' +
+      recentHistory.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
+  }
+
+  const prompt = `You are SpendWise AI — an intelligent, friendly personal finance assistant built for Indian users.
+You handle BOTH financial questions AND general conversation naturally.
+
+## YOUR CAPABILITIES
+1. **Financial Analysis**: Use the user's real SpendWise data (spending, budgets, goals, transactions) to answer finance questions with specific numbers.
+2. **General Conversation**: Answer any question naturally — general knowledge, explanations, jokes, math, comparisons, current topics.
+3. **Hinglish**: Understand and respond naturally in English, Hindi, or Hinglish. Match the user's language and tone.
+4. **Context Awareness**: Use the conversation history to understand follow-up questions and references like "it", "that", "how much more".
+
+## RULES
+- When answering finance questions, ALWAYS use the provided financial context data. Never invent numbers.
+- When the user asks something unrelated to finance, answer it naturally and helpfully.
+- If you don't have enough data to answer a finance question, say so honestly and provide general guidance.
+- Keep responses concise (max 150 words) but complete.
+- Use ₹ and Indian number formatting for money.
+- Be warm, friendly, and conversational — not robotic.
+- Use Markdown formatting for readability (bold, lists).
+- NEVER reveal passwords, tokens, or sensitive account details.
+- NEVER invent financial data that isn't in the context.
+- For time-sensitive questions (news, live scores, weather), honestly say you don't have real-time access.
 
 Return ONLY valid JSON:
-{"answer":"<helpful reply>","confidence":<integer 0-100>}
+{"answer":"<your helpful reply>","confidence":<integer 0-100>,"category":"finance|general|hinglish"}
 
-Financial context (JSON):
-${JSON.stringify(context || {})}
+User's financial context (JSON):
+${JSON.stringify(context || {})}${historyBlock}
 
-User question:
+User's question:
 ${safeQuery}`;
+
+  // Don't cache conversational/general queries — only finance data queries
+  const isLikelyFinanceQuery = /spend|budget|save|money|income|expense|category|transaction|goal|recurring|salary|kharch|bachat|budget/i.test(safeQuery);
+  const cacheKey = isLikelyFinanceQuery ? `chat:${userId}:${safeQuery.toLowerCase()}` : null;
 
   const gemini = await generateContent({
     prompt,
-    temperature: 0.3,
-    maxOutputTokens: 400,
+    temperature: 0.4,
+    maxOutputTokens: 600,
     responseMimeType: 'application/json',
-    cacheKey: `chat:${userId}:${safeQuery.toLowerCase()}`,
+    cacheKey,
   });
 
   if (!gemini.ok) {
@@ -409,17 +605,24 @@ ${safeQuery}`;
 }
 
 async function handleRuleBasedChat(userId, userQuery) {
-  const normalizedQuery = userQuery.trim().toLowerCase();
+  const trimmedQuery = userQuery.trim();
   let matchedHandler = null;
-  for (const [query, handlerName] of Object.entries(SUPPORTED_QUERIES)) {
-    if (normalizedQuery.includes(query.toLowerCase())) {
-      matchedHandler = handlerName;
-      break;
+
+  // Use flexible regex pattern matching instead of exact string match
+  for (const intent of INTENT_PATTERNS) {
+    for (const pattern of intent.patterns) {
+      if (pattern.test(trimmedQuery)) {
+        matchedHandler = intent.handler;
+        break;
+      }
     }
+    if (matchedHandler) break;
   }
+
   if (!matchedHandler) {
     return null;
   }
+
   const handlers = {
     getThisMonthSpending,
     getTopSpendingCategory,
@@ -436,18 +639,20 @@ async function handleRuleBasedChat(userId, userQuery) {
     getProfileJoinDate,
     checkAvatar,
     getAnomalies,
+    getTodayDate,
+    getCurrentMonth,
   };
   return await handlers[matchedHandler](userId);
 }
 
-async function handleAIChat(userId, userQuery) {
+async function handleAIChat(userId, userQuery, conversationHistory = []) {
   const started = Date.now();
   const safeQuery = sanitizePromptText(userQuery, 500);
   if (!safeQuery) {
-    return "Please ask a finance-related question.";
+    return "Please ask a question — I'm here to help with finances or anything else!";
   }
 
-  // Prefer exact rule handlers for known data queries (fast + deterministic)
+  // Prefer rule handlers for deterministic data queries (fast + reliable)
   const ruleAnswer = await handleRuleBasedChat(userId, safeQuery);
   if (ruleAnswer) {
     console.log('[AI Chat]', {
@@ -458,11 +663,12 @@ async function handleAIChat(userId, userQuery) {
     return ruleAnswer;
   }
 
-  // Gemini for open-ended finance advice / analysis
-  const gemini = await callGeminiChat(userId, safeQuery);
+  // Gemini for everything else: finance analysis, general Q&A, Hinglish, follow-ups
+  const gemini = await callGeminiChat(userId, safeQuery, conversationHistory);
   if (gemini.ok && gemini.response) {
     console.log('[AI Chat]', {
       source: 'gemini',
+      category: gemini.category || 'unknown',
       confidence: gemini.confidence,
       durationMs: gemini.durationMs,
       geminiConfigured: true,
@@ -477,10 +683,21 @@ async function handleAIChat(userId, userQuery) {
     geminiConfigured: hasGeminiApiKey(),
   });
 
-  return "I'm SpendWise AI and can help with your spending, budgets, forecasts, savings tips, and financial health. Try asking about this month's spending, top categories, or how to save money.";
+  // Smart fallback based on the query type
+  const lowerQuery = safeQuery.toLowerCase();
+  if (/joke|funny|mazaak|mazak/i.test(lowerQuery)) {
+    return "Here's one: Why did the rupee break up with the dollar? Because it found a better exchange! 😄\n\nBut seriously, I'm SpendWise AI — ask me about your finances, budgets, or anything you'd like help with!";
+  }
+  if (/thank|shukriya|dhanyavaad/i.test(lowerQuery)) {
+    return "You're welcome! 😊 I'm always here to help. Feel free to ask anything — whether it's about your spending, savings tips, or just a friendly chat!";
+  }
+  if (/hello|hi|hey|namaste|namaskar|haeloo/i.test(lowerQuery)) {
+    return "Hey there! 👋 Welcome to SpendWise AI. I can help you with:\n\n- 💰 **Spending analysis** — where your money goes\n- 📊 **Budget tracking** — how you're doing against limits\n- 💡 **Savings tips** — how to save more\n- 🧠 **General questions** — anything you're curious about\n\nWhat would you like to know?";
+  }
+  return "I'm SpendWise AI — your personal finance assistant! 🤖\n\nI can help with:\n- 💰 Your spending, budgets, and savings\n- 📊 Financial analysis and predictions\n- 🧠 General knowledge and questions\n\nTry asking something like:\n- \"How much did I spend this month?\"\n- \"Where am I overspending?\"\n- \"How can I save ₹5,000 next month?\"\n- \"What is compound interest?\"";
 }
 
 module.exports = {
   handleAIChat,
-  SUPPORTED_QUERIES,
+  INTENT_PATTERNS,
 };

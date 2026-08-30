@@ -330,7 +330,8 @@ export interface CategorizeResponse {
 }
 
 export const aiAPI = {
-  chat: (query: string) => api.post<{ success: boolean; response: string }>('/ai/chat', { query }),
+  chat: (query: string, conversationHistory?: Array<{ role: 'user' | 'ai'; content: string }>) =>
+    api.post<{ success: boolean; response: string }>('/ai/chat', { query, conversationHistory }),
   categorize: (description: string) =>
     api.post<CategorizeResponse>('/ai/categorize', { description }),
 };
