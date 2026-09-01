@@ -11,12 +11,10 @@ interface Message {
 }
 
 const PREDEFINED_PROMPTS = [
-  "How much did I spend this month?",
-  "What's my top spending category?",
-  "Where am I overspending?",
-  "How can I save ₹5,000 next month?",
-  "What's my budget status?",
-  "Tell me a joke"
+  "💰 Analyze my spending",
+  "📉 How can I save more next month?",
+  "🎯 Help me reach my savings goal",
+  "🔍 Where am I overspending?"
 ];
 
 const WELCOME_MESSAGE: Message = {
@@ -160,13 +158,14 @@ export function AskSpendWiseAI() {
 
         {/* Suggested Prompts */}
         {messages.length === 1 && (
-          <div className="px-4 pb-2 bg-[#F8F9FA]">
-            <div className="flex flex-wrap gap-2">
+          <div className="px-4 pb-3 bg-[#F8F9FA]">
+            <p className="text-[10px] text-black/30 font-medium uppercase tracking-wider mb-2">Try asking</p>
+            <div className="grid grid-cols-2 gap-2">
               {PREDEFINED_PROMPTS.map((prompt, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(prompt)}
-                  className="text-left text-xs text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-100 px-3 py-2 rounded-xl transition-colors"
+                  className="text-left text-[11px] leading-snug text-black/70 bg-white hover:bg-violet-50 hover:text-violet-700 border border-black/5 hover:border-violet-200 px-3 py-2.5 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   {prompt}
                 </button>
