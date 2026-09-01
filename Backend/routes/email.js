@@ -58,10 +58,16 @@ function blockDemo(req, res) {
 }
 
 // "Email me my last monthly report now" — bypasses dedup via force.
+// Also bypasses the email_reports preference check so the user gets their
+// report even if scheduled notifications are disabled.
 router.post('/monthly-report/me', async (req, res) => {
   if (blockDemo(req, res)) return;
   try {
-    const result = await sendMonthlyReportsToAllUsers({ force: true, targetUserId: req.user.id });
+    const result = await sendMonthlyReportsToAllUsers({
+      force: true,
+      targetUserId: req.user.id,
+      skipPreferenceCheck: true,
+    });
     if (result.sent > 0) {
       return res.json({ success: true, message: 'Monthly report sent to your email.', ...result });
     }

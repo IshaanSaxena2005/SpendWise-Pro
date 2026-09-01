@@ -214,6 +214,26 @@ async function start() {
     ) ENGINE=InnoDB
   `);
 
+  // ── Report tokens table (idempotent migration) ─────────────────────────────
+  // Enables secure, token-gated download links in monthly report emails.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS report_tokens (
+      id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id      BIGINT UNSIGNED NOT NULL,
+      token        VARCHAR(64)     NOT NULL,
+      report_type  VARCHAR(50)     NOT NULL DEFAULT 'monthly_report',
+      report_month DATE            NOT NULL,
+      expires_at   TIMESTAMP       NOT NULL,
+      created_at   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_report_tokens_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+      UNIQUE KEY uq_report_tokens_token (token),
+      INDEX idx_report_tokens_user_type (user_id, report_type),
+      INDEX idx_report_tokens_expires (expires_at)
+    ) ENGINE=InnoDB
+  `);
+
   await pool.query('SELECT 1');
   if (process.env.NODE_ENV !== 'production') {
     console.warn('Database connection verified');

@@ -260,9 +260,9 @@ async function buildMonthlyReport(userId, year, month) {
 /**
  * Send the monthly spending report for the previous (most recently completed)
  * month to all real users. Intended to be triggered by a scheduler on the 1st.
- * @param {{ force?: boolean, targetUserId?: number|null }} opts
+ * @param {{ force?: boolean, targetUserId?: number|null, skipPreferenceCheck?: boolean }} opts
  */
-async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null } = {}) {
+async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null, skipPreferenceCheck = false } = {}) {
   const summary = { processed: 0, sent: 0, skipped: 0, errors: 0 };
   try {
     const now = new Date();
@@ -280,7 +280,10 @@ async function sendMonthlyReportsToAllUsers({ force = false, targetUserId = null
 
     for (const user of users) {
       summary.processed++;
-      if (!user.email || user.email === DEMO_EMAIL || !user.email_reports) { summary.skipped++; continue; }
+      if (!user.email || user.email === DEMO_EMAIL) { summary.skipped++; continue; }
+      // When skipPreferenceCheck is false (scheduled cron), respect the email_reports preference.
+      // When skipPreferenceCheck is true (self-service "send me now"), bypass the preference.
+      if (!skipPreferenceCheck && !user.email_reports) { summary.skipped++; continue; }
       try {
         const report = await buildMonthlyReport(user.id, year, month);
         if (!report.hasActivity && !force) { summary.skipped++; continue; }
