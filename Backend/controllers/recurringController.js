@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
+const { calculateNextExecutionDate } = require('../services/recurringExecutionService');
 
 const createRecurringTransaction = async (req, res) => {
   try {
@@ -265,31 +266,6 @@ const resumeRecurringTransaction = async (req, res) => {
     });
   }
 };
-
-// Helper function to calculate next execution date
-function calculateNextExecutionDate(startDate, frequency) {
-  const start = new Date(startDate);
-  const next = new Date(start);
-
-  switch (frequency) {
-    case 'daily':
-      next.setDate(next.getDate() + 1);
-      break;
-    case 'weekly':
-      next.setDate(next.getDate() + 7);
-      break;
-    case 'monthly':
-      next.setMonth(next.getMonth() + 1);
-      break;
-    case 'yearly':
-      next.setFullYear(next.getFullYear() + 1);
-      break;
-    default:
-      return startDate;
-  }
-
-  return next.toISOString().split('T')[0];
-}
 
 module.exports = {
   createRecurringTransaction,

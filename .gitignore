@@ -15,6 +15,7 @@ build/
 # Python
 __pycache__/
 *.pyc
+.freebuff
 
 # Logs
 *.log

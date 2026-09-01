@@ -5,56 +5,83 @@ const pool = require('../config/db');
  * Handles the execution of due recurring transactions with idempotency guarantees
  */
 
+// ── IST date helper ─────────────────────────────────────────────────────────
+// All recurring date comparisons use Asia/Kolkata calendar date.
+// `toISOString()` returns UTC, which is 5.5 hours behind IST — using it
+// causes a 5.5-hour execution delay and incorrect "Today" display.
+
 /**
- * Calculate the next execution date for a recurring transaction
- * Handles edge cases like 31st of month, February, leap years
+ * Return the current calendar date in Asia/Kolkata as YYYY-MM-DD.
+ * Used for all recurring-transaction date comparisons.
+ */
+function getIstDate() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+/**
+ * Parse a YYYY-MM-DD date string into a plain Date at IST midnight.
+ * Avoids UTC-shift pitfalls when the string is fed into `new Date()`.
+ */
+function parseDateAsIst(dateStr) {
+  const [y, m, d] = String(dateStr).split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Format a Date (or date string) as YYYY-MM-DD in IST.
+ */
+function toIstDateString(dateOrStr) {
+  const d = typeof dateOrStr === 'string' ? parseDateAsIst(dateOrStr) : dateOrStr;
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+/**
+ * Calculate the next execution date for a recurring transaction.
+ * Handles month-end edge cases (Jan 31 → Feb 28/29, etc.).
+ * All arithmetic is done in IST calendar days.
  */
 function calculateNextExecutionDate(currentDate, frequency) {
-  const current = new Date(currentDate);
-  const next = new Date(current);
+  // Parse the date in IST to avoid UTC shift
+  const current = typeof currentDate === 'string' ? parseDateAsIst(currentDate) : new Date(currentDate);
+  const year = current.getFullYear();
+  const month = current.getMonth(); // 0-indexed
+  const day = current.getDate();
+
+  let nextYear = year;
+  let nextMonth = month;
+  let nextDay = day;
 
   switch (frequency) {
     case 'daily':
-      next.setDate(next.getDate() + 1);
+      nextDay = day + 1;
       break;
     case 'weekly':
-      next.setDate(next.getDate() + 7);
+      nextDay = day + 7;
       break;
-    case 'monthly':
-      // Handle month-end dates (e.g., 31st -> last day of next month)
-      const currentDay = current.getDate();
-      const lastDayOfCurrentMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-      
-      if (currentDay === lastDayOfCurrentMonth) {
-        // If current date is last day of month, set to last day of next month
-        next.setMonth(next.getMonth() + 1);
-        next.setDate(0); // Set to last day of the new month
-      } else {
-        next.setMonth(next.getMonth() + 1);
-        // If the day doesn't exist in the target month (e.g., Feb 31), use last day of that month
-        const lastDayOfNextMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-        if (currentDay > lastDayOfNextMonth) {
-          next.setDate(lastDayOfNextMonth);
-        } else {
-          next.setDate(currentDay);
-        }
+    case 'monthly': {
+      // Advance month, clamp to last day of target month.
+      // Jan 31 → Feb 28/29, Feb 28 → Mar 28, Mar 31 → Apr 30, etc.
+      nextMonth = month + 1;
+      if (nextMonth > 11) { nextMonth = 0; nextYear++; }
+      const lastDayOfTarget = new Date(nextYear, nextMonth + 1, 0).getDate();
+      nextDay = Math.min(day, lastDayOfTarget);
+      break;
+    }
+    case 'yearly': {
+      nextYear = year + 1;
+      // Handle Feb 29 → Feb 28 in non-leap year
+      if (month === 1 && day === 29) {
+        const isLeap = (nextYear % 4 === 0 && nextYear % 100 !== 0) || nextYear % 400 === 0;
+        nextDay = isLeap ? 29 : 28;
       }
       break;
-    case 'yearly':
-      next.setFullYear(next.getFullYear() + 1);
-      // Handle Feb 29 for non-leap years
-      if (current.getMonth() === 1 && current.getDate() === 29) {
-        const isLeapYear = (next.getFullYear() % 4 === 0 && next.getFullYear() % 100 !== 0) || next.getFullYear() % 400 === 0;
-        if (!isLeapYear) {
-          next.setDate(28);
-        }
-      }
-      break;
+    }
     default:
-      return currentDate;
+      return typeof currentDate === 'string' ? currentDate.split('T')[0] : toIstDateString(current);
   }
 
-  return next.toISOString().split('T')[0];
+  // Build YYYY-MM-DD without any timezone conversion
+  return `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
 }
 
 /**
@@ -127,7 +154,7 @@ async function createRecurringNotification(userId, type, amount, categoryName) {
  * Returns execution result
  */
 async function processRecurringTransaction(recurring) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getIstDate();
   const nextExecutionDate = recurring.next_execution_date;
 
   // Check if due (next_execution_date <= today)
@@ -218,7 +245,7 @@ async function processRecurringTransaction(recurring) {
  * Called by the scheduler endpoint
  */
 async function processDueRecurringTransactions() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getIstDate();
   
   // Get all active recurring transactions that are due
   const [dueTransactions] = await pool.query(
@@ -360,6 +387,9 @@ async function getRecurringExecutionHistory(recurringTransactionId, userId) {
 }
 
 module.exports = {
+  getIstDate,
+  parseDateAsIst,
+  toIstDateString,
   calculateNextExecutionDate,
   processRecurringTransaction,
   processDueRecurringTransactions,

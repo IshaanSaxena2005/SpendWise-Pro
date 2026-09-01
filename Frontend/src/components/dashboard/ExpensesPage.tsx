@@ -290,9 +290,15 @@ export function ExpensesPage() {
           </div>
           <div className="space-y-2">
             {upcomingRecurring.map((item) => {
-              const nextDate = new Date(item.next_execution_date);
-              const today = new Date();
-              const diffDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              // IST-aware date comparison: parse next_execution_date and current
+              // date both as IST calendar dates to avoid UTC 5.5-hour shift.
+              const nextStr = String(item.next_execution_date).split('T')[0];
+              const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+              const [ny, nm, nd] = nextStr.split('-').map(Number);
+              const [ty, tm, td] = todayStr.split('-').map(Number);
+              const nextMs = Date.UTC(ny, nm - 1, nd);
+              const todayMs = Date.UTC(ty, tm - 1, td);
+              const diffDays = Math.round((nextMs - todayMs) / (1000 * 60 * 60 * 24));
               
               let timeLabel = '';
               if (diffDays === 0) timeLabel = 'Today';
