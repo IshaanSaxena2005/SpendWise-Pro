@@ -7,6 +7,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
 import { analyticsAPI, type Transaction } from '../../lib/api';
+import { toCSV, downloadCSV } from '../../lib/csvExport';
 import { useAuth } from '../../context/AuthContext';
 
 const COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#6366F1'];
@@ -335,26 +336,27 @@ export function HistoryPage() {
     };
   });
 
-  // Export CSV
+  // Export CSV — uses shared csvExport utility
   const handleExportCSV = () => {
     if (monthlyHistoryRows.length === 0) return;
-    let csvContent = 'data:text/csv;charset=utf-8,';
-    csvContent += 'Month,Income,Expenses,Savings,Transactions,Budget,Budget Remaining\r\n';
 
-    monthlyHistoryRows.forEach(row => {
+    const header = ['Month', 'Income', 'Expenses', 'Savings', 'Transactions', 'Budget Limit', 'Budget Remaining'];
+    const rows = monthlyHistoryRows.map(row => {
       const parts = row.month.split('-');
       const monthLabel = `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
-      const line = `"${monthLabel}",${row.income},${row.expenses},${row.savings},${row.transactionsCount},${row.budget},${row.budgetRemaining ?? 0}`;
-      csvContent += line + '\r\n';
+      return [
+        monthLabel,
+        row.income,
+        row.expenses,
+        row.savings,
+        row.transactionsCount,
+        row.budget > 0 ? row.budget : '',
+        row.budgetRemaining != null ? row.budgetRemaining : '',
+      ];
     });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `SpendWise_History_Export_${period}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csv = toCSV(header, rows);
+    downloadCSV('spendwise-monthly-history.csv', csv);
   };
 
   const handlePeriodChange = (val: typeof period) => {
@@ -444,15 +446,7 @@ export function HistoryPage() {
             </select>
           </div>
 
-          {/* Export CSV Button */}
-          <button
-            onClick={handleExportCSV}
-            disabled={monthlyHistoryRows.length === 0}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-xl px-4 py-2.5 shadow-md shadow-violet-600/10 hover:shadow-lg transition-all duration-300 mt-4 md:mt-0 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export CSV
-          </button>
+
         </div>
       </div>
 
@@ -722,6 +716,18 @@ export function HistoryPage() {
             <p className="text-sm text-black/60">No history rows match your filters.</p>
           </div>
         )}
+
+        {/* Export CSV — placed at the bottom of the Monthly History section */}
+        <div className="px-5 py-4 border-t border-black/5 flex justify-end">
+          <button
+            onClick={handleExportCSV}
+            disabled={monthlyHistoryRows.length === 0}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-xl px-4 py-2.5 shadow-md shadow-violet-600/10 hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Transaction Details Modal/Drawer */}
