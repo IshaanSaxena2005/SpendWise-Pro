@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, User } from 'lucide-react';
 import { aiAPI } from '../../lib/api';
 import ReactMarkdown from 'react-markdown';
@@ -23,7 +23,18 @@ const WELCOME_MESSAGE: Message = {
   content: "Hey there! 👋 I'm **SpendWise AI** — your personal finance assistant.\n\nI can help you with:\n- 💰 **Spending analysis** — where your money goes\n- 📊 **Budget tracking** — are you on track?\n- 💡 **Savings tips** — practical ways to save more\n- 🧠 **General questions** — ask me anything!\n\nYou can ask in English, Hindi, or Hinglish — whatever feels natural!"
 };
 
-export function AskSpendWiseAI() {
+interface AskSpendWiseAIProps {
+  position: { top: number; left: number } | null;
+  onPositionChange: (pos: { top: number; left: number } | null) => void;
+}
+
+/** Default bottom-right position: 24px inset, 64px button */
+const DEFAULT_BOTTOM = 24;
+const DEFAULT_RIGHT = 24;
+const BTN_SIZE = 64;
+const DRAG_THRESHOLD = 5; // px — below this, treat as click
+
+export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
@@ -35,6 +46,96 @@ export function AskSpendWiseAI() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Drag state (kept in refs to avoid re-renders during drag) ──
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ px: number; py: number; bx: number; by: number } | null>(null);
+  const didDragRef = useRef(false);
+
+  /** Convert the stored top/left position to bottom/right for the button style. */
+  const getButtonStyle = (): React.CSSProperties => {
+    if (position) {
+      return { top: position.top, left: position.left };
+    }
+    return { bottom: DEFAULT_BOTTOM, right: DEFAULT_RIGHT };
+  };
+
+  /** Clamp a top/left position so the 64px button stays fully inside the viewport. */
+  const clampToViewport = useCallback((top: number, left: number) => {
+    const maxTop = window.innerHeight - BTN_SIZE;
+    const maxLeft = window.innerWidth - BTN_SIZE;
+    return {
+      top: Math.max(0, Math.min(top, maxTop)),
+      left: Math.max(0, Math.min(left, maxLeft)),
+    };
+  }, []);
+
+  // ── Pointer-event drag handlers ──
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only left button
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Capture pointer so we receive events even outside the button
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    dragStartRef.current = {
+      px: e.clientX,
+      py: e.clientY,
+      bx: rect.left,
+      by: rect.top,
+    };
+    didDragRef.current = false;
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+
+    const dx = e.clientX - start.px;
+    const dy = e.clientY - start.py;
+
+    // Only start visually dragging after exceeding threshold
+    if (!isDraggingRef.current) {
+      if (Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
+      isDraggingRef.current = true;
+      didDragRef.current = true;
+    }
+
+    const clamped = clampToViewport(start.by + dy, start.bx + dx);
+    onPositionChange(clamped);
+  }, [clampToViewport, onPositionChange]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (dragStartRef.current) {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    }
+
+    const wasDrag = didDragRef.current;
+    isDraggingRef.current = false;
+    dragStartRef.current = null;
+    didDragRef.current = false;
+
+    // If user didn't drag (or barely moved), treat as a click to open chat
+    if (!wasDrag) {
+      setIsOpen(true);
+    }
+  }, []);
+
+  // ── Viewport resize: clamp position so button stays visible ──
+  useEffect(() => {
+    const handleResize = () => {
+      if (!position) return;
+      const clamped = clampToViewport(position.top, position.left);
+      if (clamped.top !== position.top || clamped.left !== position.left) {
+        onPositionChange(clamped);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [position, clampToViewport, onPositionChange]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,12 +180,17 @@ export function AskSpendWiseAI() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button — draggable */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center w-16 h-16 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-all duration-300 ${isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        className={`fixed z-50 flex items-center justify-center w-16 h-16 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-[opacity,transform] duration-300 touch-none select-none ${
+          isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
+        }`}
+        style={getButtonStyle()}
       >
-        <img src="/chatbot.png" alt="Chatbot" className="w-full h-full object-cover rounded-full" />
+        <img src="/chatbot.png" alt="Chatbot" className="w-full h-full object-cover rounded-full pointer-events-none" />
       </button>
 
       {/* Chat Window */}

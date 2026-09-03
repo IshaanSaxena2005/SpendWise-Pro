@@ -188,6 +188,10 @@ export function DashboardLayout() {
     }
   }, [user]);
 
+  // Chatbot launcher position — survives tab navigation (same component tree),
+  // resets naturally on full page reload since useState initial is null.
+  const [chatbotPos, setChatbotPos] = useState<{ top: number; left: number } | null>(null);
+
   // Clear and refetch notifications when user changes (login/logout/demo switch)
   useEffect(() => {
     const currentUserId = user?.id ?? null;
@@ -427,7 +431,7 @@ export function DashboardLayout() {
       <AddTransactionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
 
       {/* Floating AI Chatbot */}
-      <AskSpendWiseAI />
+      <AskSpendWiseAI position={chatbotPos} onPositionChange={setChatbotPos} />
     </div>
   );
 }
