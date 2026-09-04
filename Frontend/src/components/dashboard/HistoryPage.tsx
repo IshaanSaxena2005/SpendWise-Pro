@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   TrendingUp, Activity, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle
 } from 'lucide-react';
@@ -40,6 +41,204 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
   return null;
 }
 
+/**
+ * Monthly history details modal.
+ *
+ * Follows the same architecture as AddTransactionModal (the existing
+ * transaction table/modal pattern): rendered via a portal to document.body
+ * so `position: fixed` is relative to the viewport (the dashboard's
+ * `.page-enter` wrapper keeps a transform applied, which would otherwise
+ * make the page wrapper the containing block and misplace the modal),
+ * anchored to the clicked table row via its bounding rect, with a mobile
+ * bottom-sheet variant and body scroll locking so the table position is
+ * preserved on open/close.
+ */
+function MonthlyDetailsModal({ transactions, monthLabel, anchorRect, onClose }: {
+  transactions: Transaction[];
+  monthLabel: string;
+  anchorRect: DOMRect | null;
+  onClose: () => void;
+}) {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Lock body scroll while open and restore it on close so the user returns
+  // to the exact same place in the Monthly History table.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const isPopover = !!anchorRect && !isMobile;
+
+  const containerClass = isPopover
+    ? 'fixed inset-0 z-[100] overflow-hidden pointer-events-none'
+    : 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+
+  const backdropClass = isPopover
+    ? 'absolute inset-0 bg-black/10 backdrop-blur-[1px] pointer-events-auto'
+    : 'absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto';
+
+  // Positioning calculations — mirrors AddTransactionModal: open below the
+  // clicked row when there is room, above it otherwise, centered as a last
+  // resort.
+  const panelWidth = 600;
+  const panelHeightEstimate = 480;
+  const leftPos = (window.innerWidth - panelWidth) / 2;
+  let showBelow = true;
+  let arrowLeft = panelWidth / 2;
+  let topPos: number | undefined;
+  let bottomPos: number | undefined;
+  let centeredVertically = false;
+  let maxHeight = window.innerHeight - 32;
+
+  if (isPopover && anchorRect) {
+    const buttonCenterX = anchorRect.left + anchorRect.width / 2;
+    arrowLeft = Math.max(24, Math.min(panelWidth - 24, buttonCenterX - leftPos));
+
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const spaceAbove = anchorRect.top;
+
+    if (spaceBelow >= panelHeightEstimate + 20) {
+      showBelow = true;
+      topPos = anchorRect.bottom + 12;
+      maxHeight = spaceBelow - 24;
+    } else if (spaceAbove >= panelHeightEstimate + 20) {
+      showBelow = false;
+      bottomPos = window.innerHeight - anchorRect.top + 12;
+      maxHeight = spaceAbove - 24;
+    } else {
+      centeredVertically = true;
+      topPos = Math.max(16, (window.innerHeight - panelHeightEstimate) / 2);
+      maxHeight = window.innerHeight - 32;
+    }
+  }
+
+  const panelStyle: React.CSSProperties = isPopover
+    ? {
+        position: 'fixed',
+        left: `${leftPos}px`,
+        top: topPos !== undefined ? `${topPos}px` : undefined,
+        bottom: bottomPos !== undefined ? `${bottomPos}px` : undefined,
+        maxHeight: `${maxHeight}px`,
+        width: `${panelWidth}px`,
+        maxWidth: 'calc(100vw - 32px)',
+      }
+    : {};
+
+  const mobileSheetClass = isMobile && anchorRect
+    ? 'fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-white rounded-t-2xl flex flex-col shadow-2xl pointer-events-auto z-[101] bottom-sheet-in'
+    : null;
+
+  const panelClass = mobileSheetClass
+    ? mobileSheetClass
+    : 'relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-black/10 pointer-events-auto modal-panel-in';
+
+  return createPortal(
+    <div className={containerClass}>
+      <div className={backdropClass} onClick={onClose} />
+      <div style={panelStyle} className={panelClass}>
+        {isPopover && !centeredVertically && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${arrowLeft}px`,
+              transform: 'translateX(-50%)',
+              width: '0',
+              height: '0',
+              borderLeft: '8px solid transparent',
+              borderRight: '8px solid transparent',
+              borderBottom: showBelow ? '8px solid white' : undefined,
+              borderTop: !showBelow ? '8px solid white' : undefined,
+              top: showBelow ? '-8px' : undefined,
+              bottom: !showBelow ? '-8px' : undefined,
+              zIndex: 10,
+            }}
+          />
+        )}
+
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="font-bold text-black text-base">{monthLabel} Transactions</h3>
+            <p className="text-[11px] text-black/50 mt-0.5">{transactions.length} records</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-black/5 text-black/60 hover:text-black transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-3">
+          {transactions.map((item) => {
+            const isIncome = item.transaction_type === 'income';
+            return (
+              <div
+                key={item.id}
+                className="flex items-center justify-between p-3.5 rounded-xl border border-black/5 bg-black/[0.01] hover:bg-black/[0.02] transition-colors"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className={`p-2 rounded-xl shrink-0 ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {isIncome ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                  </div>
+                  <div className="overflow-hidden">
+                    <div className="text-xs font-bold text-black capitalize truncate">{item.note || item.category_name}</div>
+                    <div className="text-[10px] text-black/50 font-medium mt-0.5 flex items-center gap-1.5">
+                      <span className="capitalize">{item.category_name}</span>
+                      <span>•</span>
+                      <span>{new Date(item.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className={`text-xs font-bold ${isIncome ? 'text-emerald-600' : 'text-black'}`}>
+                  {isIncome ? '+' : '-'}{fmt(item.amount)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-black/5 flex justify-end bg-black/[0.01] shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-black text-white hover:bg-black/85 text-xs font-bold transition-all"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 const KPICard = ({ label, value, sub, icon: Icon, color, gradient }: {
   label: string;
   value: React.ReactNode;
@@ -76,6 +275,7 @@ export function HistoryPage() {
   // Modal for detail view
   const [detailTransactions, setDetailTransactions] = useState<Transaction[] | null>(null);
   const [detailMonthLabel, setDetailMonthLabel] = useState<string>('');
+  const [detailAnchorRect, setDetailAnchorRect] = useState<DOMRect | null>(null);
 
   // Clear state when user changes
   useEffect(() => {
@@ -682,7 +882,9 @@ export function HistoryPage() {
                     <tr key={index} className="hover:bg-black/[0.01] transition-colors">
                       <td className="px-5 py-3">
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            const rect = e.currentTarget.closest('tr')?.getBoundingClientRect() || null;
+                            setDetailAnchorRect(rect);
                             setDetailTransactions(row.transactions);
                             setDetailMonthLabel(monthLabel);
                           }}
@@ -730,65 +932,17 @@ export function HistoryPage() {
         </div>
       </div>
 
-      {/* Transaction Details Modal/Drawer */}
+      {/* Transaction Details Modal/Drawer — portal-rendered and anchored to the clicked row (same pattern as AddTransactionModal) */}
       {detailTransactions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-black/10 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-black text-base">{detailMonthLabel} Transactions</h3>
-                <p className="text-[11px] text-black/50 mt-0.5">{detailTransactions.length} records</p>
-              </div>
-              <button
-                onClick={() => setDetailTransactions(null)}
-                className="p-1.5 rounded-lg hover:bg-black/5 text-black/60 hover:text-black transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-3">
-              {detailTransactions.map((item) => {
-                const isIncome = item.transaction_type === 'income';
-                return (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3.5 rounded-xl border border-black/5 bg-black/[0.01] hover:bg-black/[0.02] transition-colors"
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className={`p-2 rounded-xl shrink-0 ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {isIncome ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                      </div>
-                      <div className="overflow-hidden">
-                        <div className="text-xs font-bold text-black capitalize truncate">{item.note || item.category_name}</div>
-                        <div className="text-[10px] text-black/50 font-medium mt-0.5 flex items-center gap-1.5">
-                          <span className="capitalize">{item.category_name}</span>
-                          <span>•</span>
-                          <span>{new Date(item.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={`text-xs font-bold ${isIncome ? 'text-emerald-600' : 'text-black'}`}>
-                      {isIncome ? '+' : '-'}{fmt(item.amount)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-black/5 flex justify-end bg-black/[0.01]">
-              <button
-                onClick={() => setDetailTransactions(null)}
-                className="px-4 py-2 rounded-xl bg-black text-white hover:bg-black/85 text-xs font-bold transition-all"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <MonthlyDetailsModal
+          transactions={detailTransactions}
+          monthLabel={detailMonthLabel}
+          anchorRect={detailAnchorRect}
+          onClose={() => {
+            setDetailTransactions(null);
+            setDetailAnchorRect(null);
+          }}
+        />
       )}
     </div>
   );
