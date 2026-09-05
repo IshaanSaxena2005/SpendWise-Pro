@@ -559,6 +559,26 @@ export function HistoryPage() {
     downloadCSV('spendwise-monthly-history.csv', csv);
   };
 
+  // Per-month Export CSV — exports ONLY the transactions for that month,
+  // mirroring the Transactions/Expenses tab export columns.
+  const handleExportMonthCSV = (row: { month: string; transactions: Transaction[] }) => {
+    if (!row.transactions || row.transactions.length === 0) return;
+
+    const parts = row.month.split('-');
+    const monthName = monthNames[parseInt(parts[1], 10) - 1].toLowerCase();
+    const header = ['Date', 'Description', 'Category', 'Amount', 'Notes'];
+    const rows = row.transactions.map((t) => [
+      new Date(t.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      t.note || 'Transaction',
+      t.category_name || '',
+      t.amount,
+      t.note,
+    ]);
+
+    const csv = toCSV(header, rows);
+    downloadCSV(`spendwise-transactions-${monthName}-${parts[0]}.csv`, csv);
+  };
+
   const handlePeriodChange = (val: typeof period) => {
     setPeriod(val);
     setSelectedMonth('all');
@@ -856,8 +876,16 @@ export function HistoryPage() {
 
       {/* Monthly History Table */}
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between gap-3">
           <h2 className="font-semibold text-black text-sm">Monthly History Table</h2>
+          <button
+            onClick={handleExportCSV}
+            disabled={monthlyHistoryRows.length === 0}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-xl px-4 py-2.5 shadow-md shadow-violet-600/10 hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
+          </button>
         </div>
         {monthlyHistoryRows.length > 0 ? (
           <div className="overflow-x-auto">
@@ -872,6 +900,7 @@ export function HistoryPage() {
                   <th className="px-5 py-3.5 text-center">Transactions</th>
                   <th className="px-5 py-3.5 text-right">Budget Limit</th>
                   <th className="px-5 py-3.5 text-right">Budget Remaining</th>
+                  <th className="px-5 py-3.5 text-right">Export</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5 text-xs text-black/80 font-medium">
@@ -907,6 +936,15 @@ export function HistoryPage() {
                       <td className={`px-5 py-3 text-right font-semibold ${row.budgetRemaining !== null ? (row.budgetRemaining >= 0 ? 'text-emerald-600' : 'text-rose-600') : 'text-black/40'}`}>
                         {row.budgetRemaining !== null ? fmt(row.budgetRemaining) : '—'}
                       </td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => handleExportMonthCSV(row)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold transition-all whitespace-nowrap"
+                        >
+                          <Download className="w-3 h-3" />
+                          Export CSV
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -919,17 +957,6 @@ export function HistoryPage() {
           </div>
         )}
 
-        {/* Export CSV — placed at the bottom of the Monthly History section */}
-        <div className="px-5 py-4 border-t border-black/5 flex justify-end">
-          <button
-            onClick={handleExportCSV}
-            disabled={monthlyHistoryRows.length === 0}
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-xl px-4 py-2.5 shadow-md shadow-violet-600/10 hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export CSV
-          </button>
-        </div>
       </div>
 
       {/* Transaction Details Modal/Drawer — portal-rendered and anchored to the clicked row (same pattern as AddTransactionModal) */}
