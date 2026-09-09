@@ -835,11 +835,15 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
       bottomPos = window.innerHeight - anchorRect.top + 12;
       maxHeight = spaceAbove - 24;
     }
-    // Doesn't fit comfortably either above or below - center it vertically
+    // Doesn't fit comfortably either above or below - center it vertically.
+    // Clamp the height to the viewport and center that clamped height so the
+    // panel (including the footer action buttons) never extends past the
+    // bottom of the screen.
     else {
       isCenteredVertically = true;
-      topPos = Math.max(16, (window.innerHeight - popoverHeight) / 2);
-      maxHeight = window.innerHeight - 32;
+      const centeredHeight = Math.min(popoverHeight, window.innerHeight - 32);
+      maxHeight = centeredHeight;
+      topPos = Math.max(16, (window.innerHeight - centeredHeight) / 2);
     }
   }
 
