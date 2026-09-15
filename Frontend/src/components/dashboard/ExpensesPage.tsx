@@ -308,13 +308,17 @@ export function ExpensesPage() {
 
               return (
                 <div key={item.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#F5F5F5]">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.type === 'income' ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.type === 'income' ? 'bg-emerald-50' : 'bg-rose-50'}`}>
                       <Repeat2 className={`w-4 h-4 ${item.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`} />
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-black">{item.category_name || item.note || 'Transaction'}</div>
-                      <div className="text-xs text-black/60">{item.frequency}</div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-black truncate">
+                        {String(item.note || '').trim() || item.category_name || 'Transaction'}
+                      </div>
+                      <div className="text-xs text-black/60 truncate">
+                        {[item.category_name, item.frequency].filter(Boolean).join(' · ')}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">

@@ -7,6 +7,7 @@ interface RecurringTransaction {
   id: number;
   type: 'income' | 'expense';
   amount: number;
+  category_id: number | null;
   category_name: string | null;
   note: string | null;
   frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -150,6 +151,8 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
       await recurringAPI.update(editingItem.id, {
         type: editingItem.type,
         amount: Number(editForm.amount),
+        category_id: editingItem.category_id ?? undefined,
+        note: editingItem.note || undefined,
         frequency: editForm.frequency,
         start_date: editForm.start_date,
         end_date: editForm.end_date || undefined,
