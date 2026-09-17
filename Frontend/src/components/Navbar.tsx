@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Menu, X, ArrowRight } from 'lucide-react';
 
 export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') => void }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('home');
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +27,52 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
     };
   }, [mobileMenuOpen]);
 
+  // Track which landing-page section is currently visible so the matching
+  // nav link can show a subtle active state.
+  useEffect(() => {
+    // Honour a section anchor present on initial load (e.g. /#ai-insights).
+    const initialHash = window.location.hash.replace('#', '');
+    if (initialHash) setActiveSection(initialHash);
+
+    const sectionIds = ['preview', 'ai-insights', 'about'];
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (sections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Activate the section with the largest visible area in the band.
+        let best: IntersectionObserverEntry | null = null;
+        let bestRatio = 0;
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio > bestRatio) {
+            best = entry;
+            bestRatio = entry.intersectionRatio;
+          }
+        }
+        if (best) setActiveSection(best.target.id);
+      },
+      // Watch a band in the upper-middle of the viewport; the hero is
+      // h-screen, so 'home' is handled separately below.
+      { rootMargin: '-20% 0px -60% 0px', threshold: [0, 0.05, 0.25, 0.5] }
+    );
+    observerRef.current = observer;
+    sections.forEach((section) => observer.observe(section));
+
+    // Scrolling back near the top always means the Home section.
+    const onScroll = () => {
+      if (window.scrollY < window.innerHeight * 0.5) setActiveSection('home');
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
   const navLinks = [
     { name: 'Home', href: '#' },
     { name: 'Dashboard Preview', href: '#preview', isScrollLink: true },
@@ -34,6 +82,13 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
 
   const NAVBAR_HEIGHT = 80; // matches h-20 on the nav row
 
+  // Shared landing-page button variants — shape/behavior shared here, colors
+  // kept at each usage site so the unscrolled transparent-nav variants apply.
+  const outlineBtn =
+    'inline-flex items-center justify-center rounded-full border font-medium transition-all duration-300 active:scale-95';
+  const primaryBtn =
+    'inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-all duration-300 active:scale-95';
+
   const scrollToElement = (element: HTMLElement) => {
     const y = element.getBoundingClientRect().top + window.scrollY - NAVBAR_HEIGHT;
     window.scrollTo({ top: y, behavior: 'smooth' });
@@ -41,6 +96,11 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string, isScrollLink?: boolean) => {
     setMobileMenuOpen(false);
+    // Give the clicked link immediate active feedback.
+    const clickedId = href === '#' ? 'home' : href.slice(1);
+    if (clickedId === 'home' || document.getElementById(clickedId)) {
+      setActiveSection(clickedId);
+    }
     if (href === '#') {
       e.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -94,24 +154,33 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
           {/* Center Navigation Links */}
           <div className="hidden lg:flex items-center gap-8">
             <ul className="flex items-center gap-8">
-              {navLinks.map((link) => (
-                <li key={link.name}>
-                  <a 
-                    href={link.href} 
-                    onClick={(e) => handleLinkClick(e, link.href, link.isScrollLink)}
-                    className={`text-sm font-medium relative py-1 transition-colors duration-300 group ${
-                      isScrolled 
-                        ? 'text-black/60 hover:text-black' 
-                        : 'text-white/70 hover:text-white md:text-black/60 md:hover:text-black'
-                    }`}
-                  >
-                    {link.name}
-                    <span className={`absolute bottom-0 left-0 w-full h-[1.5px] scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left ${
-                      isScrolled ? 'bg-black' : 'bg-white md:bg-black'
-                    }`} />
-                  </a>
-                </li>
-              ))}
+              {navLinks.map((link) => {
+                const linkId = link.href === '#' ? 'home' : link.href.slice(1);
+                const isActive = activeSection === linkId;
+                return (
+                  <li key={link.name}>
+                    <a 
+                      href={link.href} 
+                      onClick={(e) => handleLinkClick(e, link.href, link.isScrollLink)}
+                      aria-current={isActive ? 'true' : undefined}
+                      className={`text-sm relative py-1 transition-colors duration-300 group ${
+                        isActive
+                          ? `font-semibold ${isScrolled ? 'text-black' : 'text-white md:text-black'}`
+                          : `font-medium ${
+                              isScrolled 
+                                ? 'text-black/60 hover:text-black' 
+                                : 'text-white/70 hover:text-white md:text-black/60 md:hover:text-black'
+                            }`
+                      }`}
+                    >
+                      {link.name}
+                      <span className={`absolute bottom-0 left-0 w-full h-[1.5px] transition-transform duration-300 origin-left ${
+                        isActive ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'
+                      } ${isScrolled ? 'bg-black' : 'bg-white md:bg-black'}`} />
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
@@ -119,7 +188,7 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
           <div className="hidden lg:flex items-center gap-4">
             <button 
               onClick={() => onOpenAuth('login')}
-              className={`text-sm font-medium px-5 py-2.5 rounded-full border transition-all duration-300 active:scale-95 ${
+              className={`${outlineBtn} text-sm px-5 py-2.5 ${
                 isScrolled 
                   ? 'text-black border-black/20 bg-white hover:bg-black/5' 
                   : 'text-white border-white/30 bg-white/10 hover:bg-white/20 md:text-black md:border-black/20 md:bg-white md:hover:bg-black/5'
@@ -129,7 +198,7 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
             </button>
             <button 
               onClick={() => onOpenAuth('signup')}
-              className="inline-flex items-center gap-1.5 bg-black text-white text-sm font-medium px-5 py-2.5 rounded-full transition-all duration-300 hover:bg-black/80 hover:scale-105 active:scale-95 shadow-sm"
+              className={`${primaryBtn} bg-black text-white text-sm px-5 py-2.5 shadow-sm hover:bg-black/80 hover:scale-105`}
             >
               Get Started Free
               <ArrowRight className="w-3.5 h-3.5" />
@@ -138,7 +207,7 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
 
           {/* Mobile Toggle Button */}
           <button 
-            className={`lg:hidden z-50 p-2 rounded-xl transition-colors ${
+            className={`lg:hidden z-50 p-2 rounded-full transition-colors ${
               mobileMenuOpen 
                 ? 'text-black hover:bg-black/5' 
                 : isScrolled ? 'text-black hover:bg-black/5' : 'text-white hover:bg-white/10 md:text-black md:hover:bg-black/5'
@@ -166,29 +235,36 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
         }`}
       >
         <ul className="flex flex-col gap-6">
-          {navLinks.map((link) => (
-            <li key={link.name} className="border-b border-black/5 pb-3">
-              <a 
-                href={link.href} 
-                className="text-xl font-medium text-black/80 hover:text-black transition-colors"
-                onClick={(e) => handleLinkClick(e, link.href, link.isScrollLink)}
-              >
-                {link.name}
-              </a>
-            </li>
-          ))}
+          {navLinks.map((link) => {
+            const linkId = link.href === '#' ? 'home' : link.href.slice(1);
+            const isActive = activeSection === linkId;
+            return (
+              <li key={link.name} className="border-b border-black/5 pb-3">
+                <a 
+                  href={link.href} 
+                  aria-current={isActive ? 'true' : undefined}
+                  className={`text-xl transition-colors ${
+                    isActive ? 'font-semibold text-black' : 'font-medium text-black/80 hover:text-black'
+                  }`}
+                  onClick={(e) => handleLinkClick(e, link.href, link.isScrollLink)}
+                >
+                  {link.name}
+                </a>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="flex flex-col gap-3 mt-auto">
           <button 
             onClick={() => { setMobileMenuOpen(false); onOpenAuth('login'); }}
-            className="w-full inline-flex items-center justify-center border border-black/20 bg-white text-black text-base font-medium px-6 py-3.5 rounded-full hover:bg-black/5 transition-all duration-300"
+            className={`${outlineBtn} w-full border-black/20 bg-white text-black text-base px-6 py-3.5 hover:bg-black/5`}
           >
             Login
           </button>
           <button 
             onClick={() => { setMobileMenuOpen(false); onOpenAuth('signup'); }}
-            className="w-full inline-flex items-center justify-center bg-black text-white text-base font-medium px-6 py-3.5 rounded-full hover:bg-black/80 transition-all duration-300"
+            className={`${primaryBtn} w-full bg-black text-white text-base px-6 py-3.5 hover:bg-black/80`}
           >
             Get Started Free
           </button>

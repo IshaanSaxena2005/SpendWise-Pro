@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Key, Receipt, Target, BarChart3, BrainCircuit, ShieldAlert } from 'lucide-react';
+import { Key, Receipt, Target, BarChart3, Repeat2, Bot } from 'lucide-react';
 
 export function ProjectHighlights() {
   const cards = [
@@ -24,14 +24,14 @@ export function ProjectHighlights() {
       icon: <BarChart3 className="w-5 h-5 text-black" />
     },
     {
-      title: 'AI Spending Forecast',
-      desc: 'Predict future expenses using machine learning.',
-      icon: <BrainCircuit className="w-5 h-5 text-black" />
+      title: 'Recurring Transactions',
+      desc: 'Automate repeated income and expenses with smart scheduling.',
+      icon: <Repeat2 className="w-5 h-5 text-black" />
     },
     {
-      title: 'Anomaly Detection',
-      desc: 'Detect unusual spending patterns automatically.',
-      icon: <ShieldAlert className="w-5 h-5 text-black" />
+      title: 'AI Financial Assistant',
+      desc: 'Ask questions about your finances in natural language.',
+      icon: <Bot className="w-5 h-5 text-black" />
     }
   ];
 

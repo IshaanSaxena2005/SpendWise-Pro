@@ -79,8 +79,20 @@ export function ExpensesPage() {
       // Filter for active recurring transactions
       const activeRecurring = allRecurring.filter((r: any) => r.is_active);
       
-      // Sort by next execution date and take first 5
+      // Upcoming = still pending within the CURRENT calendar month (IST).
+      // Uses the app's existing Asia/Kolkata convention (same as the backend's
+      // recurringExecutionService.js getIstDate() and the row rendering below):
+      // a plain YYYY-MM-DD calendar-date comparison, no UTC Date arithmetic.
+      // Condition: next_execution_date >= today AND same YYYY-MM as today, so
+      // past dates and next-month occurrences (e.g. after an execution advances
+      // the date) stay hidden until that month becomes current.
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const currentMonth = todayStr.slice(0, 7); // YYYY-MM
       const upcoming = activeRecurring
+        .filter((r: any) => {
+          const nextDay = String(r.next_execution_date ?? '').split('T')[0]; // YYYY-MM-DD
+          return nextDay.length >= 10 && nextDay >= todayStr && nextDay.slice(0, 7) === currentMonth;
+        })
         .sort((a: any, b: any) => new Date(a.next_execution_date).getTime() - new Date(b.next_execution_date).getTime())
         .slice(0, 5);
       
@@ -119,9 +131,25 @@ export function ExpensesPage() {
       });
     });
 
+    // Re-fetch upcoming recurring when the IST calendar day changes (e.g. the
+    // month rolls over while the page stays open) so the current-month list
+    // updates automatically.
+    const getIstDay = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    let lastIstDay = getIstDay();
+    const dayTimer = window.setInterval(() => {
+      const nowDay = getIstDay();
+      if (nowDay !== lastIstDay) {
+        lastIstDay = nowDay;
+        void fetchUpcomingRecurring().catch((err) => {
+          console.error('Error refreshing recurring:', err);
+        });
+      }
+    }, 60_000);
+
     return () => {
       cancelled = true;
       unsubscribe();
+      window.clearInterval(dayTimer);
     };
   }, [user?.id, fetchFinanceData, fetchUpcomingRecurring]);
 

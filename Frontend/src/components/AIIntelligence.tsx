@@ -49,7 +49,7 @@ export function AIIntelligence() {
               <div className={`w-12 h-12 rounded-2xl ${card.bg} flex items-center justify-center mb-6`}>
                 {card.icon}
               </div>
-              <h4 className="text-white font-semibold text-lg mb-2">{card.title}</h4>
+              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
               <p className="text-white/60 text-sm leading-relaxed">{card.desc}</p>
             </div>
           ))}

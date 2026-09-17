@@ -60,7 +60,7 @@ export function Hero() {
           <button
             onClick={handleDemoLogin}
             disabled={isLoading}
-            className="inline-flex items-center gap-2 bg-black text-white text-sm font-semibold px-6 py-3 rounded-full hover:bg-gray-800 transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-300 active:scale-95 bg-black text-white text-sm px-6 py-3 shadow-lg hover:bg-black/80 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             {isLoading ? (
               <>

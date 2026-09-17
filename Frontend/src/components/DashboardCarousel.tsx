@@ -69,14 +69,10 @@ export function DashboardCarousel() {
           {mockups.map((m, i) => (
             <div
               key={i}
-              className={`absolute inset-0 transition-opacity duration-500 flex flex-col justify-end p-6 ${active === i ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+              className={`absolute inset-0 transition-opacity duration-500 ${active === i ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent z-10 mix-blend-multiply opacity-80"></div>
               <img src={m.img} alt={m.title} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-60" />
-              <div className="relative z-20 max-w-md">
-                <h3 className="text-xl font-medium text-white mb-1">{m.title}</h3>
-                <p className="text-white/75 text-sm">{m.desc}</p>
-              </div>
             </div>
           ))}
         </div>
