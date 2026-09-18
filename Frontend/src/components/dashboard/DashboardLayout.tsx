@@ -13,6 +13,7 @@ import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 import { DEMO_EMAIL } from '../../lib/constants';
 import { notificationAPI, type Notification } from '../../lib/api';
+import { BUTTON_VARIANTS } from './DashboardOverview';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -143,9 +144,9 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
 
         <button
           onClick={onLogout}
-          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 hover:translate-x-1 w-full transition-all duration-200 ease-out mt-1"
+          className={`group flex items-center gap-3 w-full mt-1 ${BUTTON_VARIANTS.danger}`}
         >
-          <LogOut className="w-4 h-4 shrink-0 transition-transform duration-200 ease-out group-hover:scale-110" />
+          <LogOut className="w-4 h-4 shrink-0" />
           Logout
         </button>
       </div>
@@ -317,7 +318,7 @@ export function DashboardLayout() {
             {!isProfileOrSettings && !isDemoUser && (
               <button
                 onClick={() => setModalOpen(true)}
-                className="flex items-center gap-1.5 bg-black text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-gray-800 hover-lift transition-colors shadow-sm hover:shadow-md"
+                className={`flex items-center gap-1.5 px-4 py-2 ${BUTTON_VARIANTS.primary}`}
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Add Transaction</span>

@@ -189,12 +189,14 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
           isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
         }`}
         style={getButtonStyle()}
+        aria-label="Open Ask SpendWise AI chat"
+        title="Ask SpendWise AI"
       >
         <img src="/chatbot.png" alt="Chatbot" className="w-full h-full object-cover rounded-full pointer-events-none" />
       </button>
 
       {/* Chat Window */}
-      <div className={`fixed bottom-6 right-6 w-[380px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-50 transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-50 opacity-0 pointer-events-none'}`}>
+      <div role="dialog" aria-label="Ask SpendWise AI" className={`fixed bottom-6 right-6 w-[380px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-50 transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-50 opacity-0 pointer-events-none'}`}>
         
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-600 to-violet-800 p-4 flex items-center justify-between shrink-0">
@@ -210,7 +212,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
               </div>
             </div>
           </div>
-          <button onClick={() => setIsOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
+          <button onClick={() => setIsOpen(false)} aria-label="Close chat" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>

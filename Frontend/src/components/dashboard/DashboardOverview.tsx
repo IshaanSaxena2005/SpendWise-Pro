@@ -13,6 +13,17 @@ function fmt(n: number | string) {
   return '₹' + Math.floor(toAmount(n)).toLocaleString('en-IN');
 }
 
+/**
+ * Shared dashboard button variant classes (colors + shape + focus states).
+ * Paddings stay at usage sites so each control keeps its own size.
+ */
+export const BUTTON_VARIANTS = {
+  primary:
+    'bg-black text-white text-sm font-semibold rounded-full hover:bg-gray-800 hover-lift transition-colors shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
+  danger:
+    'px-3 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500',
+} as const;
+
 export function DashboardOverview() {
   const { user } = useAuth();
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
@@ -239,10 +250,10 @@ export function DashboardOverview() {
 
   // Metric cards data - using current month totals for consistency
   const metricCards = useMemo(() => [
-    { label: 'MONTHLY INCOME', value: fmt(currentMonthIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
-    { label: 'MONTHLY EXPENSES', value: fmt(currentMonthExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
-    { label: 'MONTHLY SAVINGS', value: fmt(currentMonthBalance), sub: '', icon: Target, color: 'text-violet-600' },
-    { label: 'BUDGET LEFT', value: fmt(currentMonthBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
+    { label: 'Monthly Income', value: fmt(currentMonthIncome), sub: '', icon: CreditCard, color: 'text-green-600' },
+    { label: 'Monthly Expenses', value: fmt(currentMonthExpenses), sub: '', icon: TrendingDown, color: 'text-red-500' },
+    { label: 'Monthly Savings', value: fmt(currentMonthBalance), sub: '', icon: Target, color: 'text-violet-600' },
+    { label: 'Budget Left', value: fmt(currentMonthBudgetLeft), sub: '', icon: Wallet, color: 'text-emerald-600' },
   ], [currentMonthIncome, currentMonthExpenses, currentMonthBalance, currentMonthBudgetLeft]);
 
   if (loading) {
@@ -270,7 +281,7 @@ export function DashboardOverview() {
                 <Icon className={`w-5 h-5 ${color}`} />
               </div>
             </div>
-            <span className="text-[10px] font-semibold text-black/40 tracking-widest uppercase block mb-1">{label}</span>
+            <span className="text-xs font-medium text-black/40 block mb-1">{label}</span>
             <div className="text-2xl font-semibold text-black tracking-tight">{value}</div>
             {sub && <div className="text-[11px] text-black/40">{sub}</div>}
           </div>
@@ -375,51 +386,51 @@ export function DashboardOverview() {
             </div>
           </div>
 
-          {/* AI Forecast */}
-          <div className="bg-gradient-to-br from-violet-600 to-violet-800 rounded-2xl p-5 text-white shadow-md relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+          {/* AI Forecast — white card with violet accents, consistent with sibling cards */}
+          <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 relative overflow-hidden group hover:border-violet-200 transition-colors">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-violet-600/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium opacity-90">Next Month Forecast</span>
-              <TrendingUp className="w-4 h-4 opacity-80" />
+              <span className="text-sm font-semibold text-black">Next Month Forecast</span>
+              <TrendingUp className="w-4 h-4 text-violet-600" />
             </div>
             {loadingForecast ? (
-              <div className="text-sm opacity-80">Loading forecast...</div>
+              <div className="text-sm text-black/50" role="status">Loading forecast...</div>
             ) : forecast?.message && !forecast.predicted_spending ? (
-              <div className="text-sm opacity-80">{forecast.message}</div>
+              <div className="text-sm text-black/50">{forecast.message}</div>
             ) : (
               <>
-                <div className="text-3xl font-bold mb-1 tracking-tight">
+                <div className="text-3xl font-bold mb-1 tracking-tight text-violet-700">
                   {forecast?.predicted_spending ? fmt(forecast.predicted_spending) : '—'}
                 </div>
-                <div className="text-xs font-medium opacity-80 mb-2">
+                <div className="text-xs font-medium text-black/60 mb-2">
                   {forecast?.is_low_confidence ? 'Low-Confidence Estimate' : 'Predicted Spending'}
                 </div>
                 {forecast?.is_low_confidence && (
-                  <div className="text-[10px] opacity-70 mb-3">
-                    Confidence: {forecast.confidence}% • {forecast.message}
+                  <div className="text-xs text-black/50 leading-relaxed mb-3">
+                    Confidence: {forecast.confidence}% • {forecast.message?.replace('month(s)', 'months').replace('improve prediction accuracy', 'improve accuracy')}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Trend</div>
-                    <div className="text-sm font-semibold flex items-center gap-1">
+                  <div className="bg-[#F5F5F5] rounded-xl p-3">
+                    <div className="text-[10px] font-medium text-black/40 tracking-wider mb-1">Trend</div>
+                    <div className="text-sm font-semibold text-black flex items-center gap-1">
                       {forecast?.trend_direction || '—'}
                       {forecast?.trend_direction === 'Increasing' && '↗'}
                       {forecast?.trend_direction === 'Decreasing' && '↘'}
                       {forecast?.trend_direction === 'Stable' && '→'}
                     </div>
                   </div>
-                  <div className="bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">MAE</div>
-                    <div className="text-sm font-semibold flex items-center gap-1">
-                      {forecast?.mae ? fmt(forecast.mae) : '—'}
+                  {forecast?.mae && (
+                    <div className="bg-[#F5F5F5] rounded-xl p-3" title="MAE (Mean Absolute Error) measures the average difference between predicted and actual expenses.">
+                      <div className="text-[10px] font-medium text-black/40 tracking-wider mb-1">MAE</div>
+                      <div className="text-sm font-semibold text-black flex items-center gap-1">{fmt(forecast.mae)}</div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 {forecast?.rmse && (
-                  <div className="mt-3 bg-black/20 rounded-xl p-3 backdrop-blur-sm">
-                    <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">RMSE</div>
-                    <div className="text-sm font-semibold flex items-center gap-1">{fmt(forecast.rmse)}</div>
+                  <div className="mt-3 bg-[#F5F5F5] rounded-xl p-3">
+                    <div className="text-[10px] font-medium text-black/40 tracking-wider mb-1">RMSE</div>
+                    <div className="text-sm font-semibold text-black flex items-center gap-1">{fmt(forecast.rmse)}</div>
                   </div>
                 )}
               </>
@@ -513,14 +524,17 @@ export function DashboardOverview() {
                   const barColor = rawPct < 70 ? 'bg-emerald-500' : rawPct < 90 ? 'bg-orange-500' : 'bg-rose-500';
                   return (
                     <div key={b.id} className="group cursor-pointer">
-                      <div className="flex justify-between text-xs mb-1.5">
-                        <span className="font-semibold text-black/80 group-hover:text-black transition-colors">
+                      <div className="flex justify-between items-baseline text-xs gap-2 mb-0.5">
+                        <span className="font-semibold text-black/80 group-hover:text-black transition-colors min-w-0 truncate">
                           <CategoryEmoji icon={getCategoryIcon(cat || b.category_name)} className="mr-1" />
                           {cat?.name || b.category_name || 'Overall'}
                         </span>
-                        <span className="text-black/50 font-medium">
-                          {fmt(spent)} <span className="opacity-40">/</span> {fmt(budgetLimit)}
+                        <span className="text-sm font-semibold text-black shrink-0" aria-label={`${Math.round(rawPct)}% of budget used`}>
+                          {Math.round(rawPct)}%
                         </span>
+                      </div>
+                      <div className="text-[11px] text-black/50 font-medium mb-1.5">
+                        {fmt(spent)} <span className="opacity-40">/</span> {fmt(budgetLimit)}
                       </div>
                       <div className="w-full h-2 bg-[#F5F5F5] rounded-full overflow-hidden">
                         <div
@@ -528,7 +542,6 @@ export function DashboardOverview() {
                           style={{ width: `${Math.min(pct, 100)}%` }}
                         />
                       </div>
-                      <div className="text-[10px] text-black/40 mt-1 text-right">{Math.round(rawPct)}%</div>
                     </div>
                   );
                 })
