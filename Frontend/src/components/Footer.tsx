@@ -65,8 +65,10 @@ export function Footer() {
         </div>
       </div>
 
-      {/* ── 3-Column Body ───────────────────────────────────────── */}
-      <div className="max-w-[1400px] mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-3 gap-12">
+      {/* ── 3-Column Body — narrower max width + uneven tracks keep the
+          link columns grouped near the brand column instead of drifting
+          to the far edges of a 1400px row ── */}
+      <div className="max-w-[1200px] mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] gap-10 md:gap-12 lg:gap-14">
 
         {/* Col 1 — Brand */}
         <div className="flex flex-col gap-4">

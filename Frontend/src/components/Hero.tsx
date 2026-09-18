@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Play } from 'lucide-react';
 import api from '../lib/api';
 import { DEMO_EMAIL } from '../lib/constants';
 import { useAuth } from '../context/AuthContext';
@@ -72,7 +73,8 @@ export function Hero() {
               </>
             ) : (
               <>
-                🚀 Try Live Demo
+                <Play className="w-4 h-4 fill-current" aria-hidden="true" />
+                Try Live Demo
               </>
             )}
           </button>
