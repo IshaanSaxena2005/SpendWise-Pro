@@ -13,6 +13,7 @@ import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 import { DEMO_EMAIL } from '../../lib/constants';
 import { notificationAPI, type Notification } from '../../lib/api';
+import { notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { BUTTON_VARIANTS } from './DashboardOverview';
 
 const navItems = [
@@ -429,7 +430,11 @@ export function DashboardLayout() {
       </main>
 
       {/* Add Transaction Modal */}
-      <AddTransactionModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      <AddTransactionModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onTransactionChanged={notifyFinanceDataChanged}
+      />
 
       {/* Floating AI Chatbot */}
       <AskSpendWiseAI position={chatbotPos} onPositionChange={setChatbotPos} />

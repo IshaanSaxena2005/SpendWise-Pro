@@ -20,6 +20,10 @@ function fmt(n: number | string) {
 export const BUTTON_VARIANTS = {
   primary:
     'bg-black text-white text-sm font-semibold rounded-full hover:bg-gray-800 hover-lift transition-colors shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
+  secondary:
+    'inline-flex items-center justify-center gap-2 bg-white border border-black/10 text-black px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
+  ghost:
+    'inline-flex items-center justify-center gap-1.5 bg-black/5 border border-transparent text-black px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-300 hover:bg-black hover:text-white active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600',
   danger:
     'px-3 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500',
 } as const;

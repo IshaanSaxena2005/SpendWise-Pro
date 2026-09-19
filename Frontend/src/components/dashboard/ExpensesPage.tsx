@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Plus, Repeat2 } from 'lucide-react';
+import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Repeat2 } from 'lucide-react';
 import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, budgetAPI, type Transaction, type Category, type Budget } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
@@ -11,6 +11,7 @@ import { formatDate } from '../../lib/dateUtils';
 import { toCSV, downloadCSV } from '../../lib/csvExport';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_EMAIL } from '../../lib/constants';
+import { BUTTON_VARIANTS } from './DashboardOverview';
 
 const PAGE_SIZE = 30;
 
@@ -36,7 +37,6 @@ export function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
   const [recurringModalOpen, setRecurringModalOpen] = useState(false);
   const [upcomingRecurring, setUpcomingRecurring] = useState<any[]>([]);
@@ -251,15 +251,6 @@ export function ExpensesPage() {
     );
   }
 
-  const handleAdd = () => {
-    if (isDemoUser) {
-      setReadOnlyMessage(true);
-      setTimeout(() => setReadOnlyMessage(false), 3000);
-      return;
-    }
-    setModalOpen(true);
-  };
-
   const handleEdit = (txn: Transaction, event: React.MouseEvent<HTMLButtonElement>) => {
     if (isDemoUser) {
       setReadOnlyMessage(true);
@@ -281,16 +272,9 @@ export function ExpensesPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setRecurringModalOpen(true)}
-            className="flex items-center gap-2 border border-black/10 text-black px-4 py-2 rounded-xl text-sm font-medium hover:bg-black/5 transition-colors"
+            className={BUTTON_VARIANTS.secondary}
           >
             <Repeat2 className="w-4 h-4" /> Manage Recurring
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={isDemoUser}
-            className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" /> Add
           </button>
         </div>
       </div>
@@ -307,7 +291,7 @@ export function ExpensesPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Repeat2 className="w-4 h-4 text-black/60" />
-              <h3 className="text-sm font-semibold text-black">Upcoming Recurring</h3>
+              <h2 className="text-sm font-semibold text-black">Upcoming Recurring</h2>
             </div>
             <button
               onClick={() => setRecurringModalOpen(true)}
@@ -412,7 +396,7 @@ export function ExpensesPage() {
           </div>
           <button
             onClick={exportCSV}
-            className="group flex items-center gap-1.5 bg-black/5 border border-transparent text-black text-sm font-medium px-4 py-2 rounded-xl hover:bg-black hover:text-white hover:scale-105 transition-all duration-300 shadow-sm hover:shadow-md active:scale-95"
+            className={`group ${BUTTON_VARIANTS.ghost}`}
           >
             <Download className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" /> Export CSV
           </button>
@@ -539,19 +523,19 @@ export function ExpensesPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'TRANSACTIONS THIS MONTH', value: summaryFiltered.length, color: 'text-black' },
+          { label: 'Transactions This Month', value: summaryFiltered.length, color: 'text-black' },
           {
-            label: 'EXPENSES THIS MONTH',
+            label: 'Expenses This Month',
             value: fmt(dashboardSummary?.current_month_spending || 0),
             color: 'text-rose-500',
           },
           {
-            label: 'INCOME THIS MONTH',
+            label: 'Income This Month',
             value: fmt(dashboardSummary?.current_month_income || 0),
             color: 'text-green-600',
           },
           {
-            label: 'MONTHLY SAVINGS',
+            label: 'Monthly Savings',
             value: (() => {
               const income = dashboardSummary?.current_month_income || 0;
               const expense = dashboardSummary?.current_month_spending || 0;
@@ -569,7 +553,7 @@ export function ExpensesPage() {
             key={idx}
             className="bg-white rounded-2xl p-4 border border-black/5 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
           >
-            <span className="text-[10px] font-semibold text-black/40 tracking-wider mb-2 block">{card.label}</span>
+            <span className="text-xs font-medium text-black/40 mb-2 block">{card.label}</span>
             <div className={`text-xl font-bold tracking-tight ${card.color}`}>{card.value}</div>
           </div>
         ))}
@@ -640,20 +624,22 @@ export function ExpensesPage() {
                         {t.transaction_type === 'income' ? '+' : '-'}{fmt(t.amount)}
                       </td>
                       <td className="px-5 py-3">
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                           <button
                             onClick={(e) => handleEdit(t, e)}
                             disabled={isDemoUser}
-                            className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            aria-label="Edit transaction"
+                            className="p-2.5 text-black/60 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(t.id)}
                             disabled={isDemoUser}
-                            className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            aria-label="Delete transaction"
+                            className="p-2.5 text-black/60 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -703,9 +689,8 @@ export function ExpensesPage() {
       </div>
 
       <AddTransactionModal
-        isOpen={modalOpen || !!editTxn}
+        isOpen={!!editTxn}
         onClose={() => {
-          setModalOpen(false);
           setEditTxn(null);
           setAnchorRect(null);
         }}
