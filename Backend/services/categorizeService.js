@@ -246,10 +246,16 @@ async function callMlCategorize(description) {
   }
   const started = Date.now();
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    // Shared secret for the ML service (matches ML-Service/app.py x-ml-api-key check).
+    if (process.env.ML_API_KEY) {
+      headers['x-ml-api-key'] = process.env.ML_API_KEY;
+    }
     const resp = await axios({
       method: 'POST',
       url: `${mlServiceUrl}/categorize`,
       data: { description },
+      headers,
       timeout: 4000,
       responseType: 'json',
     });

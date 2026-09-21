@@ -88,6 +88,10 @@ const getNextMonthForecast = async (req, res) => {
         `${mlServiceUrl.replace(/\/$/, '')}/forecast`,
         {
           history: history
+        },
+        {
+          headers: { 'x-ml-api-key': process.env.ML_API_KEY || '' },
+          timeout: 4000,
         }
       );
       console.log(`[getNextMonthForecast] ML service response:`, flaskResponse.data);

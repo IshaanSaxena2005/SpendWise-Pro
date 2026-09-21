@@ -26,3 +26,7 @@ Thumbs.db
 
 # Uploads (optional)
 Backend/uploads/
+# Python / ML-Service
+__pycache__/
+*.pyc
+.venv/

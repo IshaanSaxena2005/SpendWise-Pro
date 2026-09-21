@@ -23,10 +23,14 @@ const checkAnomaly = async (userId, amount, categoryId) => {
       return { is_anomaly: false };
     }
 
-    const response = await axios.post(`${mlServiceUrl}/anomaly`, {
-      history,
-      current_expense: amount
-    });
+    const response = await axios.post(
+      `${mlServiceUrl}/anomaly`,
+      { history, current_expense: amount },
+      {
+        headers: { 'x-ml-api-key': process.env.ML_API_KEY || '' },
+        timeout: 4000,
+      }
+    );
 
     return response.data;
   } catch (err) {

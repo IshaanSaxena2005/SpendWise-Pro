@@ -1,9 +1,64 @@
-from flask import Flask, request, jsonify
+"""SpendWise Pro — ML Service (Flask).
+
+Endpoints:
+    GET  /health      — liveness probe (UNAUTHENTICATED so deployment platforms
+                        can run health checks; never loads or trains the model)
+    POST /categorize  — TF-IDF + LogisticRegression transaction categorization
+    POST /forecast    — linear-regression next-month spending forecast
+    POST /anomaly     — IsolationForest anomaly detection
+
+Authentication:
+    All POST endpoints require the shared secret header:
+        x-ml-api-key: <ML_API_KEY>
+    Set ML_API_KEY in the environment of BOTH this service and the Node backend
+    (see .env.example). /health is intentionally exempt.
+
+Run locally (development):
+    python app.py                # http://0.0.0.0:5001
+Run in production (gunicorn):
+    gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 60 app:app
+"""
+
+import hmac
+import os
+
+from flask import Flask, jsonify, request
 from model import train_and_predict
 from anomaly import detect_anomaly
 from classifier import predict_category, load_classifier
 
 app = Flask(__name__)
+
+# Development-only behaviour is opt-in: DEBUG must be explicitly "true" to get
+# the Werkzeug debugger/reloader. Production-safe default is False.
+DEBUG = os.getenv("DEBUG", "false").strip().lower() in ("1", "true", "yes", "on")
+
+# Shared secret required on all POST endpoints (never logged, never returned).
+ML_API_KEY = os.getenv("ML_API_KEY", "")
+
+
+@app.before_request
+def _require_ml_api_key():
+    """Shared-secret gate for all POST endpoints; /health stays open.
+
+    Deployment platforms commonly poll /health unauthenticated, so it (and
+    CORS preflights) are exempt. Returns 503 when the server itself is not
+    configured with a secret, so a misconfigured deployment fails closed
+    instead of serving an unauthenticated model. Never logs the key.
+    """
+    if request.method in ("OPTIONS", "HEAD") or request.path == "/health":
+        return None
+    if request.method != "POST":
+        return None
+
+    if not ML_API_KEY:
+        return jsonify({"error": "ML service authentication is not configured"}), 503
+
+    provided = request.headers.get("x-ml-api-key", "")
+    # Constant-time comparison; comparison result is never logged.
+    if not provided or not hmac.compare_digest(provided, ML_API_KEY):
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
 
 
 @app.route('/health', methods=['GET'])
@@ -100,5 +155,11 @@ if __name__ == '__main__':
         load_classifier()
     except Exception as e:
         print('[warn] Failed to preload classifier:', e)
-    # Run the Flask app on port 5001
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Flask development server (gunicorn is the production entrypoint — see Procfile).
+    # Host/port configurable via HOST/PORT; the Werkzeug debugger only with DEBUG=true.
+    app.run(
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "5001")),
+        debug=DEBUG,
+        use_reloader=DEBUG,
+    )
