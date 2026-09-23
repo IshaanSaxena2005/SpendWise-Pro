@@ -35,3 +35,5 @@ __pycache__/
 Backend/scripts/curated_ml_training_data.json
 ML-Service/_curated_tmp.json
 ML-Service/_ml_service.log
+# ...except the ML-Service env template (placeholders only, needed for deployment)
+!ML-Service/.env.example

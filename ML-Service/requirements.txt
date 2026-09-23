@@ -1,5 +1,8 @@
 Flask
 gunicorn
-scikit-learn
-pandas
+# Pinned to the exact version the committed artifacts (artifacts/*.joblib)
+# were pickled with — sklearn warns on cross-version unpickling, and training
+# results vary between versions (gate comparisons would be meaningless).
+scikit-learn==1.7.2
 numpy
+pandas

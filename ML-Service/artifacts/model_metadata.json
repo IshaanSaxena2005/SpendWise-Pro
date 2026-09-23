@@ -1,0 +1,41 @@
+{
+  "model_version": "2026.09.23-122808",
+  "trained_at": "2026-09-23T12:28:08.858875+00:00",
+  "dataset_size": 2000,
+  "dataset_seed": 42,
+  "dataset_sha256": "17f08510390cdcf5ab4b28452e37e63bfa77638a93026124694ba4a68aae6a7b",
+  "classes": [
+    "Bills",
+    "Entertainment",
+    "Food",
+    "Fuel",
+    "Health",
+    "Salary",
+    "Shopping",
+    "Travel"
+  ],
+  "metrics": {
+    "accuracy": 0.95,
+    "weighted_precision": 0.952255529610651,
+    "weighted_recall": 0.95,
+    "weighted_f1": 0.9500926404218883
+  },
+  "model": {
+    "algorithm": "LogisticRegression",
+    "C": 2.5,
+    "solver": "saga",
+    "penalty": "l2"
+  },
+  "features": {
+    "word_ngrams": [
+      1,
+      2
+    ],
+    "char_ngrams": [
+      3,
+      6
+    ],
+    "tfidf": "sublinear_tf"
+  },
+  "note": "Metrics measured from the committed production artifacts on the reproducible holdout; artifacts not replaced."
+}
