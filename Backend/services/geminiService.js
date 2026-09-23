@@ -1,7 +1,12 @@
 const axios = require('axios');
 
 const GEMINI_TIMEOUT_MS = 8000;
-const GENERATE_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
+// Model ladder (Sep 2026): Google retired gemini-2.0-flash and all 1.5-flash
+// variants (404 MODEL_NOT_FOUND), and gemini-2.5-flash is closed to NEW keys.
+// gemini-3.6-flash is the current recommended model; `gemini-flash-latest` is
+// Google's maintained alias that always points at the current flash model and
+// 2.5-flash remains for keys where it is still provisioned.
+const GENERATE_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
 const EMBEDDING_MODEL = 'text-embedding-004';
 const GENERATE_MODEL = GENERATE_MODELS[0];
 
@@ -195,7 +200,7 @@ function cacheSet(key, value) {
  * Never throws for missing key / API failures — returns { ok: false, reason, ... }.
  * Does not validate API key format; only real Google responses decide validity.
  */
-async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 512, responseMimeType = null, cacheKey = null }) {
+async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 512, responseMimeType = null, cacheKey = null, timeoutMs = null }) {
   const started = Date.now();
   const apiKey = getApiKey();
 
@@ -243,6 +248,9 @@ async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 51
 
   for (const model of GENERATE_MODELS) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    let attempt = 0;
+    while (true) {
+      attempt++;
     try {
       const response = await axios.post(
         endpoint,
@@ -251,7 +259,7 @@ async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 51
           generationConfig,
         },
         {
-          timeout: GEMINI_TIMEOUT_MS,
+          timeout: timeoutMs || GEMINI_TIMEOUT_MS,
           headers: { 'Content-Type': 'application/json' },
         },
       );
@@ -310,10 +318,34 @@ async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 51
       lastFailure = { ...classified, model };
       logGeminiFailure('generateContent', classified, Date.now() - started, model);
 
-      // Only try the next model when this one is missing
-      if (classified.reason !== 'MODEL_NOT_FOUND') {
+      // Missing model -> try the next model in the ladder
+      if (classified.reason === 'MODEL_NOT_FOUND') {
         break;
       }
+      // Quota (429) / transient 503 high-demand: fall through to the next
+      // model (each model has its own quota bucket — a 429 on one does not
+      // imply the other is exhausted); 503 additionally gets one short retry.
+      if (classified.reason === 'QUOTA_EXCEEDED' || classified.httpStatus === 503) {
+        if (classified.httpStatus === 503 && attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+        break;
+      }
+      // Any other failure -> stop entirely (same as previous behavior)
+      return {
+        ok: false,
+        reason: classified.reason,
+        httpStatus: classified.httpStatus,
+        googleStatus: classified.googleStatus,
+        googleMessage: classified.googleMessage,
+        text: null,
+        json: null,
+        durationMs: Date.now() - started,
+        cached: false,
+        model,
+      };
+    }
     }
   }
 

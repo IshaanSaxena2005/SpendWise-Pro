@@ -11,10 +11,10 @@ interface Message {
 }
 
 const PREDEFINED_PROMPTS = [
-  "💰 Analyze my spending",
+  "💰 How much did I spend this month?",
   "📉 How can I save more next month?",
-  "🎯 Help me reach my savings goal",
-  "🔍 Where am I overspending?"
+  "🏷️ Dish wash liquid kis category mein daalu?",
+  "📊 Mera iss month ka kharcha kitna hai?"
 ];
 
 const WELCOME_MESSAGE: Message = {
@@ -146,7 +146,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
   }, [messages, isTyping]);
 
   const handleSend = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || isTyping) return; // block duplicate sends while a reply is in flight
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
@@ -300,7 +300,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
             />
             <button
               type="submit"
-              disabled={!input.trim()}
+              disabled={!input.trim() || isTyping}
               className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors"
             >
               <Send className="w-3.5 h-3.5 -ml-0.5" />

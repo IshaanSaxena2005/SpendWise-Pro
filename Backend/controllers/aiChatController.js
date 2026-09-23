@@ -10,7 +10,8 @@ const chat = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Query is required.' });
     }
 
-    // Validate and sanitize conversation history (max 6 messages for context)
+    // Validate and sanitize conversation history (bounded: last 6 messages,
+    // 500 chars each) — user-scoped context only lives in the request.
     let history = [];
     if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
       history = conversationHistory
@@ -25,7 +26,10 @@ const chat = async (req, res) => {
     const response = await handleAIChat(userId, query, history);
     res.json({ success: true, response });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    // Log the technical detail server-side; return a generic message so no
+    // internals (stack, SQL, Gemini errors) ever reach the client.
+    console.error('[AI Chat] chat handler failed:', err.message);
+    res.status(500).json({ success: false, message: 'Something went wrong. Please try again in a moment.' });
   }
 };
 
