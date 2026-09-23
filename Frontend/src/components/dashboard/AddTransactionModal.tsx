@@ -282,15 +282,18 @@ function TransactionForm({
           confidenceLevel: getConfidenceLevel(finalConfidence),
         };
 
-        const currentDetection = detectionRef.current;
-        // Always prefer backend result if it's at least as confident
-        if (!currentDetection || finalConfidence >= currentDetection.confidence) {
-          setDetection(apiResult);
-          detectionRef.current = apiResult;
-          // Apply auto-selection based on confidence rules
-          if (finalConfidence >= SHOW_BADGE_THRESHOLD) {
-            applyDetectionToCatId(apiResult);
-          }
+        // The backend is the authoritative categorization decision (learning →
+        // alias → fuzzy learning → keyword/ML arbitration → Gemini fallbacks).
+        // The local matcher above is an instant preview only, so once a valid
+        // backend result arrives it always supersedes the preview. Comparing raw
+        // confidences across different scoring systems (keyword heuristic vs
+        // calibrated sources) previously let a stale local preview beat better
+        // backend results.
+        setDetection(apiResult);
+        detectionRef.current = apiResult;
+        // Apply auto-selection based on confidence rules
+        if (finalConfidence >= SHOW_BADGE_THRESHOLD) {
+          applyDetectionToCatId(apiResult);
         }
       } catch (err) {
         void err;

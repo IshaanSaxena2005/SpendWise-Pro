@@ -10,7 +10,57 @@ try {
   axios = null;
 }
 
-const HIGH_CONFIDENCE_THRESHOLD = 70;
+// ---------------------------------------------------------------------------
+// Keyword vs ML arbitration
+// ---------------------------------------------------------------------------
+// Raw keyword scores (findKeywordMatches) are NOT calibrated probabilities:
+//   - exact substring match  : 0.90–0.98 (inflated by design, keyword length ratio)
+//   - fuzzy (typo) match     : 0.752–0.88 (0.5 + similarity * 0.35)
+// ML probabilities (TF-IDF + LogReg predict_proba) ARE calibrated: ~0.3–0.97.
+// Comparing them directly made keyword matching win ~always. Instead we compare
+// weighted ARBITRATION scores and keep raw confidence purely as diagnostics.
+//
+// Weights: ML 1.0 (calibrated). Keyword 0.7 (heuristic) + 0.25 bonus only for
+// near-certain EXACT matches (score >= KEYWORD_STRONG_MATCH, i.e. a full word
+// from the description hit a known keyword at 0.95+). Weighted bands:
+//   strong exact keyword  -> up to ~0.86  |  other exact keyword -> ~0.63–0.69
+//   fuzzy keyword         -> ~0.53–0.59   |  ML probability      -> 0.55–0.97
+// so a genuinely confident ML prediction beats non-exceptional keyword matches,
+// while an exact "swiggy"-style merchant hit stays trusted.
+const KEYWORD_STRONG_MATCH = 95; // raw keyword score >= this is treated as deterministic
+const KEYWORD_WEAK_MATCH = 55; // raw keyword score below this -> keyword layer declines
+const ML_MIN_CONFIDENCE = 55; // raw ML probability (%) below this -> ML layer declines
+const ML_WEIGHT = 1.0;
+const KEYWORD_WEIGHT = 0.7;
+const EXACT_KEYWORD_BONUS = 0.25;
+
+function arbitrateKeywordVsMl(ruleResult, ml) {
+  const kwRawPct = (ruleResult && ruleResult.rawScore != null) ? ruleResult.rawScore * 100 : null;
+  const mlPct = (ml && ml.result && ml.result.category) ? ml.result.confidence : null;
+
+  const kwEligible = kwRawPct != null && kwRawPct >= KEYWORD_WEAK_MATCH;
+  const mlEligible = mlPct != null && mlPct >= ML_MIN_CONFIDENCE;
+
+  if (kwEligible && mlEligible) {
+    const isExact = ruleResult.source === 'keyword'; // findKeywordMatches: 'keyword'=exact, 'fuzzy'=typo-level
+    const kwArb = (kwRawPct / 100) * KEYWORD_WEIGHT + (isExact && kwRawPct >= KEYWORD_STRONG_MATCH ? EXACT_KEYWORD_BONUS : 0);
+    const mlArb = (mlPct / 100) * ML_WEIGHT;
+    const winner = mlArb >= kwArb ? ml : { fromRule: true };
+    return {
+      winner,
+      diagnostics: {
+        keyword_raw_score: Math.round(kwRawPct),
+        ml_raw_probability: mlPct,
+        keyword_arbitration_score: Math.round(kwArb * 100),
+        ml_arbitration_score: Math.round(mlArb * 100),
+      },
+    };
+  }
+
+  if (mlEligible) return { winner: ml, diagnostics: { keyword_raw_score: kwRawPct, ml_raw_probability: mlPct } };
+  if (kwEligible) return { winner: { fromRule: true }, diagnostics: { keyword_raw_score: Math.round(kwRawPct), ml_raw_probability: mlPct } };
+  return { winner: null, diagnostics: { keyword_raw_score: kwRawPct, ml_raw_probability: mlPct } };
+}
 
 function levenshteinDistance(a, b) {
   const matrix = [];
@@ -118,6 +168,7 @@ function ruleBasedCategorize(description) {
   return {
     category: best.categoryName,
     confidence: Math.round(best.score * 100),
+    rawScore: best.score,
     source: best.isFuzzy ? 'fuzzy' : 'keyword',
     matchedKeyword: best.keyword,
   };
@@ -388,30 +439,74 @@ async function categorizeTransaction(userId, description) {
     }
   }
 
-  // 4. Local Keyword/Rule Based Matching — never call Gemini if high-confidence
+  // ---------------------------------------------------------------------------
+  // 4–5. Keyword vs ML arbitration
+  //
+  // Keyword rules no longer return early on a bare threshold: for normal
+  // transactions the keyword layer and the ML layer COMPETE (see
+  // arbitrateKeywordVsMl above). Strong deterministic matches (exact merchant
+  // word at raw score >= KEYWORD_STRONG_MATCH) skip ML entirely — calling the
+  // model to second-guess "swiggy" would be waste, not safety.
+  //
+  // Sources and user-facing confidence are unchanged in shape (0–100 integers):
+  //   keyword win -> source 'keyword', user confidence = raw keyword score %
+  //                  (exact 90–98, fuzzy 75–88) — no inflation remap
+  //   ML win      -> source 'ml',      user confidence = calibrated probability %
+  // User learning / aliases / strong fuzzy learning returned earlier and are
+  // never overridden by this arbitration.
+  // ---------------------------------------------------------------------------
   const ruleResult = ruleBasedCategorize(description);
-  if (ruleResult.confidence >= HIGH_CONFIDENCE_THRESHOLD) {
-    const adjustedConfidence = Math.round(75 + (ruleResult.confidence - 70) * (15 / 30));
+
+  const strongExactKeyword =
+    ruleResult.category &&
+    ruleResult.source === 'keyword' && // 'keyword' = exact match, 'fuzzy' = typo-level match
+    ruleResult.rawScore >= KEYWORD_STRONG_MATCH / 100;
+
+  if (strongExactKeyword) {
     return finish({
       category: ruleResult.category,
-      confidence: adjustedConfidence,
-      source: ruleResult.source === 'fuzzy' ? 'keyword' : 'keyword',
+      // Raw keyword confidence (95–98 for strong exact hits). No remap: remapping
+      // only the strong band while weaker exact wins show raw values would make
+      // confidence non-monotonic (a 0.98 match would display lower than a 0.90 one).
+      confidence: ruleResult.confidence,
+      source: 'keyword',
       matched_text: ruleResult.matchedKeyword || description,
       matchedKeyword: ruleResult.matchedKeyword,
+      arbitration: { winner: 'keyword', reason: 'strong_exact_keyword', keyword_raw_score: ruleResult.confidence },
     });
   }
 
-  // 5. ML Classifier (TF-IDF + Logistic Regression) — handles cases the rule layer is uncertain about
   const ml = await callMlCategorize(description);
-  if (ml.result && ml.result.category) {
+  const { winner, diagnostics } = arbitrateKeywordVsMl(ruleResult, ml);
+
+  if (winner && winner.fromRule) {
     return finish({
-      category: ml.result.category,
-      confidence: ml.result.confidence,
-      source: 'ml',
-      matched_text: description,
+      category: ruleResult.category,
+      confidence: ruleResult.confidence,
+      source: 'keyword',
+      matched_text: ruleResult.matchedKeyword || description,
+      matchedKeyword: ruleResult.matchedKeyword,
+      arbitration: { winner: 'keyword', ...diagnostics },
     });
   }
-  let geminiFallbackReason = ml.reason ? `ml_fallback_${ml.reason}` : null;
+
+  if (winner && winner.result && winner.result.category) {
+    return finish({
+      category: winner.result.category,
+      confidence: winner.result.confidence,
+      source: 'ml',
+      matched_text: description,
+      arbitration: { winner: 'ml', ...diagnostics },
+    });
+  }
+
+  let geminiFallbackReason = null;
+  if (ml.reason) {
+    geminiFallbackReason = `ml_fallback_${ml.reason}`;
+  } else if (ruleResult.category) {
+    // Both layers answered but neither met its eligibility bar.
+    geminiFallbackReason = 'arbitration_below_thresholds';
+  }
 
   // 6–7. Gemini (embedding + LLM) only as the final optional fallback
   if (hasGeminiApiKey()) {
@@ -466,7 +561,8 @@ async function categorizeTransaction(userId, description) {
     geminiFallbackReason = 'MISSING_API_KEY';
   }
 
-  // Final fallback using local rule if anything
+  // Final fallback using local rule if anything (low-confidence keyword answer
+  // preserved exactly as before; Gemini stages were exhausted above)
   if (ruleResult.category) {
     return finish({
       category: ruleResult.category,
