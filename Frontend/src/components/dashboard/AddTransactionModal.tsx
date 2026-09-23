@@ -14,6 +14,7 @@ import {
   type CategoryDetectionResult,
   type ConfidenceLevel,
 } from '../../lib/categoryMatcher';
+import { CATEGORY_ALIASES } from '../../data/categoryKeywords';
 import { getCategoryIcon } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
 
@@ -88,9 +89,11 @@ function AutoDetectedCard({
   category: Category | undefined;
   isSuggestionOnly?: boolean;
 }) {
-  if (!detection.categoryId || !detection.categoryName) return null;
+  if (!detection.categoryName) return null;
 
   const level = detection.confidenceLevel;
+  // A valid backend suggestion that couldn't be mapped to one of the user's
+  // categories (categoryId null) still renders, using the canonical name.
   const displayCategory = category ?? { name: detection.categoryName, icon: undefined };
   const sourceLabel = getSourceLabel(detection.source);
 
@@ -214,6 +217,14 @@ function TransactionForm({
       const target = categoryName.trim().toLowerCase();
       const exact = categories.find((c) => c.name.trim().toLowerCase() === target);
       if (exact) return exact.id;
+      // Canonical-name aliases (CATEGORY_ALIASES, shared with the local
+      // matcher): backend "Fuel" also resolves to a user "Petrol" category.
+      for (const alias of CATEGORY_ALIASES[categoryName.trim()] || []) {
+        const aliasMatch = categories.find(
+          (c) => c.name.trim().toLowerCase() === alias.trim().toLowerCase(),
+        );
+        if (aliasMatch) return aliasMatch.id;
+      }
       for (const cat of categories) {
         const cn = cat.name.trim().toLowerCase();
         if (cn.includes(target) || target.includes(cn)) return cat.id;
@@ -268,8 +279,10 @@ function TransactionForm({
         const { category, confidence, source, matched_text } = resp.data;
         if (!category) return;
 
+        // Resolve the backend's canonical name against the user's categories.
+        // May legitimately be null (no canonical category and no alias match):
+        // the suggestion still displays — it is never silently discarded.
         const resolvedId = handleCategoryNameToId(category);
-        if (!resolvedId) return;
 
         const finalConfidence = Number(confidence) || 0;
         const apiResult: CategoryDetectionResult = {
@@ -291,8 +304,10 @@ function TransactionForm({
         // backend results.
         setDetection(apiResult);
         detectionRef.current = apiResult;
-        // Apply auto-selection based on confidence rules
-        if (finalConfidence >= SHOW_BADGE_THRESHOLD) {
+        // Auto-select only when the suggestion maps to one of the user's
+        // categories (null categoryId is display-only). applyDetectionToCatId
+        // already refuses to override an explicit user pick.
+        if (resolvedId && finalConfidence >= SHOW_BADGE_THRESHOLD) {
           applyDetectionToCatId(apiResult);
         }
       } catch (err) {
