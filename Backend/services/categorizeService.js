@@ -266,9 +266,10 @@ async function getGeminiEmbedding(text) {
   return embed.ok ? embed.vector : null;
 }
 
-function logCategorize({ description, source, confidence, durationMs, fallbackReason }) {
+function logCategorize({ description, category, source, confidence, durationMs, fallbackReason }) {
   console.log('[Categorize]', {
     description: String(description || '').slice(0, 80),
+    category: category || null,
     source,
     confidence,
     durationMs,
@@ -343,6 +344,7 @@ async function categorizeTransaction(userId, description) {
   const finish = (payload, fallbackReason = null) => {
     logCategorize({
       description,
+      category: payload.category,
       source: payload.source,
       confidence: payload.confidence,
       durationMs: Date.now() - started,

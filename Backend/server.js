@@ -239,6 +239,20 @@ async function start() {
     console.warn('Database connection verified');
   }
 
+  // Idempotent startup migrations (learning tables from migrations 003/007,
+  // canonical category backfill incl. Fuel, poisoned-Fuel learning cleanup).
+  // Non-fatal: a transient DB blip must not prevent the API from serving,
+  // but failures are logged loudly.
+  const { runStartupMigrations } = require('./services/startupMigrations');
+  try {
+    await runStartupMigrations();
+  } catch (err) {
+    console.error(
+      '[StartupMigrations] FAILED - personalized learning / category backfill not applied:',
+      err && err.message ? err.message : err
+    );
+  }
+
   console.log("Before app.listen");
 
 

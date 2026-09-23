@@ -8,6 +8,7 @@ const defaultCategories = [
   'Entertainment',
   'Bills',
   'Health',
+  'Fuel',
   'Salary',
   'Freelance'
 ];

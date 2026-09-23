@@ -21,7 +21,8 @@ const CATEGORIES = [
   'Travel',
   'Entertainment',
   'Bills',
-  'Medical',
+  'Health',
+  'Fuel',
   'Salary',
   'Freelance'
 ];
