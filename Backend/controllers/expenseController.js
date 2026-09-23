@@ -1,7 +1,8 @@
 const pool = require('../config/db');
 const { checkAnomaly } = require('../services/anomalyService');
 const { DEMO_EMAIL } = require('../config/constants');
-const { learnFromUserChoice } = require('../services/learningService');
+const learningService = require('../services/learningService');
+const { learnFromUserChoice } = learningService;
 const { checkAndSendBudgetEmails } = require('../services/emailNotificationService');
 
 const addExpense = async (req, res) => {
@@ -142,6 +143,14 @@ const updateExpense = async (req, res) => {
 
     params.push(id, userId);
 
+    // Capture the pre-update category so we can distinguish a genuine category
+    // correction (old != new) from a same-category update (acceptance).
+    const [existingRows] = await pool.query(
+      'SELECT category_id FROM expenses WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+    const oldCategoryId = existingRows.length > 0 ? Number(existingRows[0].category_id) : null;
+
     const [result] = await pool.query(
       `UPDATE expenses SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
       params
@@ -156,7 +165,14 @@ const updateExpense = async (req, res) => {
 
     const merchantName = title || note || '';
     if (merchantName) {
-      await learnFromUserChoice(userId, merchantName, category_id);
+      // A genuine correction means the user moved an EXISTING transaction to a
+      // DIFFERENT category. A same-category update is acceptance/reinforcement,
+      // and the first categorization at create time is also acceptance.
+      const isCorrection =
+        oldCategoryId !== null && Number(category_id) !== oldCategoryId;
+      await learnFromUserChoice(userId, merchantName, category_id, {
+        isCorrection,
+      });
     }
 
     res.json({

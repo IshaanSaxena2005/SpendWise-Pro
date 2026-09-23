@@ -30,3 +30,8 @@ Backend/uploads/
 __pycache__/
 *.pyc
 .venv/
+
+# Phase 3: curated ML training exports are user-derived — NEVER commit
+Backend/scripts/curated_ml_training_data.json
+ML-Service/_curated_tmp.json
+ML-Service/_ml_service.log

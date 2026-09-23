@@ -1,5 +1,44 @@
 const pool = require('../config/db');
 
+// Canonical ML class names (must match ML-Service/classifier.py VALID_CLASSES).
+// Used to record a resolvable class name on correction events at write time.
+const CANONICAL_CATEGORIES = [
+  'Food',
+  'Shopping',
+  'Bills',
+  'Travel',
+  'Entertainment',
+  'Health',
+  'Fuel',
+  'Salary',
+];
+
+const EXACT_CATEGORY_MAP = {
+  food: 'Food',
+  shopping: 'Shopping',
+  bills: 'Bills',
+  travel: 'Travel',
+  entertainment: 'Entertainment',
+  health: 'Health',
+  fuel: 'Fuel',
+  salary: 'Salary',
+};
+
+/**
+ * Best-effort map of a user's category NAME to a canonical ML class name.
+ * Returns the canonical name, or null when the mapping cannot be made safely
+ * (custom/renamed categories are intentionally NOT guessed).
+ */
+function toCanonicalCategory(categoryName) {
+  const name = String(categoryName || '').trim().toLowerCase();
+  if (!name) return null;
+  if (EXACT_CATEGORY_MAP[name]) return EXACT_CATEGORY_MAP[name];
+  // Safeguard: an exact case-insensitive match against a canonical name
+  // (covers renamed-but-identical rows like "food" from getOrCreateCanonicalCategories)
+  const hit = CANONICAL_CATEGORIES.find((c) => c.toLowerCase() === name);
+  return hit || null;
+}
+
 function normalizeMerchant(name) {
   return String(name || '')
     .toLowerCase()
@@ -8,11 +47,44 @@ function normalizeMerchant(name) {
     .trim();
 }
 
-async function learnFromUserChoice(userId, merchantName, categoryId) {
+/**
+ * source: 'correction' = user changed an existing transaction to a DIFFERENT
+ * category (genuine correction). 'accepted' = first-time categorization or a
+ * same-category update (acceptance/reinforcement).
+ */
+async function recordCorrectionEvent(userId, merchantName, categoryId, categoryName, source) {
+  const normalized = normalizeMerchant(merchantName);
+  if (!normalized || !categoryId || !categoryName) return;
+  try {
+    await pool.query(
+      'INSERT INTO correction_events (user_id, merchant, normalized_merchant, category_id, category_name, source) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, String(merchantName).slice(0, 255), normalized.slice(0, 255), categoryId, String(categoryName).slice(0, 60), source]
+    );
+  } catch (err) {
+    // Feedback capture must never break the expense write path.
+    console.error('Error recording correction event:', err.message);
+  }
+}
+
+async function learnFromUserChoice(userId, merchantName, categoryId, options = {}) {
   if (!userId || !merchantName || !categoryId) return;
 
   const normalized = normalizeMerchant(merchantName);
   if (!normalized) return;
+
+  // ---- Append-only feedback capture (correction vs accepted) ----
+  // NEVER replaces user_category_learning: it is historical evidence for
+  // future training-data curation only and is not read by the categorizer.
+  try {
+    const [catRows] = await pool.query('SELECT name FROM categories WHERE id = ? AND user_id = ?', [categoryId, userId]);
+    const categoryName = catRows.length > 0 ? catRows[0].name : null;
+    const source = options.isCorrection === true ? 'correction' : 'accepted';
+    if (categoryName) {
+      await recordCorrectionEvent(userId, merchantName, categoryId, categoryName, source);
+    }
+  } catch (err) {
+    console.error('Error capturing correction event:', err.message);
+  }
 
   try {
     const [existing] = await pool.query(
@@ -51,4 +123,6 @@ async function learnFromUserChoice(userId, merchantName, categoryId) {
 module.exports = {
   learnFromUserChoice,
   normalizeMerchant,
+  toCanonicalCategory,
+  CANONICAL_CATEGORIES,
 };

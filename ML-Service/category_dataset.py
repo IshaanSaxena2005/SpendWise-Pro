@@ -16,8 +16,20 @@ Diversity focus:
 
 from __future__ import annotations
 
+import json
 import random
-from typing import List, Tuple
+from typing import List, Optional, Tuple
+
+VALID_CLASSES = (
+    "Food",
+    "Shopping",
+    "Bills",
+    "Travel",
+    "Entertainment",
+    "Health",
+    "Fuel",
+    "Salary",
+)
 
 # -----------------------------------------------------------------------------
 # Category seed corpora (each inner list = raw phrases for that category)
@@ -380,7 +392,11 @@ def _augment(phrase: str, rng: random.Random) -> str:
     return f"{prefix}{out}{suffix}"
 
 
-def build_dataset(seed: int = 42, per_category_target: int = 250) -> List[Tuple[str, str]]:
+# Explicit dataset seed (Part 8). All dataset generation and the train/test
+# split use this seed. Recorded in model_metadata.json at training time.
+DATASET_SEED = 42
+
+def build_dataset(seed: int = DATASET_SEED, per_category_target: int = 250) -> List[Tuple[str, str]]:
     """Build a balanced augmented dataset of ~2000 samples (8 categories * 250)."""
     rng = random.Random(seed)
     raw_buckets = {
@@ -412,7 +428,74 @@ def build_dataset(seed: int = 42, per_category_target: int = 250) -> List[Tuple[
     return samples
 
 
-DATASET = build_dataset()
+DATASET = build_dataset(DATASET_SEED)
+
+
+def load_curated_examples(path: str) -> List[Tuple[str, str]]:
+    """Load a curated, anonymized training export (Backend/scripts/export_curated_ml_data.js).
+
+    Accepts the export's JSON shape:
+        {"examples": [{"text": ..., "category": ...}, ...], "curation": {...}}
+    or a bare list of {"text", "category"} objects.
+
+    Only examples whose category is one of the canonical classes are accepted;
+    everything else is skipped (Part 4: never send arbitrary user-created
+    category names into the model).
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if isinstance(data, dict) and "examples" in data:
+        raw_examples = data["examples"]
+    elif isinstance(data, list):
+        raw_examples = data
+    else:
+        raise ValueError(f"Unrecognized curated export format in {path}")
+
+    valid = set(VALID_CLASSES)
+    examples: List[Tuple[str, str]] = []
+    skipped_noncanonical = 0
+    for ex in raw_examples:
+        text = str(ex.get("text", "")).strip()
+        category = str(ex.get("category", "")).strip()
+        if category in valid and text:
+            examples.append((text, category))
+        else:
+            skipped_noncanonical += 1
+    return examples
+
+
+def build_training_set(
+    curated_path: Optional[str] = None,
+    per_category_target: int = 250,
+) -> Tuple[List[str], List[str]]:
+    """Combine the synthetic dataset with optional curated real examples.
+
+    Synthetic data is NEVER deleted; curated examples are appended, then the
+    combined set is shuffled with DATASET_SEED so the combined training set is
+    reproducible. Curated texts are kept verbatim (they were sanitized and
+    consensus-filtered at export time by the backend curation script).
+    """
+    synthetic = build_dataset(DATASET_SEED, per_category_target=per_category_target)
+    X: List[str] = []
+    y: List[str] = []
+    for desc, label in synthetic:
+        X.append(desc)
+        y.append(label)
+
+    curated_count = 0
+    if curated_path:
+        for text, label in load_curated_examples(curated_path):
+            X.append(text)
+            y.append(label)
+            curated_count += 1
+
+    combined = list(zip(X, y))
+    random.Random(DATASET_SEED).shuffle(combined)
+    if curated_count:
+        print(f"[dataset] Combined {len(synthetic)} synthetic + {curated_count} curated examples")
+    return [d for d, _ in combined], [l for _, l in combined]
+
 
 if __name__ == "__main__":
     counts: dict = {}
