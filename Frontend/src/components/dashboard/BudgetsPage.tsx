@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check } from 'lucide-react';
+import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { BUTTON_VARIANTS } from './DashboardOverview';
 import { budgetAPI, categoryAPI, expenseAPI, type Budget, type Category, type Transaction } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
@@ -12,6 +13,7 @@ import {
   getBudgetBarColor,
   getBudgetBarColorHex,
   getBudgetStatus,
+  isOverallBudget,
 } from '../../lib/budgetUtils';
 import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { getCurrentMonthForInput } from '../../lib/dateUtils';
@@ -136,6 +138,13 @@ export function BudgetsPage() {
   const alerts = useMemo(
     () => computeBudgetAlerts(currentMonthBudgets, expenseOnly, categories),
     [currentMonthBudgets, expenseOnly, categories]
+  );
+
+  // Category budgets only for the grid — the redundant "Overall" card (whose totals
+  // already appear in the summary cards + Overall Utilization donut) is not repeated here.
+  const categoryBudgets = useMemo(
+    () => currentMonthBudgets.filter((b) => !isOverallBudget(b)),
+    [currentMonthBudgets]
   );
 
   useEffect(() => {
@@ -272,33 +281,53 @@ export function BudgetsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 h-full">
-            <h3 className="text-sm font-semibold text-black mb-4">Budget Alerts</h3>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-sm font-semibold text-black">Budget Alerts</h2>
+              {alerts.length > 0 && (
+                <span className="shrink-0 text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-orange-50 text-orange-600">
+                  {alerts.length} Active
+                </span>
+              )}
+            </div>
             {alerts.length > 0 ? (
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {alerts.map((alert) => (
                   <li
                     key={alert.budgetId}
-                    className={`flex items-start gap-2.5 text-sm rounded-xl px-3 py-2.5 ${
+                    className={`flex items-center gap-2.5 text-sm rounded-xl px-3 py-2 ${
                       alert.severity === 'warning'
                         ? 'bg-orange-50 text-orange-800'
                         : 'bg-rose-50 text-rose-800'
                     }`}
                   >
                     <span className="shrink-0 leading-5" aria-hidden>{alert.emoji}</span>
-                    <span className="font-medium leading-5">{alert.message}</span>
+                    <span className="flex-1 min-w-0 leading-5">
+                      <span className="font-medium">{alert.label}</span>
+                      <span className="text-current/70"> — {Math.round(alert.rawPct)}% used</span>
+                      <span className="block text-xs opacity-70 truncate">{alert.message}</span>
+                    </span>
+                    <ArrowRight className="w-4 h-4 shrink-0 opacity-60" aria-hidden />
                   </li>
                 ))}
               </ul>
             ) : budgets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-6">
-                <Target className="w-8 h-8 text-black/20 mb-3" />
-                <p className="text-sm font-semibold text-black mb-1">No budget alerts</p>
-                <p className="text-xs text-black/40">Set up budgets to enable monitoring.</p>
+              <div className="flex items-center gap-3 text-left py-2">
+                <Target className="w-8 h-8 text-black/20 shrink-0" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold text-black flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" aria-hidden />
+                    All budgets are on track
+                  </p>
+                  <p className="text-xs text-black/40">Set up budgets to enable monitoring.</p>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center text-center py-6">
-                <p className="text-sm font-semibold text-emerald-600 mb-1">All budgets on track</p>
-                <p className="text-xs text-black/40">No warnings or critical usage detected.</p>
+              <div className="flex items-center gap-3 text-left py-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500/70 shrink-0" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-600">All budgets are on track</p>
+                  <p className="text-xs text-black/40">No active budget alerts.</p>
+                </div>
               </div>
             )}
           </div>
@@ -374,16 +403,22 @@ export function BudgetsPage() {
         ))}
       </div>
 
-      {/* Budgets Grid */}
+      {/* Budgets Grid (per-category budgets; totals live in the summary cards + Overall Utilization donut above) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {currentMonthBudgets.length === 0 ? (
+        {categoryBudgets.length === 0 ? (
             <div className="col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm p-8 text-center">
-              <p className="text-base font-semibold text-black mb-1.5">No budgets found for current month</p>
-              <p className="text-sm text-black/40">Create a budget to start tracking spending!</p>
+              <p className="text-base font-semibold text-black mb-1.5">
+                {currentMonthBudgets.length > 0 ? 'No category budgets for current month' : 'No budgets found for current month'}
+              </p>
+              <p className="text-sm text-black/40">
+                {currentMonthBudgets.length > 0
+                  ? "You're tracking an Overall budget — see the summary above."
+                  : 'Create a budget to start tracking spending!'}
+              </p>
             </div>
           ) : (
-            currentMonthBudgets.map((b) => {
-              const cat = categories.find((c) => c.id === b.category_id) || { name: 'Overall' };
+            categoryBudgets.map((b) => {
+              const cat = categories.find((c) => c.id === b.category_id) || { name: b.category_name || 'Budget' };
               const { spent, limit: budgetLimit, pct, rawPct, isOver, remaining } = computeBudgetUtilization(b, expenseOnly);
               const status = getBudgetStatus(rawPct);
               const isEditing = editingId === b.id;
@@ -394,7 +429,12 @@ export function BudgetsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-black">Edit Budget</h4>
-                      <button type="button" onClick={cancelEdit} className="p-1 text-black/50 hover:text-black">
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        aria-label="Cancel editing"
+                        className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+                      >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -437,7 +477,7 @@ export function BudgetsPage() {
                       <button
                         type="button"
                         onClick={cancelEdit}
-                        className="flex-1 bg-[#F5F5F5] hover:bg-[#E5E5E5] text-black text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                        className={`flex-1 ${BUTTON_VARIANTS.secondary}`}
                       >
                         Cancel
                       </button>
@@ -445,7 +485,7 @@ export function BudgetsPage() {
                         type="button"
                         disabled={savingEdit}
                         onClick={() => saveEdit(b)}
-                        className="flex-1 bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-1 disabled:opacity-60"
+                        className={`flex-1 flex items-center justify-center gap-1 px-4 py-2 disabled:opacity-60 ${BUTTON_VARIANTS.primary}`}
                       >
                         <Check className="w-4 h-4" />
                         {savingEdit ? 'Saving...' : 'Save'}
@@ -467,13 +507,14 @@ export function BudgetsPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <button
                           type="button"
                           onClick={() => startEdit(b)}
                           disabled={isDemoUser}
-                          className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-2.5 text-black/50 hover:text-black hover:bg-black/5 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Edit"
+                          aria-label="Edit budget"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -481,8 +522,9 @@ export function BudgetsPage() {
                           type="button"
                           onClick={() => deleteBudget(b.id)}
                           disabled={isDemoUser}
-                          className="p-1.5 text-black/40 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-2.5 text-black/50 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Delete"
+                          aria-label="Delete budget"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -519,49 +561,49 @@ export function BudgetsPage() {
       {/* Add Budget Form */}
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
         <h2 className="font-semibold text-black text-sm mb-4">Create Budget</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-black/60 mb-1.5">Month</label>
-              <input
-                type="date"
-                className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-black/60 mb-1.5">Category (Optional)</label>
-              <select
-                className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none cursor-pointer"
-                value={catId}
-                onChange={(e) => setCatId(e.target.value)}
-              >
-                <option value="">Overall Budget</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {formatCategoryLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-xs font-medium text-black/60 mb-1.5">Limit (₹)</label>
-              <input
-                type="number"
-                min="1"
-                className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                placeholder="e.g. 5000"
-                value={limit}
-                onChange={(e) => setLimit(e.target.value)}
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+          <div>
+            <label className="block text-xs font-medium text-black/60 mb-1.5">Category (Optional)</label>
+            <select
+              className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none cursor-pointer"
+              value={catId}
+              onChange={(e) => setCatId(e.target.value)}
+            >
+              <option value="">Overall Budget</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {formatCategoryLabel(c)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-black/60 mb-1.5">Limit (₹)</label>
+            <input
+              type="number"
+              min="1"
+              className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+              placeholder="e.g. 5000"
+              value={limit}
+              onChange={(e) => setLimit(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-black/60 mb-1.5">Month</label>
+            <input
+              type="date"
+              className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex items-end">
             <button
               type="submit"
               disabled={isDemoUser}
-              className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`w-full sm:w-auto px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_VARIANTS.primary}`}
             >
               {submitted ? 'Saved!' : 'Set Budget'}
             </button>

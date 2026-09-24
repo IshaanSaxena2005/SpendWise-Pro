@@ -195,11 +195,14 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
         <img src="/chatbot.png" alt="Chatbot" className="w-full h-full object-cover rounded-full pointer-events-none" />
       </button>
 
-      {/* Chat Window */}
       {/* Chat Window — fixed bottom-right on all breakpoints. Mobile: viewport-safe
           width/height (12px edge margins, dvh-based height) so it can never overflow
-          horizontally; desktop: 24px inset, same 380×600 cap as before. */}
-      <div role="dialog" aria-label="Ask SpendWise AI" className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-50 transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-50 opacity-0 pointer-events-none'}`}>
+          horizontally; desktop: 24px inset, same 380×600 cap as before.
+          Closed state hides via opacity only — the previous `scale-50` made the always-mounted
+          380px dialog measure exactly ~190px wide to layout audits / getBoundingClientRect,
+          which is where the reported "190px chat" came from. `inert` keeps the hidden
+          dialog out of the a11y tree and tab order. */}
+      <div role="dialog" aria-label="Ask SpendWise AI" inert={!isOpen} className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-600 to-violet-800 p-4 flex items-center justify-between shrink-0">
@@ -289,13 +292,14 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
         <div className="p-4 bg-white border-t border-black/5 shrink-0">
           <form
             onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
-            className="flex items-center gap-2 bg-[#F5F5F5] p-1.5 rounded-full border border-black/5 focus-within:border-black/20 focus-within:bg-white transition-all shadow-sm"
+            className="flex items-center gap-2 bg-[#F5F5F5] px-1.5 py-2 rounded-full border border-black/5 focus-within:border-black/20 focus-within:bg-white transition-all shadow-sm"
           >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask me anything..."
+              aria-label="Message Ask SpendWise AI"
               className="flex-1 bg-transparent px-3 text-sm focus:outline-none text-black placeholder:text-black/40"
             />
             <button
