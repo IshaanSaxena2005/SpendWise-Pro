@@ -47,7 +47,7 @@ const KPICard = ({ label, value, sub, icon: Icon, color, gradient }: {
 }) => (
   <div className={`bg-gradient-to-br ${gradient} rounded-2xl p-5 border border-black/5 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group`}>
     <div className="flex items-center justify-between mb-3">
-      <span className="text-[10px] font-bold text-black/50 tracking-widest uppercase">{label}</span>
+      <span className="text-xs font-bold text-black/50 tracking-wide">{label}</span>
       <div className={`p-2 rounded-xl bg-white/20 backdrop-blur-sm`}>
         <Icon className={`w-5 h-5 ${color}`} />
       </div>
@@ -57,20 +57,21 @@ const KPICard = ({ label, value, sub, icon: Icon, color, gradient }: {
   </div>
 );
 
-const StatCard = ({ label, value, icon: Icon, color }: {
+const StatCard = ({ label, value, icon: Icon, color, highlight }: {
   label: string;
   value: React.ReactNode;
   icon: any;
   color: string;
+  highlight?: boolean;
 }) => (
-  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-200">
+  <div className="bg-[#F5F5F5] rounded-2xl p-4 border border-black/5 hover:bg-black/5 transition-all duration-200">
     <div className="flex items-center gap-3 mb-2">
-      <div className="p-2 rounded-xl bg-white/20">
+      <div className="p-2 rounded-xl bg-white border border-black/5">
         <Icon className={`w-4 h-4 ${color}`} />
       </div>
-      <span className="text-[10px] font-bold text-white/70 tracking-wider uppercase">{label}</span>
+      <span className="text-[10px] font-bold text-black/50 tracking-wider uppercase">{label}</span>
     </div>
-    <div className="text-xl font-bold text-white">{value}</div>
+    <div className={`text-xl font-bold ${highlight ? 'text-violet-700' : 'text-black'}`}>{value}</div>
   </div>
 );
 
@@ -261,7 +262,7 @@ export function AnalyticsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          label="HIGHEST SPENDING"
+          label="Highest Spending"
           value={highestCatDisplay}
           sub="Top Category"
           icon={PieChart}
@@ -269,7 +270,7 @@ export function AnalyticsPage() {
           gradient="from-rose-50 to-rose-100"
         />
         <KPICard
-          label="AVG MONTHLY EXPENSE"
+          label="Avg Monthly Expense"
           value={fmt(avgMonthlyExpense)}
           sub="Last 6 months"
           icon={BarChart2}
@@ -277,7 +278,7 @@ export function AnalyticsPage() {
           gradient="from-violet-50 to-violet-100"
         />
         <KPICard
-          label="EXPENSE GROWTH"
+          label="Expense Growth"
           value={`${expenseGrowth > 0 ? '+' : ''}${expenseGrowth.toFixed(1)}%`}
           sub="vs last month"
           icon={expenseGrowth > 0 ? TrendingUp : TrendingDown}
@@ -285,7 +286,7 @@ export function AnalyticsPage() {
           gradient={expenseGrowth > 0 ? 'from-rose-50 to-rose-100' : 'from-emerald-50 to-emerald-100'}
         />
         <KPICard
-          label="DATA POINTS"
+          label="Data Points"
           value={monthlyTrend.length}
           sub="Trend Points"
           icon={Target}
@@ -470,15 +471,15 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {/* AI Spending Forecast */}
-      <div className="bg-gradient-to-br from-violet-600 to-violet-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-bl-full -z-10" />
+      {/* AI Spending Forecast — neutral dashboard card with violet AI accents */}
+      <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-violet-50 rounded-bl-full -z-10" />
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-lg font-bold mb-1">AI Spending Forecast</h2>
-            <p className="text-xs text-white/70">Powered by machine learning</p>
+            <h2 className="text-lg font-bold text-black mb-1">AI Spending Forecast</h2>
+            <p className="text-xs text-black/50">Powered by machine learning</p>
           </div>
-          <div className="bg-white/20 backdrop-blur-sm text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5 border border-white/30">
+          <div className="bg-violet-50 text-violet-700 text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5 border border-violet-200">
             <Activity className="w-3 h-3" /> AI Model Active
           </div>
         </div>
@@ -487,31 +488,32 @@ export function AnalyticsPage() {
             label="Predicted Spending"
             value={forecast?.predicted_spending ? fmt(forecast.predicted_spending) : '—'}
             icon={Target}
-            color="text-white"
+            color="text-violet-600"
+            highlight
           />
           <StatCard
             label="Confidence"
             value={forecast?.confidence ? `${forecast.confidence}%` : '—'}
             icon={Award}
-            color="text-white"
+            color="text-violet-600"
           />
           <StatCard
             label="Trend"
             value={forecast?.trend_direction || '—'}
             icon={TrendingUp}
-            color="text-white"
+            color="text-violet-600"
           />
           <StatCard
             label="MAE"
             value={forecast?.mae ? fmt(forecast.mae) : '—'}
             icon={AlertCircle}
-            color="text-white"
+            color="text-violet-600"
           />
         </div>
         {forecast && (
           <div className="mt-4 flex items-center gap-3">
             <ConfidenceBadge confidence={forecast.confidence || 0} />
-            <span className="text-xs text-white/70">Based on {forecast.spending_history?.length || 0} months of historical data</span>
+            <span className="text-xs text-black/50">Based on {forecast.spending_history?.length || 0} months of historical data</span>
           </div>
         )}
       </div>
@@ -559,26 +561,28 @@ export function AnalyticsPage() {
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
           <h2 className="font-semibold text-black text-sm mb-4">Monthly Comparison</h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-black/5 rounded-xl">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 p-4 bg-black/5 rounded-xl">
               <div>
                 <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider mb-1">Current Month</div>
                 <div className="text-xl font-bold text-black">{fmt(currentMonthExp)}</div>
               </div>
+              <div className="text-xs font-semibold text-black/40" aria-hidden>vs</div>
               <div className="text-right">
                 <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider mb-1">Previous Month</div>
                 <div className="text-xl font-bold text-black">{fmt(prevMonthExp)}</div>
               </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-black/5 rounded-xl">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 p-4 bg-black/5 rounded-xl">
               <div>
                 <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider mb-1">Difference</div>
                 <div className={`text-xl font-bold ${expenseGrowth > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {expenseGrowth > 0 ? '+' : ''}{fmt(currentMonthExp - prevMonthExp)}
                 </div>
               </div>
+              <div className="h-8 w-px bg-black/10" aria-hidden />
               <div className="text-right">
                 <div className="text-[10px] font-semibold text-black/40 uppercase tracking-wider mb-1">Change</div>
-                <div className={`text-xl font-bold flex items-center gap-1 ${expenseGrowth > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                <div className={`text-xl font-bold flex items-center justify-end gap-1 ${expenseGrowth > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {expenseGrowth > 0 ? <ArrowUp className="w-5 h-5" /> : <ArrowDown className="w-5 h-5" />}
                   {Math.abs(expenseGrowth).toFixed(1)}%
                 </div>

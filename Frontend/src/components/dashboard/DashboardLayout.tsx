@@ -113,7 +113,7 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-black/5 flex flex-col gap-1">
+      <div className="px-3 pt-4 pb-6 border-t border-black/5 flex flex-col gap-1">
         <Link
           to="/dashboard/settings"
           onClick={onNavClick}

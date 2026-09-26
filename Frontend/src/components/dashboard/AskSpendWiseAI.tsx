@@ -185,7 +185,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`fixed z-50 flex items-center justify-center w-16 h-16 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-[opacity,transform] duration-300 touch-none select-none ${
+        className={`fixed z-[60] flex items-center justify-center w-16 h-16 bg-black text-white rounded-full shadow-lg hover:scale-105 hover:bg-gray-800 transition-[opacity,transform] duration-300 touch-none select-none ${
           isOpen ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
         }`}
         style={getButtonStyle()}
@@ -202,7 +202,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
           380px dialog measure exactly ~190px wide to layout audits / getBoundingClientRect,
           which is where the reported "190px chat" came from. `inert` keeps the hidden
           dialog out of the a11y tree and tab order. */}
-      <div role="dialog" aria-label="Ask SpendWise AI" inert={!isOpen} className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      <div role="dialog" aria-label="Ask SpendWise AI" inert={!isOpen} className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-600 to-violet-800 p-4 flex items-center justify-between shrink-0">
