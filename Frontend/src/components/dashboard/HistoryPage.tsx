@@ -752,7 +752,7 @@ export function HistoryPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Performance (Income vs Expense) */}
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 flex flex-col h-96">
-          <h3 className="font-semibold text-black text-sm mb-4">Monthly Performance</h3>
+          <h2 className="font-semibold text-black text-sm mb-4">Monthly Performance</h2>
           {chartData.length > 0 ? (
             <div className="flex-1 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -805,7 +805,7 @@ export function HistoryPage() {
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 flex flex-col h-96">
           <div className="mb-4">
             <h3 className="font-semibold text-black text-sm">Category Breakdown - {activeFilterLabel}</h3>
-            <p className="text-[10px] text-black/50 font-medium">Aggregated from the selected period</p>
+            <p className="text-xs text-black/50 font-medium">Aggregated from the selected period</p>
           </div>
           {categoryBreakdown.length > 0 ? (
             <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-6 w-full h-full">
@@ -831,12 +831,12 @@ export function HistoryPage() {
               </div>
               <div className="flex-1 w-full space-y-2 max-h-60 overflow-y-auto pr-1">
                 {categoryBreakdown.slice(0, 6).map((item, index) => (
-                  <div key={index} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
+                  <div key={index} className="flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                      <span className="text-black/60 capitalize truncate max-w-[120px]">{item.name}</span>
+                      <span className="text-black/60 capitalize truncate">{item.name}</span>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <span className="font-semibold text-black block">{fmt(item.value)}</span>
                       <span className="text-[10px] text-black/40 font-medium">{item.percentage.toFixed(1)}%</span>
                     </div>
@@ -917,7 +917,7 @@ export function HistoryPage() {
                             setDetailTransactions(row.transactions);
                             setDetailMonthLabel(monthLabel);
                           }}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black text-white hover:bg-black/85 text-[10px] font-bold transition-all"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black text-white hover:bg-black/85 text-xs font-bold transition-all"
                         >
                           <Eye className="w-3 h-3" />
                           View
@@ -939,7 +939,7 @@ export function HistoryPage() {
                       <td className="px-5 py-3 text-right">
                         <button
                           onClick={() => handleExportMonthCSV(row)}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-bold transition-all whitespace-nowrap"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
                         >
                           <Download className="w-3 h-3" />
                           Export CSV

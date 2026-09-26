@@ -28,9 +28,10 @@ interface AskSpendWiseAIProps {
   onPositionChange: (pos: { top: number; left: number } | null) => void;
 }
 
-/** Default bottom-right position: 24px inset, 64px button */
-const DEFAULT_BOTTOM = 24;
-const DEFAULT_RIGHT = 24;
+/** Default bottom-right position: 40px inset keeps the 64px button clear of card */
+/** edges and chart gutters on dashboard pages; users can still drag it anywhere. */
+const DEFAULT_BOTTOM = 40;
+const DEFAULT_RIGHT = 40;
 const BTN_SIZE = 64;
 const DRAG_THRESHOLD = 5; // px — below this, treat as click
 
