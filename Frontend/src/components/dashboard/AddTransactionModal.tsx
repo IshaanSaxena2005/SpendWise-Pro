@@ -24,6 +24,8 @@ interface Props {
   editTxn?: Transaction | null;
   anchorRect?: DOMRect | null;
   onTransactionChanged?: () => void;
+  /** Pre-fill the date field in add mode (e.g. 1st of a month selected on the History page). */
+  defaultDate?: string;
 }
 
 interface FormProps {
@@ -34,6 +36,8 @@ interface FormProps {
   onClose: () => void;
   onAddCategory: () => void;
   onTransactionChanged?: () => void;
+  /** Pre-fill the date field in add mode (edit mode always keeps the transaction's own date). */
+  defaultDate?: string;
 }
 
 const DEBOUNCE_MS = 300;
@@ -137,10 +141,11 @@ function TransactionForm({
   onClose,
   onAddCategory,
   onTransactionChanged,
+  defaultDate,
 }: FormProps) {
   const [title, setTitle] = useState(() => editTxn?.note || '');
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
-  const [date, setDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
+  const [date, setDate] = useState(() => formatDateForInput(editTxn?.expense_date) || defaultDate || getCurrentDateForInput());
   const [notes, setNotes] = useState('');
   const [transactionType, setTransactionType] = useState<'expense' | 'income'>(() => {
     if (editTxn?.transaction_type === 'income') return 'income';
@@ -149,7 +154,7 @@ function TransactionForm({
   });
   const [isRecurring, setIsRecurring] = useState(() => Boolean(editTxn?.recurring_transaction_id));
   const [frequency, setFrequency] = useState('monthly');
-  const [startDate, setStartDate] = useState(() => formatDateForInput(editTxn?.expense_date) || getCurrentDateForInput());
+  const [startDate, setStartDate] = useState(() => formatDateForInput(editTxn?.expense_date) || defaultDate || getCurrentDateForInput());
   const [endDate, setEndDate] = useState('');
   const [neverEnds, setNeverEnds] = useState(true);
 
@@ -710,7 +715,7 @@ function TransactionForm({
   );
 }
 
-export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTransactionChanged }: Props) {
+export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTransactionChanged, defaultDate }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [catId, setCatId] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -925,6 +930,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
           <TransactionForm
             key={editTxn?.id ?? 'new'}
             editTxn={editTxn}
+            defaultDate={defaultDate}
             categories={categories}
             catId={catId}
             setCatId={setCatId}
