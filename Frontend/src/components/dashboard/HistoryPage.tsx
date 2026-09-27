@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   TrendingUp, Activity, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle,
-  ChevronLeft, ChevronRight, Plus, Edit2, Trash2
+  Plus, Edit2, Trash2
 } from 'lucide-react';
 import {
   BarChart, Bar, AreaChart, Area, LineChart, Line, XAxis, YAxis,
@@ -49,34 +49,58 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 }
 
 /**
- * Monthly history details modal.
+ * Month transaction-management modal.
  *
- * Follows the same architecture as AddTransactionModal (the existing
- * transaction table/modal pattern): rendered via a portal to document.body
- * so `position: fixed` is relative to the viewport (the dashboard's
- * `.page-enter` wrapper keeps a transform applied, which would otherwise
- * make the page wrapper the containing block and misplace the modal),
- * anchored to the clicked table row via its bounding rect, with a mobile
- * bottom-sheet variant and body scroll locking so the table position is
- * preserved on open/close.
+ * Opened from the "View" button of a Monthly History Table row and scoped to
+ * that exact row's month (YYYY-MM key comes from the clicked row, never from
+ * a global month state). Rendered via a portal to document.body so
+ * `position: fixed` is viewport-relative (the dashboard's `.page-enter`
+ * wrapper keeps a transform applied, which would otherwise become the
+ * containing block and misplace the modal). Full CRUD over the month's
+ * transactions: Add/Edit reuse AddTransactionModal, Delete reuses the
+ * existing expense API — every mutation notifies financeEvents, and the
+ * transaction list is derived from the page's live dataset so all totals,
+ * the Monthly History Table, charts and KPIs refresh together.
  */
-function MonthlyDetailsModal({ transactions, monthLabel, anchorRect, onClose }: {
+interface MonthlyRow {
+  month: string;
+  income: number;
+  expenses: number;
+  transactionsCount: number;
   transactions: Transaction[];
-  monthLabel: string;
-  anchorRect: DOMRect | null;
+}
+
+function MonthlyTransactionsModal({ monthKey, monthlyRow, isDemoUser, deletingId, isChildModalOpen, onAdd, onEdit, onDelete, onClose }: {
+  monthKey: string;
+  monthlyRow: MonthlyRow | null;
+  isDemoUser: boolean;
+  deletingId: number | null;
+  /** True while AddTransactionModal is stacked on top — suspend backdrop/Escape dismissal. */
+  isChildModalOpen: boolean;
+  onAdd: () => void;
+  onEdit: (txn: Transaction, anchorRect: DOMRect | null) => void;
+  onDelete: (id: number) => void;
   onClose: () => void;
 }) {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  const monthLabel = (() => {
+    const parts = monthKey.split('-');
+    return `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+  })();
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  // Live from the page dataset — updates automatically after every mutation.
+  const transactions = useMemo(() => {
+    const list = monthlyRow?.transactions ?? [];
+    return [...list].sort((a, b) => {
+      const da = new Date(a.expense_date).getTime();
+      const db = new Date(b.expense_date).getTime();
+      return db - da || (b.id ?? 0) - (a.id ?? 0);
+    });
+  }, [monthlyRow]);
 
-  // Lock body scroll while open and restore it on close so the user returns
-  // to the exact same place in the Monthly History table.
+  const income = monthlyRow?.income ?? 0;
+  const expenses = monthlyRow?.expenses ?? 0;
+
+  // Lock body scroll while open and restore it on close.
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     const previousPaddingRight = document.body.style.paddingRight;
@@ -90,156 +114,129 @@ function MonthlyDetailsModal({ transactions, monthLabel, anchorRect, onClose }: 
     };
   }, []);
 
-  // Close on Escape
+  // Close on Escape — but not while the Add/Edit modal is stacked on top.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !isChildModalOpen) onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  const isPopover = !!anchorRect && !isMobile;
-
-  const containerClass = isPopover
-    ? 'fixed inset-0 z-[100] overflow-hidden pointer-events-none'
-    : 'fixed inset-0 z-[100] flex items-center justify-center p-4';
-
-  const backdropClass = isPopover
-    ? 'absolute inset-0 bg-black/10 backdrop-blur-[1px] pointer-events-auto'
-    : 'absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto';
-
-  // Positioning calculations — mirrors AddTransactionModal: open below the
-  // clicked row when there is room, above it otherwise, centered as a last
-  // resort.
-  const panelWidth = 600;
-  const panelHeightEstimate = 480;
-  const leftPos = (window.innerWidth - panelWidth) / 2;
-  let showBelow = true;
-  let arrowLeft = panelWidth / 2;
-  let topPos: number | undefined;
-  let bottomPos: number | undefined;
-  let centeredVertically = false;
-  let maxHeight = window.innerHeight - 32;
-
-  if (isPopover && anchorRect) {
-    const buttonCenterX = anchorRect.left + anchorRect.width / 2;
-    arrowLeft = Math.max(24, Math.min(panelWidth - 24, buttonCenterX - leftPos));
-
-    const spaceBelow = window.innerHeight - anchorRect.bottom;
-    const spaceAbove = anchorRect.top;
-
-    if (spaceBelow >= panelHeightEstimate + 20) {
-      showBelow = true;
-      topPos = anchorRect.bottom + 12;
-      maxHeight = spaceBelow - 24;
-    } else if (spaceAbove >= panelHeightEstimate + 20) {
-      showBelow = false;
-      bottomPos = window.innerHeight - anchorRect.top + 12;
-      maxHeight = spaceAbove - 24;
-    } else {
-      centeredVertically = true;
-      topPos = Math.max(16, (window.innerHeight - panelHeightEstimate) / 2);
-      maxHeight = window.innerHeight - 32;
-    }
-  }
-
-  const panelStyle: React.CSSProperties = isPopover
-    ? {
-        position: 'fixed',
-        left: `${leftPos}px`,
-        top: topPos !== undefined ? `${topPos}px` : undefined,
-        bottom: bottomPos !== undefined ? `${bottomPos}px` : undefined,
-        maxHeight: `${maxHeight}px`,
-        width: `${panelWidth}px`,
-        maxWidth: 'calc(100vw - 32px)',
-      }
-    : {};
-
-  const mobileSheetClass = isMobile && anchorRect
-    ? 'fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-white rounded-t-2xl flex flex-col shadow-2xl pointer-events-auto z-[101] bottom-sheet-in'
-    : null;
-
-  const panelClass = mobileSheetClass
-    ? mobileSheetClass
-    : 'relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-black/10 pointer-events-auto modal-panel-in';
+  }, [onClose, isChildModalOpen]);
 
   return createPortal(
-    <div className={containerClass}>
-      <div className={backdropClass} onClick={onClose} />
-      <div style={panelStyle} className={panelClass}>
-        {isPopover && !centeredVertically && (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${arrowLeft}px`,
-              transform: 'translateX(-50%)',
-              width: '0',
-              height: '0',
-              borderLeft: '8px solid transparent',
-              borderRight: '8px solid transparent',
-              borderBottom: showBelow ? '8px solid white' : undefined,
-              borderTop: !showBelow ? '8px solid white' : undefined,
-              top: showBelow ? '-8px' : undefined,
-              bottom: !showBelow ? '-8px' : undefined,
-              zIndex: 10,
-            }}
-          />
-        )}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+        onClick={() => { if (!isChildModalOpen) onClose(); }}
+      />
+      <div className="relative w-[min(1100px,calc(100vw-32px))] max-h-[85vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-black/10 pointer-events-auto modal-panel-in">
 
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between shrink-0">
-          <div>
-            <h3 className="font-bold text-black text-base">{monthLabel} Transactions</h3>
-            <p className="text-[11px] text-black/50 mt-0.5">{transactions.length} records</p>
+        <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between gap-3 shrink-0">
+          <div className="min-w-0">
+            <h3 className="font-bold text-black text-base truncate">{monthLabel} Transactions</h3>
+            <p className="text-[11px] text-black/50 mt-0.5">
+              {transactions.length} transaction{transactions.length === 1 ? '' : 's'} • Income {fmt(income)} • Expenses {fmt(expenses)}
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-black/5 text-black/60 hover:text-black transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onAdd}
+              disabled={isDemoUser}
+              className={`flex items-center gap-1.5 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_VARIANTS.primary}`}
+            >
+              <Plus className="w-4 h-4" />
+              Add Transaction
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="p-1.5 rounded-lg hover:bg-black/5 text-black/60 hover:text-black transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 space-y-3">
-          {transactions.map((item) => {
-            const isIncome = item.transaction_type === 'income';
-            return (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-3.5 rounded-xl border border-black/5 bg-black/[0.01] hover:bg-black/[0.02] transition-colors"
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={`p-2 rounded-xl shrink-0 ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                    {isIncome ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-                  </div>
-                  <div className="overflow-hidden">
-                    <div className="text-xs font-bold text-black capitalize truncate">{item.note || item.category_name}</div>
-                    <div className="text-[10px] text-black/50 font-medium mt-0.5 flex items-center gap-1.5">
-                      <span className="capitalize">{item.category_name}</span>
-                      <span>•</span>
-                      <span>{new Date(item.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className={`text-xs font-bold ${isIncome ? 'text-emerald-600' : 'text-black'}`}>
-                  {isIncome ? '+' : '-'}{fmt(item.amount)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-black/5 flex justify-end bg-black/[0.01] shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-black text-white hover:bg-black/85 text-xs font-bold transition-all"
-          >
-            Close
-          </button>
-        </div>
+        {/* Modal Body — scrollable month transaction table */}
+        {transactions.length > 0 ? (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-black/[0.02]">
+                <tr className="border-b border-black/5 text-[10px] font-bold text-black/60 tracking-wider uppercase">
+                  <th className="px-6 py-3">Date</th>
+                  <th className="px-6 py-3">Description</th>
+                  <th className="px-6 py-3">Category</th>
+                  <th className="px-6 py-3">Type</th>
+                  <th className="px-6 py-3 text-right">Amount</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/5 text-xs text-black/80 font-medium">
+                {transactions.map((t) => {
+                  const isIncome = t.transaction_type === 'income';
+                  return (
+                    <tr key={t.id} className="hover:bg-black/[0.01] transition-colors">
+                      <td className="px-6 py-3 text-black/70 whitespace-nowrap">
+                        {new Date(t.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-6 py-3 text-black font-semibold capitalize max-w-[280px] truncate">{t.note || t.category_name || 'Transaction'}</td>
+                      <td className="px-6 py-3 capitalize">{t.category_name || '—'}</td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                          {isIncome ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                          {t.transaction_type}
+                        </span>
+                      </td>
+                      <td className={`px-6 py-3 text-right font-bold ${isIncome ? 'text-emerald-600' : 'text-black'}`}>
+                        {isIncome ? '+' : '-'}{fmt(Number(t.amount))}
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => onEdit(t, (e.currentTarget.closest('tr') as HTMLTableRowElement | null)?.getBoundingClientRect() ?? null)}
+                            disabled={isDemoUser}
+                            className="p-2.5 text-black/50 hover:text-black hover:bg-black/5 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Edit"
+                            aria-label="Edit transaction"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDelete(t.id)}
+                            disabled={isDemoUser || deletingId === t.id}
+                            className="p-2.5 text-black/50 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Delete"
+                            aria-label="Delete transaction"
+                          >
+                            <Trash2 className={`w-4 h-4 ${deletingId === t.id ? 'animate-pulse' : ''}`} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto flex flex-col items-center justify-center text-center p-10">
+            <p className="text-sm font-semibold text-black">No transactions this month</p>
+            <p className="text-xs text-black/40 mt-1 mb-4">Add one to start tracking {monthLabel}.</p>
+            <button
+              type="button"
+              onClick={onAdd}
+              disabled={isDemoUser}
+              className={`flex items-center gap-1.5 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_VARIANTS.primary}`}
+            >
+              <Plus className="w-4 h-4" />
+              Add Transaction
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body,
@@ -279,32 +276,16 @@ export function HistoryPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
 
-  // Modal for detail view
-  const [detailTransactions, setDetailTransactions] = useState<Transaction[] | null>(null);
-  const [detailMonthLabel, setDetailMonthLabel] = useState<string>('');
-  const [detailAnchorRect, setDetailAnchorRect] = useState<DOMRect | null>(null);
-
-  // ── Historical transaction management ──
-  // Selected month to view/manage (YYYY-MM). Defaults to the current month.
-  const now0 = new Date();
-  const [manageMonth, setManageMonth] = useState<string>(
-    () => `${now0.getFullYear()}-${String(now0.getMonth() + 1).padStart(2, '0')}`
-  );
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  // Month transaction-management modal — month key comes from the clicked
+  // Monthly History Table row, never from the page's filter state.
+  const [detailMonthKey, setDetailMonthKey] = useState<string | null>(null);
+  const [detailAddOpen, setDetailAddOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [editAnchorRect, setEditAnchorRect] = useState<DOMRect | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
 
   const isDemoUser = user?.email === DEMO_EMAIL;
-
-  /** YYYY-MM key of the month currently selected for management. */
-  const manageMonthKey = manageMonth;
-  /** Human label of the selected month, e.g. "September 2026". */
-  const manageMonthLabel = (() => {
-    const parts = manageMonth.split('-');
-    return `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
-  })();
 
   // Clear state when user changes
   useEffect(() => {
@@ -387,48 +368,15 @@ export function HistoryPage() {
     }
   };
 
-  const startEditTransaction = (txn: Transaction, e: React.MouseEvent) => {
+  const startEditTransaction = (txn: Transaction, anchorRect: DOMRect | null) => {
     if (isDemoUser) {
       setReadOnlyMessage(true);
       setTimeout(() => setReadOnlyMessage(false), 3000);
       return;
     }
-    setEditAnchorRect((e.currentTarget.closest('tr') as HTMLTableRowElement | null)?.getBoundingClientRect() ?? null);
+    setEditAnchorRect(anchorRect);
     setEditTxn(txn);
   };
-
-  // ── Selected-month dataset (reuses the page's existing dataset) ──
-  const manageMonthTransactions = useMemo(
-    () =>
-      expenses
-        .filter((t) => {
-          const d = new Date(t.expense_date);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          return key === manageMonthKey;
-        })
-        .sort((a, b) => {
-          const da = new Date(a.expense_date).getTime();
-          const db = new Date(b.expense_date).getTime();
-          return db - da || (b.id ?? 0) - (a.id ?? 0);
-        }),
-    [expenses, manageMonthKey]
-  );
-
-  /** Shift the selected month by ±1; forward navigation stops at the current month. */
-  const shiftManageMonth = (delta: number) => {
-    const [y, m] = manageMonth.split('-').map(Number);
-    const next = new Date(y, m - 1 + delta, 1);
-    const nowDate = new Date();
-    const currentKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}`;
-    const nextKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    if (delta > 0 && nextKey > currentKey) return; // no future months
-    setManageMonth(nextKey);
-  };
-  const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  const isCurrentManageMonth = manageMonth === currentMonthKey;
-
-  /** Default date for a newly added transaction: 1st of the selected month. */
-  const manageDefaultDate = `${manageMonth}-01`;
 
   // Compute unique years and months from the dataset
   const years = Array.from(new Set(expenses.map(e => new Date(e.expense_date).getFullYear().toString()))).sort((a, b) => b.localeCompare(a));
@@ -779,37 +727,6 @@ export function HistoryPage() {
             </select>
           </div>
 
-          {/* Manage-Month selector — drives the transaction management table below */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[9px] font-bold text-black/40 uppercase tracking-widest">Manage Month</span>
-            <div
-              role="group"
-              aria-label="Month selected for transaction management"
-              className="flex items-center bg-black/5 border border-black/5 rounded-xl overflow-hidden"
-            >
-              <button
-                type="button"
-                onClick={() => shiftManageMonth(-1)}
-                aria-label="Previous month"
-                className="p-2 text-black/60 hover:text-black hover:bg-black/5 transition-colors focus-visible:outline-2 focus-visible:outline-violet-600"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="px-3 py-2 text-xs font-semibold text-black/80 min-w-[110px] text-center select-none">
-                {manageMonthLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => shiftManageMonth(1)}
-                disabled={isCurrentManageMonth}
-                aria-label="Next month"
-                className="p-2 text-black/60 hover:text-black hover:bg-black/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-violet-600"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -1023,112 +940,6 @@ export function HistoryPage() {
         </div>
       </div>
 
-      {/* Manage Transactions — month-scoped CRUD (reuses existing transaction APIs + modal) */}
-      <div className="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-black/5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-black text-sm">Manage Transactions</h2>
-            <p className="text-[11px] text-black/50 mt-0.5">View, add, edit and delete transactions for {manageMonthLabel}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setDetailAnchorRect(null);
-                setDetailTransactions(manageMonthTransactions);
-                setDetailMonthLabel(manageMonthLabel);
-              }}
-              disabled={manageMonthTransactions.length === 0}
-              className={`px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_VARIANTS.secondary}`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              View
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddModalOpen(true)}
-              disabled={isDemoUser}
-              className={`flex items-center gap-1.5 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed ${BUTTON_VARIANTS.primary}`}
-            >
-              <Plus className="w-4 h-4" />
-              Add Transaction
-            </button>
-          </div>
-        </div>
-
-        {manageMonthTransactions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-black/[0.02] border-b border-black/5 text-[10px] font-bold text-black/60 tracking-wider uppercase">
-                  <th className="px-5 py-3">Date</th>
-                  <th className="px-5 py-3">Description</th>
-                  <th className="px-5 py-3">Category</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3 text-right">Amount</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/5 text-xs text-black/80 font-medium">
-                {manageMonthTransactions.map((t) => {
-                  const isIncome = t.transaction_type === 'income';
-                  return (
-                    <tr key={t.id} className="hover:bg-black/[0.01] transition-colors">
-                      <td className="px-5 py-3 text-black/70 whitespace-nowrap">
-                        {new Date(t.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-5 py-3 text-black font-semibold capitalize max-w-[220px] truncate">{t.note || t.category_name || 'Transaction'}</td>
-                      <td className="px-5 py-3 capitalize">{t.category_name || '—'}</td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                          {isIncome ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                          {t.transaction_type}
-                        </span>
-                      </td>
-                      <td className={`px-5 py-3 text-right font-bold ${isIncome ? 'text-emerald-600' : 'text-black'}`}>
-                        {isIncome ? '+' : '-'}{fmt(Number(t.amount))}
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => startEditTransaction(t, e)}
-                            disabled={isDemoUser}
-                            className="p-2.5 text-black/50 hover:text-black hover:bg-black/5 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Edit"
-                            aria-label="Edit transaction"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTransaction(t.id)}
-                            disabled={isDemoUser || deletingId === t.id}
-                            className="p-2.5 text-black/50 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Delete"
-                            aria-label="Delete transaction"
-                          >
-                            <Trash2 className={`w-4 h-4 ${deletingId === t.id ? 'animate-pulse' : ''}`} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-8 text-center">
-            <p className="text-sm text-black/60">No transactions recorded for {manageMonthLabel}.</p>
-            <p className="text-xs text-black/40 mt-1">Use the month selector above or add one.</p>
-          </div>
-        )}
-        <div className="px-5 py-3 border-t border-black/5 bg-black/[0.01]">
-          <p className="text-[11px] text-black/40">{manageMonthTransactions.length} transaction{manageMonthTransactions.length === 1 ? '' : 's'} in {manageMonthLabel}</p>
-        </div>
-      </div>
-
       {/* Monthly History Table */}
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-black/5 flex items-center justify-between gap-3">
@@ -1166,12 +977,7 @@ export function HistoryPage() {
                     <tr key={index} className="hover:bg-black/[0.01] transition-colors">
                       <td className="px-5 py-3">
                         <button
-                          onClick={(e) => {
-                            const rect = e.currentTarget.closest('tr')?.getBoundingClientRect() || null;
-                            setDetailAnchorRect(rect);
-                            setDetailTransactions(row.transactions);
-                            setDetailMonthLabel(monthLabel);
-                          }}
+                          onClick={() => setDetailMonthKey(row.month)}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black text-white hover:bg-black/85 text-xs font-bold transition-all"
                         >
                           <Eye className="w-3 h-3" />
@@ -1214,30 +1020,32 @@ export function HistoryPage() {
 
       </div>
 
-      {/* Transaction Details Modal/Drawer — portal-rendered and anchored to the clicked row (same pattern as AddTransactionModal) */}
-      {detailTransactions && (
-        <MonthlyDetailsModal
-          transactions={detailTransactions}
-          monthLabel={detailMonthLabel}
-          anchorRect={detailAnchorRect}
-          onClose={() => {
-            setDetailTransactions(null);
-            setDetailAnchorRect(null);
-          }}
+      {/* Month transaction-management modal — month comes from the clicked row */}
+      {detailMonthKey && (
+        <MonthlyTransactionsModal
+          monthKey={detailMonthKey}
+          monthlyRow={monthlyHistoryRows.find((r) => r.month === detailMonthKey) ?? null}
+          isDemoUser={isDemoUser}
+          deletingId={deletingId}
+          isChildModalOpen={!!editTxn}
+          onAdd={() => setDetailAddOpen(true)}
+          onEdit={(txn, anchorRect) => startEditTransaction(txn, anchorRect)}
+          onDelete={handleDeleteTransaction}
+          onClose={() => setDetailMonthKey(null)}
         />
       )}
 
-      {/* Add Transaction (History) — date defaults to the selected month, editable */}
-      {addModalOpen && (
+      {/* Add Transaction opened from the month modal — date defaults to that month */}
+      {detailAddOpen && detailMonthKey && (
         <AddTransactionModal
           isOpen={true}
-          onClose={() => setAddModalOpen(false)}
-          defaultDate={manageDefaultDate}
+          onClose={() => setDetailAddOpen(false)}
+          defaultDate={`${detailMonthKey}-01`}
           onTransactionChanged={notifyFinanceDataChanged}
         />
       )}
 
-      {/* Edit Transaction (History) — anchored popover like the Transactions page */}
+      {/* Edit Transaction — opens from the month modal; closes both when done */}
       {editTxn && (
         <AddTransactionModal
           isOpen={true}
