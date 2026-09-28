@@ -35,6 +35,10 @@ interface FormProps {
   setCatId: (id: string) => void;
   onClose: () => void;
   onAddCategory: () => void;
+  /** Per-option cross in CategorySelect — deletes the category after user confirmation. */
+  onDeleteCategory?: (id: number) => Promise<void>;
+  /** Category currently being deleted (spinner on its ✕). */
+  deletingCategoryId?: number | null;
   onTransactionChanged?: () => void;
   /** Pre-fill the date field in add mode (edit mode always keeps the transaction's own date). */
   defaultDate?: string;
@@ -142,6 +146,8 @@ function TransactionForm({
   onAddCategory,
   onTransactionChanged,
   defaultDate,
+  onDeleteCategory,
+  deletingCategoryId,
 }: FormProps) {
   const [title, setTitle] = useState(() => editTxn?.note || '');
   const [amount, setAmount] = useState(() => (editTxn ? String(editTxn.amount) : ''));
@@ -573,6 +579,8 @@ function TransactionForm({
             value={catId}
             onChange={handleUserCategoryChange}
             onAddCategory={onAddCategory}
+            onDeleteCategory={onDeleteCategory}
+            deletingCategoryId={deletingCategoryId}
           />
           {detection && !editTxn && (
             <AutoDetectedCard
@@ -719,6 +727,7 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
   const [categories, setCategories] = useState<Category[]>([]);
   const [catId, setCatId] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -814,6 +823,26 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
     });
     setCatId(String(category.id));
     setShowAddCategory(false);
+  };
+
+  // Per-option cross in CategorySelect: delete an unwanted category (default or user-created).
+  // Backend rejects categories still referenced by expenses/budgets and returns a message.
+  const handleCategoryDeleted = async (id: number) => {
+    const target = categories.find((c) => c.id === id);
+    if (!target) return;
+    if (!confirm(`Delete the "${target.name}" category? This cannot be undone.`)) return;
+    setDeletingCategoryId(id);
+    try {
+      await categoryAPI.deleteCategory(id);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      if (catId === String(id)) setCatId('');
+      notifyFinanceDataChanged();
+    } catch (err) {
+      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(apiMessage || 'Could not delete category. It may still be in use.');
+    } finally {
+      setDeletingCategoryId(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -934,6 +963,8 @@ export function AddTransactionModal({ isOpen, onClose, editTxn, anchorRect, onTr
             categories={categories}
             catId={catId}
             setCatId={setCatId}
+            onDeleteCategory={handleCategoryDeleted}
+            deletingCategoryId={deletingCategoryId}
             onClose={handleClose}
             onAddCategory={() => setShowAddCategory(true)}
             onTransactionChanged={onTransactionChanged}

@@ -145,7 +145,7 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
 
         <button
           onClick={onLogout}
-          className={`group flex items-center gap-3 w-full mt-1 ${BUTTON_VARIANTS.danger}`}
+          className={`group flex items-center gap-3 w-full mt-3 ${BUTTON_VARIANTS.danger}`}
         >
           <LogOut className="w-4 h-4 shrink-0" />
           Logout

@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { BUTTON_VARIANTS } from './DashboardOverview';
 import { budgetAPI, categoryAPI, expenseAPI, type Budget, type Category, type Transaction } from '../../lib/api';
-import { formatCategoryLabel, getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
+import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
 import { CategoryEmoji } from './CategoryEmoji';
+import { CategorySelect } from './CategorySelect';
+import { AddCategoryModal } from './AddCategoryModal';
 import {
   normalizeBudgetMonth,
   computeBudgetSummary,
@@ -34,6 +36,8 @@ export function BudgetsPage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [readOnlyMessage, setReadOnlyMessage] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
 
   const { user } = useAuth();
   const isDemoUser = user?.email === DEMO_EMAIL;
@@ -204,6 +208,50 @@ export function BudgetsPage() {
     setEditingId(null);
     setEditError(null);
     setEditForm({ catId: '', limit: '', month: '' });
+  };
+
+  const openAddCategory = () => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
+    setShowAddCategory(true);
+  };
+
+  const handleCategoryCreated = (category: Category) => {
+    setCategories((prev) => {
+      const exists = prev.some((c) => c.id === category.id);
+      if (exists) return prev.map((c) => (c.id === category.id ? category : c));
+      return [...prev, category].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    setShowAddCategory(false);
+  };
+
+  // Per-option cross in CategorySelect: delete an unwanted category (default or user-created).
+  // Backend rejects categories still referenced by expenses/budgets and returns a message.
+  const handleCategoryDeleted = async (id: number) => {
+    if (isDemoUser) {
+      setReadOnlyMessage(true);
+      setTimeout(() => setReadOnlyMessage(false), 3000);
+      return;
+    }
+    const target = categories.find((c) => c.id === id);
+    if (!target) return;
+    if (!confirm(`Delete the "${target.name}" category? This cannot be undone.`)) return;
+    setDeletingCategoryId(id);
+    try {
+      await categoryAPI.deleteCategory(id);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      if (catId === String(id)) setCatId('');
+      if (editForm.catId === String(id)) setEditForm((f) => ({ ...f, catId: '' }));
+      notifyFinanceDataChanged();
+    } catch (err) {
+      const apiMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(apiMessage || 'Could not delete category. It may still be in use.');
+    } finally {
+      setDeletingCategoryId(null);
+    }
   };
 
   const saveEdit = async (budget: Budget) => {
@@ -449,16 +497,16 @@ export function BudgetsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-medium text-black/60 mb-1 block">Category</label>
-                      <select
+                      <CategorySelect
+                        categories={categories}
                         value={editForm.catId}
-                        onChange={(e) => setEditForm({ ...editForm, catId: e.target.value })}
-                        className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none cursor-pointer"
-                      >
-                        <option value="">Overall</option>
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>{formatCategoryLabel(c)}</option>
-                        ))}
-                      </select>
+                        onChange={(id) => setEditForm({ ...editForm, catId: id })}
+                        onAddCategory={openAddCategory}
+                        onDeleteCategory={handleCategoryDeleted}
+                        deletingCategoryId={deletingCategoryId}
+                        allowEmpty
+                        emptyLabel="Overall"
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-medium text-black/60 mb-1 block">Limit (₹)</label>
@@ -564,18 +612,16 @@ export function BudgetsPage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
           <div>
             <label className="block text-xs font-medium text-black/60 mb-1.5">Category (Optional)</label>
-            <select
-              className="w-full bg-[#F5F5F5] rounded-xl px-3 py-2.5 text-sm focus:outline-none cursor-pointer"
+            <CategorySelect
+              categories={categories}
               value={catId}
-              onChange={(e) => setCatId(e.target.value)}
-            >
-              <option value="">Overall Budget</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {formatCategoryLabel(c)}
-                </option>
-              ))}
-            </select>
+              onChange={setCatId}
+              onAddCategory={openAddCategory}
+              onDeleteCategory={handleCategoryDeleted}
+              deletingCategoryId={deletingCategoryId}
+              allowEmpty
+              emptyLabel="Overall Budget"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-black/60 mb-1.5">Limit (₹)</label>
@@ -610,6 +656,13 @@ export function BudgetsPage() {
           </div>
         </form>
       </div>
+
+      {showAddCategory && (
+        <AddCategoryModal
+          onClose={() => setShowAddCategory(false)}
+          onCreated={handleCategoryCreated}
+        />
+      )}
     </div>
   );
 }

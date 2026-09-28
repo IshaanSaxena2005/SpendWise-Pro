@@ -329,7 +329,7 @@ export function InsightsPage() {
                   <Icon className={`w-5 h-5 ${style.iconClass}`} />
                 </div>
                 <div className="flex-1 w-full">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mb-2">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${style.dot} animate-pulse`} />
                       <h3 className="text-sm font-semibold text-black">{ins.title}</h3>
@@ -347,10 +347,8 @@ export function InsightsPage() {
                     </div>
                   </div>
                   <p className="text-sm text-black/70 leading-relaxed mb-3">{ins.text}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="inline-flex items-center px-2 py-1 bg-black/5 rounded-md text-[10px] font-semibold text-black/50 uppercase tracking-widest">
-                      {style.category}
-                    </div>
+                  <div className="inline-flex w-fit items-center px-2 py-1 bg-black/5 rounded-md text-[10px] font-semibold text-black/50 uppercase tracking-widest">
+                    {style.category}
                   </div>
                 </div>
               </div>
@@ -378,10 +376,10 @@ export function InsightsPage() {
             </div>
 
             {/* Animated SVG ring */}
-            <div className="relative flex items-center justify-center w-36 h-36 mx-auto mb-4">
-              <svg className="transform -rotate-90 w-36 h-36 drop-shadow-sm">
-                <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-black/5" />
-                <circle cx="72" cy="72" r="60" stroke="url(#insightsHealthGradient)" strokeWidth="10" fill="transparent" strokeDasharray={2 * Math.PI * 60} strokeDashoffset={(2 * Math.PI * 60) - ((aiScore / 100) * (2 * Math.PI * 60))} className="transition-all duration-1000 ease-out stroke-round" strokeLinecap="round" />
+            <div className="relative flex items-center justify-center w-[120px] h-[120px] mx-auto mb-4">
+              <svg className="transform -rotate-90 w-[120px] h-[120px] drop-shadow-sm">
+                <circle cx="60" cy="60" r="50" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-black/5" />
+                <circle cx="60" cy="60" r="50" stroke="url(#insightsHealthGradient)" strokeWidth="8" fill="transparent" strokeDasharray={2 * Math.PI * 50} strokeDashoffset={(2 * Math.PI * 50) - ((aiScore / 100) * (2 * Math.PI * 50))} className="transition-all duration-1000 ease-out stroke-round" strokeLinecap="round" />
                 <defs>
                   <linearGradient id="insightsHealthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor={aiScore >= 80 ? '#10B981' : aiScore >= 60 ? '#F59E0B' : '#F43F5E'} />
@@ -390,7 +388,7 @@ export function InsightsPage() {
                 </defs>
               </svg>
               <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-4xl font-bold text-black tracking-tight">{aiScore}</span>
+                <span className="text-3xl font-bold text-black tracking-tight">{aiScore}</span>
                 <span className={`text-xs font-semibold uppercase tracking-wider mt-1 ${scoreColor}`}>{scoreLabel}</span>
               </div>
             </div>

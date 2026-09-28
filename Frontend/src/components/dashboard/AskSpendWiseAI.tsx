@@ -203,7 +203,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
           380px dialog measure exactly ~190px wide to layout audits / getBoundingClientRect,
           which is where the reported "190px chat" came from. `inert` keeps the hidden
           dialog out of the a11y tree and tab order. */}
-      <div role="dialog" aria-label="Ask SpendWise AI" inert={!isOpen} className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      <div role="dialog" aria-label="Ask SpendWise AI" inert={!isOpen} className={`fixed bottom-3 right-3 sm:bottom-6 sm:right-6 w-[calc(100vw-24px)] sm:w-[380px] max-w-[calc(100vw-24px)] h-[min(600px,calc(100dvh-48px))] bg-white rounded-3xl shadow-2xl border border-black/10 flex flex-col overflow-hidden z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-600 to-violet-800 p-4 flex items-center justify-between shrink-0">
@@ -219,7 +219,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
               </div>
             </div>
           </div>
-          <button onClick={() => setIsOpen(false)} aria-label="Close chat" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors">
+          <button onClick={() => setIsOpen(false)} aria-label="Close chat" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/80 hover:text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -280,7 +280,7 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
                 <button
                   key={i}
                   onClick={() => handleSend(prompt)}
-                  className="text-left text-[11px] leading-snug text-black/70 bg-white hover:bg-violet-50 hover:text-violet-700 border border-black/5 hover:border-violet-200 px-3 py-2.5 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="text-left text-[11px] leading-snug text-black/70 bg-white hover:bg-violet-50 hover:text-violet-700 border border-black/10 hover:border-violet-200 px-3.5 py-3 min-h-[40px] rounded-xl transition-all duration-200 shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
                 >
                   {prompt}
                 </button>
@@ -301,12 +301,12 @@ export function AskSpendWiseAI({ position, onPositionChange }: AskSpendWiseAIPro
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask me anything..."
               aria-label="Message Ask SpendWise AI"
-              className="flex-1 bg-transparent px-3 text-sm focus:outline-none text-black placeholder:text-black/40"
+              className="flex-1 min-h-[38px] bg-transparent px-3 text-sm focus:outline-none text-black placeholder:text-black/40"
             />
             <button
               type="submit"
               disabled={!input.trim() || isTyping}
-              className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors"
+              className="w-9 h-9 bg-black text-white rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
             >
               <Send className="w-3.5 h-3.5 -ml-0.5" />
             </button>
