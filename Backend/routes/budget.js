@@ -4,6 +4,7 @@ const {
   getBudgets,
   updateBudget,
   deleteBudget,
+  carryForwardBudgets,
 } = require('../controllers/budgetController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validateRequest = require('../middleware/validateRequest');
@@ -17,5 +18,6 @@ router.post('/add', budgetValidation, validateRequest, createBudget);
 router.get('/all', getBudgets);
 router.put('/update/:id', idParamValidation, budgetValidation, validateRequest, updateBudget);
 router.delete('/delete/:id', idParamValidation, validateRequest, deleteBudget);
+router.post('/carry-forward', carryForwardBudgets);
 
 module.exports = router;

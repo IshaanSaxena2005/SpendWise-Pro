@@ -133,6 +133,8 @@ async function runStartupMigrations() {
   await ensureCanonicalCategoriesForAllUsers();
   // 4. One-time cleanup of learning rows poisoned by the historical bug.
   await cleanupPoisonedFuelLearning();
+  // 5. Budget carry-forward claim table (idempotent; empty table is harmless).
+  await applyMigrationFile('008_create_budget_carryforward_state.sql');
 }
 
 module.exports = {
