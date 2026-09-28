@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { Brain, Flame, ShoppingBag, RefreshCw, TrendingUp, Info } from 'lucide-react';
 import { expenseAPI, budgetAPI, healthAPI, analyticsAPI } from '../../lib/api';
 import type { Transaction, Budget, CategoryBreakdownItem } from '../../lib/api';
@@ -298,9 +299,7 @@ export function InsightsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-black/60">Loading AI Insights...</div>
-      </div>
+      <LoadingSpinner label="Loading AI insights" className="min-h-screen" />
     );
   }
 

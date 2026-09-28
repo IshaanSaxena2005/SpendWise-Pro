@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { Target, TrendingUp, Wallet, Edit2, Trash2, X, Check, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { BUTTON_VARIANTS } from './DashboardOverview';
 import { budgetAPI, categoryAPI, expenseAPI, type Budget, type Category, type Transaction } from '../../lib/api';
@@ -306,9 +307,7 @@ export function BudgetsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-black/60">Loading...</div>
-      </div>
+      <LoadingSpinner label="Loading budgets" className="min-h-screen" />
     );
   }
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { Search, Download, Edit2, Trash2, ChevronLeft, ChevronRight, Receipt, Repeat2 } from 'lucide-react';
 import { expenseAPI, categoryAPI, analyticsAPI, recurringAPI, budgetAPI, type Transaction, type Category, type Budget } from '../../lib/api';
 import { formatCategoryLabel, getCategoryIcon, getCategoryBadgeClasses } from '../../lib/categoryIcons';
@@ -245,9 +246,7 @@ export function ExpensesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-black/60">Loading...</div>
-      </div>
+      <LoadingSpinner label="Loading transactions" className="min-h-screen" />
     );
   }
 

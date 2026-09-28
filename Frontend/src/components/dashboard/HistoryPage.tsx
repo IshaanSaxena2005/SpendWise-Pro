@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { createPortal } from 'react-dom';
 import {
   TrendingUp, Activity, ArrowUp, ArrowDown, Download, Eye, X, Award, AlertCircle,
@@ -647,9 +648,7 @@ export function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-violet-600" />
-      </div>
+      <LoadingSpinner className="h-screen w-full" />
     );
   }
 

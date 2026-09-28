@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { TrendingUp, TrendingDown, CreditCard, Target, Wallet, Brain, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { expenseAPI, categoryAPI, budgetAPI, healthAPI, forecastAPI, anomalyAPI, analyticsAPI, goalsAPI, type Transaction, type Category, type Budget, type Forecast, type Anomaly, type Goal } from '../../lib/api';
 import { getCategoryIcon, getCategoryBg } from '../../lib/categoryIcons';
@@ -262,9 +263,7 @@ export function DashboardOverview() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-black/60">Loading...</div>
-      </div>
+      <LoadingSpinner label="Loading dashboard" className="min-h-screen" />
     );
   }
 
@@ -398,7 +397,7 @@ export function DashboardOverview() {
               <TrendingUp className="w-4 h-4 text-violet-600" />
             </div>
             {loadingForecast ? (
-              <div className="text-sm text-black/50" role="status">Loading forecast...</div>
+              <LoadingSpinner label="Loading forecast" sizeClass="h-6 w-6" />
             ) : forecast?.message && !forecast.predicted_spending ? (
               <div className="text-sm text-black/50">{forecast.message}</div>
             ) : (
@@ -448,7 +447,7 @@ export function DashboardOverview() {
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
             {loadingAnomalies ? (
-              <div className="text-sm text-black/50">Loading...</div>
+              <LoadingSpinner label="Loading anomaly alerts" sizeClass="h-6 w-6" />
             ) : anomalies.length === 0 ? (
               <div className="text-sm text-black/50">No unusual spending detected.</div>
             ) : (

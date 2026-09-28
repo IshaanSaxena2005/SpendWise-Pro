@@ -15,6 +15,7 @@ import { DEMO_EMAIL } from '../../lib/constants';
 import { notificationAPI, type Notification } from '../../lib/api';
 import { notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { BUTTON_VARIANTS } from './DashboardOverview';
+import { LoadingSpinner } from './LoadingSpinner';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
@@ -358,10 +359,7 @@ export function DashboardLayout() {
                     </div>
                     <div className="divide-y divide-black/5 max-h-[300px] overflow-y-auto">
                       {notifLoading ? (
-                        <div className="p-6 text-center">
-                          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-violet-600 mx-auto" />
-                          <p className="text-xs text-black/50 mt-2">Loading...</p>
-                        </div>
+                        <LoadingSpinner label="Loading notifications" className="p-6" sizeClass="h-6 w-6" />
                       ) : notifError ? (
                         <div className="p-6 text-center">
                           <p className="text-xs text-rose-500">{notifError}</p>

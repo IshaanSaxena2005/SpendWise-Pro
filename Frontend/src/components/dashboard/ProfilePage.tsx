@@ -1,4 +1,5 @@
 import { User, Mail, Shield, Activity, CreditCard, Clock, Edit2, Key, LogOut } from 'lucide-react';
+import { LoadingSpinner } from './LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { expenseAPI, budgetAPI, analyticsAPI } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -57,9 +58,7 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-black/60">Loading...</div>
-      </div>
+      <LoadingSpinner label="Loading profile" className="min-h-screen" />
     );
   }
 
