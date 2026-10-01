@@ -24,6 +24,27 @@ interface AuthContextValue {
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
+// Resolve the signed-in user from the access-token cookie. If the access JWT
+// is stale (>15 min) — e.g. the tab slept overnight, or the user opens the site
+// fresh in another tab — /me 401s even though the 30-day refresh session is
+// still valid. In that case refresh once and retry, so a cold load restores the
+// session instead of bouncing the user to the landing page. If refresh fails
+// too, the session is genuinely gone and we report null.
+async function fetchCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const res = await api.get<{ success: boolean; user: AuthUser }>('/auth/me');
+    return res.data.success ? res.data.user : null;
+  } catch {
+    try {
+      await api.post('/auth/refresh');
+      const res = await api.get<{ success: boolean; user: AuthUser }>('/auth/me');
+      return res.data.success ? res.data.user : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function useAuth(): AuthContextValue {
@@ -46,16 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        // Single request to validate the access-token cookie and return user data.
-        // If the access token is expired but a valid refresh token cookie exists,
-        // the axios response interceptor (in api.ts) will transparently refresh it
-        // before this call resolves.
-        const res = await api.get<{ success: boolean; user: AuthUser }>('/auth/me');
-        if (res.data.success && res.data.user) {
-          setUser(res.data.user);
-        }
+        const resolvedUser = await fetchCurrentUser();
+        setUser(resolvedUser);
       } catch {
-        // 401 → no valid session; stay on landing page
+        // Network-level failure of the session check — treat as signed out
+        // rather than leaving the app in a broken loading state.
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -68,6 +84,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('sw:auth:expired', handleAuthExpired);
     return () => window.removeEventListener('sw:auth:expired', handleAuthExpired);
   }, []);
+
+  // Keep the access-token cookie fresh while the app is open on a visible tab.
+  // The access JWT lives only ~15 minutes; without this heartbeat an idle open
+  // dashboard relies on a 401-triggered refresh for the user's NEXT action, and
+  // a single transient refresh failure (network blip, throttled background tab,
+  // laptop waking from sleep) would bounce them out even though their 30-day
+  // refresh session is perfectly valid. Refreshing proactively uses the same
+  // /auth/refresh endpoint — no second auth mechanism, no weaker tokens.
+  useEffect(() => {
+    if (!user) return;
+    const ACCESS_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // access TTL is 15 min
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void api.post('/auth/refresh').catch(() => {
+        // Transient failures are harmless: normal requests still flow through
+        // the 401 → refresh → retry interceptor. Genuine expiry is detected
+        // there and dispatched as 'sw:auth:expired'.
+      });
+    }, ACCESS_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [user]);
 
   const login = useCallback((userData: AuthUser) => {
     setUser(userData);

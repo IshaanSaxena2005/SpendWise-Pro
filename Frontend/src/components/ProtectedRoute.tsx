@@ -51,7 +51,10 @@ export function ProtectedRoute({ children }: Props) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    // Route expired/signed-out users into the login flow (?login=1 auto-opens
+    // the AuthModal on the landing page) instead of silently dumping them on
+    // the public landing page as if they had never signed in.
+    return <Navigate to="/?login=1" replace />;
   }
 
   return <>{children}</>;

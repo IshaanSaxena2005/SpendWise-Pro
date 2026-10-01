@@ -81,6 +81,18 @@ function LandingPage() {
       }, 0);
     }
 
+    // Protected routes redirect here with ?login=1 when the session is expired
+    // or the user is signed out — auto-open the login modal so they land in the
+    // auth flow instead of silently staring at the marketing page.
+    if (searchParams.get('login') === '1') {
+      setTimeout(() => {
+        setAuthView('login');
+        setIsAuthOpen(true);
+      }, 0);
+      searchParams.delete('login');
+      shouldUpdateParams = true;
+    }
+
 
 
     if (searchParams.get('deleted') === 'true') {
