@@ -15,6 +15,9 @@
  *    merchant matches a Fuel keyword AND whose category is a known non-Fuel
  *    name — exactly the pollution created by the missing-Fuel bug. Legitimate
  *    corrections for unrelated merchants/categories are untouched.
+ *  - The recurring is_active heal only touches rows where is_active IS NULL —
+ *    a value no UI flow produces deliberately (pause writes FALSE) — and
+ *    restores them to TRUE, their pre-edit state.
  *
  * Failures are logged loudly, never silently swallowed.
  */
@@ -124,6 +127,25 @@ async function cleanupPoisonedFuelLearning() {
   return deleted;
 }
 
+async function healNullIsActiveRecurring() {
+  // Historical bug: updateRecurringTransaction wrote is_active straight from
+  // the request body; clients that omitted the field (Recurring Management
+  // edit) turned it NULL, which makes `WHERE is_active = TRUE` (cron, summary)
+  // exclude the row forever — edited recurrings silently stopped processing.
+  // Only the edit path can produce NULL here, so coalescing to TRUE restores
+  // exactly the rows the bug broke. Idempotent: a second run affects 0 rows.
+  const [result] = await pool.query(
+    'UPDATE recurring_transactions SET is_active = TRUE WHERE is_active IS NULL'
+  );
+  const healed = result ? result.affectedRows || 0 : 0;
+  if (healed > 0) {
+    console.log(`[StartupMigrations] recurring is_active heal: restored ${healed} row(s) NULLed by the edit bug to active`);
+  } else {
+    console.log('[StartupMigrations] recurring is_active heal: nothing to restore');
+  }
+  return healed;
+}
+
 async function runStartupMigrations() {
   // 1. Learning tables (migration 003) — verbatim schema from the migration file.
   await applyMigrationFile('003_create_user_category_learning.sql');
@@ -135,12 +157,15 @@ async function runStartupMigrations() {
   await cleanupPoisonedFuelLearning();
   // 5. Budget carry-forward claim table (idempotent; empty table is harmless).
   await applyMigrationFile('008_create_budget_carryforward_state.sql');
+  // 6. Restore recurring rows whose is_active was NULLed by the edit bug.
+  await healNullIsActiveRecurring();
 }
 
 module.exports = {
   runStartupMigrations,
   ensureCanonicalCategoriesForAllUsers,
   cleanupPoisonedFuelLearning,
+  healNullIsActiveRecurring,
   CANONICAL_CATEGORY_NAMES,
   FUEL_KEYWORDS,
 };

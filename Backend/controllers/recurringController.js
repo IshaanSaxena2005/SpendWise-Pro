@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
-const { calculateNextExecutionDate } = require('../services/recurringExecutionService');
+const { calculateNextExecutionDate, getIstDate, toIstDateString } = require('../services/recurringExecutionService');
 
 const createRecurringTransaction = async (req, res) => {
   try {
@@ -119,25 +119,50 @@ const updateRecurringTransaction = async (req, res) => {
       }
     }
 
-    // Recalculate next execution date if frequency or start_date changed
-    let nextExecutionDate;
-    if (frequency || start_date) {
-      const [current] = await pool.query(
-        'SELECT frequency, start_date FROM recurring_transactions WHERE id = ? AND user_id = ?',
-        [id, userId]
-      );
-      if (current.length > 0) {
-        const newFrequency = frequency || current[0].frequency;
-        const newStartDate = start_date || current[0].start_date;
-        nextExecutionDate = calculateNextExecutionDate(newStartDate, newFrequency);
-      }
+    // Fetch the current row so fields the client omitted keep their stored
+    // values (the UPDATE below writes every column; writing NULLs would break
+    // the schedule).
+    const [current] = await pool.query(
+      'SELECT frequency, start_date, is_active FROM recurring_transactions WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+    if (current.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recurring transaction not found',
+      });
     }
+
+    // Preserve is_active when the client doesn't send it (e.g. the edit modal).
+    // Writing NULL here makes the cron's `WHERE is_active = TRUE` filter exclude
+    // the row forever, so edited recurrings silently stop processing. Coalesce
+    // any legacy NULL (from the old bug) to TRUE so re-editing repairs the row.
+    const storedIsActive = current[0].is_active === null ? 1 : current[0].is_active;
+    const effectiveIsActive = is_active === undefined ? storedIsActive : (is_active ? 1 : 0);
+
+    // Recalculate next execution date, anchored on the (possibly new) start_date
+    // but never earlier than today (IST):
+    //   - start_date in the future → schedule begins on start_date
+    //   - start_date today or past → due immediately; process-due picks it up
+    //     and advances it from there (catch-up behavior preserved)
+    // (Previously this stored start_date + 1 frequency step, so editing a
+    // recurring to be "due today" actually made it due next period.)
+    const newStartDate = start_date || current[0].start_date;
+    const today = getIstDate();
+    // Normalize dates to IST 'YYYY-MM-DD' strings before storing: the validator
+    // hands us JS Date objects, and mysql2 serializes those in server-local
+    // time, which can shift the stored date by a day on non-IST servers.
+    const startDateStr = typeof newStartDate === 'string'
+      ? newStartDate.split('T')[0]
+      : toIstDateString(newStartDate);
+    const endDateStr = end_date ? toIstDateString(end_date) : end_date;
+    const nextExecutionDate = startDateStr > today ? startDateStr : today;
 
     const [result] = await pool.query(
       `UPDATE recurring_transactions 
        SET amount = ?, category_id = ?, note = ?, frequency = ?, start_date = ?, end_date = ?, never_ends = ?, is_active = ?, next_execution_date = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND user_id = ?`,
-      [amount, category_id, note, frequency, start_date, end_date, never_ends, is_active, nextExecutionDate, id, userId]
+      [amount, category_id, note, frequency, startDateStr, endDateStr, never_ends, effectiveIsActive, nextExecutionDate, id, userId]
     );
 
     if (result.affectedRows === 0) {
