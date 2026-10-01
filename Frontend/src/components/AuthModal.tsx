@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import { GoogleLogin } from '@react-oauth/google';
@@ -382,10 +382,19 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
             disabled={loading}
             className="w-full inline-flex items-center justify-center gap-2 bg-black text-white text-sm font-medium px-6 py-3.5 rounded-xl hover:bg-gray-800 transition-colors mt-2 disabled:opacity-55"
           >
-            {loading
-              ? 'Processing…'
-              : view === 'login' ? 'Sign In' 
-              : view === 'signup' ? 'Create Account' 
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                {view === 'login'
+                  ? 'Signing you in... This may take a few seconds.'
+                  : view === 'signup'
+                  ? 'Creating your account... This may take a few seconds.'
+                  : view === 'forgot-password'
+                  ? 'Sending reset link... This may take a few seconds.'
+                  : 'Updating password... This may take a few seconds.'}
+              </>
+            ) : view === 'login' ? 'Sign In'
+              : view === 'signup' ? 'Create Account'
               : view === 'forgot-password' ? 'Send Reset Link'
               : 'Update Password'}
             {!loading && <ArrowRight className="w-4 h-4" />}
