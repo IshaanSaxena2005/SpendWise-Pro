@@ -138,15 +138,25 @@ async function createTransactionFromRecurring(recurring) {
  * Create a notification for recurring transaction execution
  */
 async function createRecurringNotification(userId, type, amount, categoryName) {
-  const action = type === 'income' ? 'credited' : 'added';
-  const title = type === 'income' ? 'Recurring income credited' : 'Recurring expense added';
-  const description = `${categoryName || 'Transaction'} of ₹${amount.toLocaleString('en-IN')} was automatically ${action}.`;
-  
-  await pool.query(
-    `INSERT INTO notifications (user_id, title, description, type, read_status) 
-     VALUES (?, ?, ?, 'recurring', FALSE)`,
-    [userId, title, description]
-  );
+  // Best-effort: the expense is already committed when this runs, so a
+  // notification failure (e.g. schema drift on the notifications table) must
+  // never bubble up and mark the execution itself as failed.
+  try {
+    const action = type === 'income' ? 'credited' : 'added';
+    const title = type === 'income' ? 'Recurring income credited' : 'Recurring expense added';
+    const description = `${categoryName || 'Transaction'} of ₹${Number(amount).toLocaleString('en-IN')} was automatically ${action}.`;
+    
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, description, type, read_status) 
+       VALUES (?, ?, ?, 'recurring', FALSE)`,
+      [userId, title, description]
+    );
+  } catch (err) {
+    console.error(
+      `[RecurringExecution] notification insert failed for user ${userId} (transaction execution unaffected):`,
+      err && err.message ? err.message : err
+    );
+  }
 }
 
 /**

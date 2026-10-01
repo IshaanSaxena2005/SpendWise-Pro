@@ -146,6 +146,36 @@ async function healNullIsActiveRecurring() {
   return healed;
 }
 
+async function ensureRecurringSchemaColumns() {
+  // Schema drift: production DBs created before certain schema.sql commits never
+  // gain columns that the recurring pipeline (and notification UI) reference.
+  // server.js only runs schema.sql on an EMPTY database, so nothing ever alters
+  // these tables in place — the drift persists silently until a cron run hits
+  // the missing column and every execution fails (or the request 500s when the
+  // failing query sits outside the per-item try/catch).
+  // Columns required by recurringExecutionService.js, added only if absent:
+  //   - notifications.read_status        (Phase 12, commit 29ee9a1)
+  //   - expenses.is_recurring / .recurring_transaction_id (recurring feature)
+  //   - expenses.transaction_type        (migration 005)
+  // Same ER_DUP_FIELDNAME-tolerant pattern server.js already uses. Idempotent.
+  const columnMigrations = [
+    "ALTER TABLE notifications ADD COLUMN read_status BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE expenses ADD COLUMN is_recurring BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE expenses ADD COLUMN recurring_transaction_id BIGINT UNSIGNED NULL",
+    "ALTER TABLE expenses ADD COLUMN transaction_type ENUM('income', 'expense') NOT NULL DEFAULT 'expense'",
+  ];
+  for (const sql of columnMigrations) {
+    try {
+      await pool.query(sql);
+      console.log(`[StartupMigrations] schema drift: added missing column via "${sql}"`);
+    } catch (err) {
+      if (err && err.code === 'ER_DUP_FIELDNAME') continue; // column already exists — expected
+      throw err; // real failure (permissions, connection) — logged loudly by caller
+    }
+  }
+  console.log('[StartupMigrations] recurring pipeline schema columns verified');
+}
+
 async function runStartupMigrations() {
   // 1. Learning tables (migration 003) — verbatim schema from the migration file.
   await applyMigrationFile('003_create_user_category_learning.sql');
@@ -159,6 +189,8 @@ async function runStartupMigrations() {
   await applyMigrationFile('008_create_budget_carryforward_state.sql');
   // 6. Restore recurring rows whose is_active was NULLed by the edit bug.
   await healNullIsActiveRecurring();
+  // 7. Ensure columns the recurring pipeline references exist (schema drift heal).
+  await ensureRecurringSchemaColumns();
 }
 
 module.exports = {
@@ -166,6 +198,7 @@ module.exports = {
   ensureCanonicalCategoriesForAllUsers,
   cleanupPoisonedFuelLearning,
   healNullIsActiveRecurring,
+  ensureRecurringSchemaColumns,
   CANONICAL_CATEGORY_NAMES,
   FUEL_KEYWORDS,
 };
