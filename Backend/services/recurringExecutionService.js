@@ -19,6 +19,42 @@ function getIstDate() {
 }
 
 /**
+ * Validate that a value is a real YYYY-MM-DD calendar date before it is bound
+ * to a DATE/DATETIME placeholder. mysql2 (no dateStrings flag) returns DATE
+ * columns as JS Date objects and the express validator can hand us Date
+ * objects too, so both shapes are accepted — anything else (undefined, null,
+ * a "?" string, a mangled value) throws at the exact query that would have
+ * received it, instead of reaching MySQL as garbage.
+ * Returns the normalized YYYY-MM-DD string.
+ */
+function requireIstDateString(value, label) {
+  if (value === undefined || value === null) {
+    throw new Error(
+      `[RecurringExecution] ${label} is ${value === undefined ? 'undefined' : 'null'}, expected a YYYY-MM-DD date`
+    );
+  }
+  const s = value instanceof Date
+    ? toIstDateString(value)
+    : String(value).split('T')[0].trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    throw new Error(
+      `[RecurringExecution] ${label} is not a valid YYYY-MM-DD date, got ${JSON.stringify(String(value))}`
+    );
+  }
+  // Calendar validity: MySQL strict mode rejects impossible dates like
+  // '2026-08-35' with "Incorrect date value" (1292), so catch them here with
+  // a precise message instead of at the database.
+  const [yy, mm, dd] = s.split('-').map(Number);
+  const daysInMonth = new Date(yy, mm, 0).getDate();
+  if (mm < 1 || mm > 12 || dd < 1 || dd > daysInMonth) {
+    throw new Error(
+      `[RecurringExecution] ${label} is not a real calendar date, got ${JSON.stringify(s)}`
+    );
+  }
+  return s;
+}
+
+/**
  * Parse a YYYY-MM-DD date string into a plain Date at IST midnight.
  * Avoids UTC-shift pitfalls when the string is fed into `new Date()`.
  */
@@ -80,8 +116,18 @@ function calculateNextExecutionDate(currentDate, frequency) {
       return typeof currentDate === 'string' ? currentDate.split('T')[0] : toIstDateString(current);
   }
 
-  // Build YYYY-MM-DD without any timezone conversion
-  return `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+  // Build YYYY-MM-DD without any timezone conversion.
+  // Normalizing through a Date rolls daily/weekly overflow into the next
+  // month/year (Aug 28 + 7 -> Sep 4, Dec 30 + 7 -> Jan 6) instead of
+  // producing calendar-invalid strings like '2026-08-35' that MySQL strict
+  // mode rejects with "Incorrect date value" (1292) — which previously
+  // stalled the recurring forever and 500'd the whole process-due endpoint.
+  // For monthly/yearly (day already clamped to a real date) this is identity.
+  const normalized = new Date(nextYear, nextMonth, nextDay);
+  const finalYear = normalized.getFullYear();
+  const finalMonth = normalized.getMonth(); // 0-indexed
+  const finalDay = normalized.getDate();
+  return `${finalYear}-${String(finalMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
 }
 
 /**
@@ -104,6 +150,10 @@ async function hasTransactionBeenExecuted(userId, recurringTransactionId, execut
  */
 async function createTransactionFromRecurring(recurring) {
   const connection = await pool.getConnection();
+  const executionDate = requireIstDateString(
+    recurring.next_execution_date,
+    `next_execution_date of recurring #${recurring.id}`
+  );
   
   try {
     await connection.beginTransaction();
@@ -117,7 +167,7 @@ async function createTransactionFromRecurring(recurring) {
         recurring.user_id,
         recurring.category_id,
         recurring.amount,
-        recurring.next_execution_date,
+        executionDate,
         recurring.note,
         recurring.id,
         recurring.type
@@ -165,7 +215,13 @@ async function createRecurringNotification(userId, type, amount, categoryName) {
  */
 async function processRecurringTransaction(recurring) {
   const today = getIstDate();
-  const nextExecutionDate = recurring.next_execution_date;
+  const nextExecutionDate = requireIstDateString(
+    recurring.next_execution_date,
+    `next_execution_date of recurring #${recurring.id}`
+  );
+  const endDate = recurring.end_date == null
+    ? null
+    : requireIstDateString(recurring.end_date, `end_date of recurring #${recurring.id}`);
 
   // Check if due (next_execution_date <= today)
   if (nextExecutionDate > today) {
@@ -178,7 +234,7 @@ async function processRecurringTransaction(recurring) {
   }
 
   // Check if end date has passed
-  if (recurring.end_date && nextExecutionDate > recurring.end_date) {
+  if (endDate && nextExecutionDate > endDate) {
     // Mark as inactive
     await pool.query(
       'UPDATE recurring_transactions SET is_active = FALSE WHERE id = ?',
@@ -195,7 +251,10 @@ async function processRecurringTransaction(recurring) {
   );
   if (alreadyExecuted) {
     // Already executed, just update next execution date
-    const newNextDate = calculateNextExecutionDate(nextExecutionDate, recurring.frequency);
+    const newNextDate = requireIstDateString(
+      calculateNextExecutionDate(nextExecutionDate, recurring.frequency),
+      `calculated next_execution_date of recurring #${recurring.id}`
+    );
     await pool.query(
       'UPDATE recurring_transactions SET next_execution_date = ? WHERE id = ?',
       [newNextDate, recurring.id]
@@ -223,10 +282,13 @@ async function processRecurringTransaction(recurring) {
     );
 
     // Calculate and update next execution date
-    const newNextDate = calculateNextExecutionDate(nextExecutionDate, recurring.frequency);
-    
+    const newNextDate = requireIstDateString(
+      calculateNextExecutionDate(nextExecutionDate, recurring.frequency),
+      `calculated next_execution_date of recurring #${recurring.id}`
+    );
+
     // Check if next execution is beyond end date
-    if (recurring.end_date && newNextDate > recurring.end_date) {
+    if (endDate && newNextDate > endDate) {
       await pool.query(
         'UPDATE recurring_transactions SET next_execution_date = ?, is_active = FALSE WHERE id = ?',
         [newNextDate, recurring.id]
@@ -255,29 +317,44 @@ async function processRecurringTransaction(recurring) {
  * Called by the scheduler endpoint
  */
 async function processDueRecurringTransactions() {
-  const today = getIstDate();
+  const today = requireIstDateString(getIstDate(), 'IST today');
   
-  // Get all active recurring transactions that are due
-  const [dueTransactions] = await pool.query(
-    `SELECT 
-      rt.id,
-      rt.user_id,
-      rt.type,
-      rt.amount,
-      rt.category_id,
-      rt.note,
-      rt.frequency,
-      rt.start_date,
-      rt.end_date,
-      rt.next_execution_date,
-      rt.never_ends,
-      rt.is_active
-     FROM recurring_transactions rt
-     WHERE rt.is_active = TRUE
-     AND rt.next_execution_date <= ?
-     ORDER BY rt.next_execution_date ASC`,
-    [today]
-  );
+  // Get all active recurring transactions that are due.
+  // This SELECT sits OUTSIDE the per-item try/catch, so a failure here is the
+  // one that surfaces (via the route's catch) as a bare err.message in the
+  // 500 response. Enrich it with errno/sqlState and the bound value so a
+  // production failure pinpoints the offending query instead of a cryptic
+  // "Incorrect datetime value" line. Re-throw: never swallowed, never masked.
+  let dueTransactions;
+  try {
+    [dueTransactions] = await pool.query(
+      `SELECT 
+        rt.id,
+        rt.user_id,
+        rt.type,
+        rt.amount,
+        rt.category_id,
+        rt.note,
+        rt.frequency,
+        rt.start_date,
+        rt.end_date,
+        rt.next_execution_date,
+        rt.never_ends,
+        rt.is_active
+       FROM recurring_transactions rt
+       WHERE rt.is_active = TRUE
+       AND rt.next_execution_date <= ?
+       ORDER BY rt.next_execution_date ASC`,
+      [today]
+    );
+  } catch (err) {
+    throw new Error(
+      `process-due due-SELECT failed: ${err.message}` +
+      ` | code=${err.code ?? 'n/a'} errno=${err.errno ?? 'n/a'} sqlState=${err.sqlState ?? 'n/a'}` +
+      ` | bound next_execution_date <= ${JSON.stringify(today)}`,
+      { cause: err }
+    );
+  }
 
   const results = {
     processed: dueTransactions.length,
@@ -289,7 +366,16 @@ async function processDueRecurringTransactions() {
   };
 
   for (const recurring of dueTransactions) {
-    const result = await processRecurringTransaction(recurring);
+    // Fault isolation: one malformed row (e.g. a poisoned next_execution_date)
+    // must not 500 the whole endpoint and block every other user's recurring
+    // transactions. The failure is recorded per-item; processing continues.
+    let result;
+    try {
+      result = await processRecurringTransaction(recurring);
+    } catch (err) {
+      console.error(`Error processing recurring transaction ${recurring.id}:`, err);
+      result = { status: 'failed', reason: err.message };
+    }
     
     results.details.push({
       recurringId: recurring.id,
@@ -400,6 +486,7 @@ module.exports = {
   getIstDate,
   parseDateAsIst,
   toIstDateString,
+  requireIstDateString,
   calculateNextExecutionDate,
   processRecurringTransaction,
   processDueRecurringTransactions,
