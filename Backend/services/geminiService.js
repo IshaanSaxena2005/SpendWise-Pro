@@ -1,12 +1,17 @@
 const axios = require('axios');
 
 const GEMINI_TIMEOUT_MS = 8000;
-// Model ladder (Sep 2026): Google retired gemini-2.0-flash and all 1.5-flash
-// variants (404 MODEL_NOT_FOUND), and gemini-2.5-flash is closed to NEW keys.
-// gemini-3.6-flash is the current recommended model; `gemini-flash-latest` is
-// Google's maintained alias that always points at the current flash model and
-// 2.5-flash remains for keys where it is still provisioned.
-const GENERATE_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+// Model ladder (verified live against the Gemini API on 2026-10-03):
+//   gemini-3.6-flash      -> live, primary
+//   gemini-flash-latest  -> live, Google's maintained alias (auto-tracks flash)
+//   gemini-3.8-flash     -> live, newest stable flash; Google's own 404 for
+//                           gemini-2.5-flash recommends this model by name
+// gemini-2.5-flash was REMOVED from the end of this ladder: Google now answers
+// 404 MODEL_NOT_FOUND ("no longer available to new users"), so it only added
+// latency to every already-failing request. Free-tier keys get 5 requests per
+// minute per model, and each rung has its own bucket — that is why falling
+// through to a different model on 429 works.
+const GENERATE_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
 const EMBEDDING_MODEL = 'text-embedding-004';
 const GENERATE_MODEL = GENERATE_MODELS[0];
 
@@ -278,14 +283,11 @@ async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 51
           googleError: response.data || null,
         };
         logGeminiFailure('generateContent', emptyFailure, durationMs, model);
-        return {
-          ok: false,
-          reason: 'EMPTY_RESPONSE',
-          text: null,
-          json: null,
-          durationMs,
-          model,
-        };
+        // Reasoning-heavy models can return a 200 with no candidate text when
+        // the output budget is spent on thinking. That is a per-model outcome,
+        // not a dead end: try the next rung instead of failing the request.
+        lastFailure = { ...emptyFailure, model };
+        break;
       }
 
       logGeminiSuccess('generateContent', { model, durationMs, usageMetadata, cached: false });
