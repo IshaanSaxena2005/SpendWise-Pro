@@ -36,7 +36,6 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
   const [editingItem, setEditingItem] = useState<RecurringTransaction | null>(null);
   const [historyItem, setHistoryItem] = useState<RecurringTransaction | null>(null);
   const [history, setHistory] = useState<ExecutionHistory[]>([]);
-  const [summary, setSummary] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     amount: '',
     frequency: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'yearly',
@@ -53,11 +52,6 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
     fetchRecurringTransactions().then((data) => {
       if (cancelled) return;
       setRecurring(data);
-    });
-
-    fetchRecurringSummary().then((data) => {
-      if (cancelled) return;
-      setSummary(data);
     });
 
     return () => {
@@ -86,16 +80,6 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
     } catch (err) {
       console.error('Error fetching recurring transactions:', err);
       return [];
-    }
-  };
-
-  const fetchRecurringSummary = async () => {
-    try {
-      const res = await recurringAPI.getSummary();
-      return res.data.summary || null;
-    } catch (err) {
-      console.error('Error fetching recurring summary:', err);
-      return null;
     }
   };
 
@@ -241,30 +225,6 @@ export function RecurringManagementModal({ isOpen, onClose }: Props) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Summary Metrics */}
-              {summary && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-[#F5F5F5] rounded-xl p-4">
-                    <div className="text-xs text-black/60 mb-1">Monthly Expenses</div>
-                    <div className="text-lg font-bold text-black">₹{summary.monthlyExpenses?.toLocaleString('en-IN') || 0}</div>
-                  </div>
-                  <div className="bg-[#F5F5F5] rounded-xl p-4">
-                    <div className="text-xs text-black/60 mb-1">Monthly Income</div>
-                    <div className="text-lg font-bold text-emerald-600">₹{summary.monthlyIncome?.toLocaleString('en-IN') || 0}</div>
-                  </div>
-                  <div className="bg-[#F5F5F5] rounded-xl p-4">
-                    <div className="text-xs text-black/60 mb-1">Net Cash Flow</div>
-                    <div className={`text-lg font-bold ${(summary.netCashFlow || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {(summary.netCashFlow || 0) >= 0 ? '+' : ''}₹{(summary.netCashFlow || 0).toLocaleString('en-IN')}
-                    </div>
-                  </div>
-                  <div className="bg-[#F5F5F5] rounded-xl p-4">
-                    <div className="text-xs text-black/60 mb-1">Active Recurring</div>
-                    <div className="text-lg font-bold text-black">{summary.activeCount || 0}</div>
-                  </div>
-                </div>
-              )}
-
               {/* Active Recurring */}
               {activeRecurring.length > 0 && (
                 <div>
