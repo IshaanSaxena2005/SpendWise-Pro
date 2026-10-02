@@ -1,6 +1,11 @@
 const pool = require('../config/db');
 const { DEMO_EMAIL } = require('../config/constants');
-const { calculateNextExecutionDate, getIstDate, toIstDateString } = require('../services/recurringExecutionService');
+const {
+  createRecurringSchedule,
+  advancePastExecutedOccurrences,
+  getIstDate,
+  toIstDateString,
+} = require('../services/recurringExecutionService');
 
 const createRecurringTransaction = async (req, res) => {
   try {
@@ -12,7 +17,11 @@ const createRecurringTransaction = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { type, amount, category_id, note, frequency, start_date, end_date, never_ends } = req.body;
+    const {
+      type, amount, category_id, note, title, goal_id,
+      frequency, start_date, end_date, never_ends,
+      first_transaction_date, skip_first_transaction,
+    } = req.body;
 
     // Validate category exists if provided
     if (category_id) {
@@ -28,20 +37,31 @@ const createRecurringTransaction = async (req, res) => {
       }
     }
 
-    // Calculate next execution date
-    const nextExecutionDate = calculateNextExecutionDate(start_date, frequency);
-
-    const [result] = await pool.query(
-      `INSERT INTO recurring_transactions 
-       (user_id, type, amount, category_id, note, frequency, start_date, end_date, next_execution_date, never_ends) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, type, amount, category_id, note, frequency, start_date, end_date, nextExecutionDate, never_ends]
-    );
+    // The backend owns the whole lifecycle of a new schedule: the rule is
+    // stored with its first occurrence due, and that occurrence — when it is
+    // already due — is created right here, then advanced to the next one.
+    // The frontend must not insert a first transaction of its own.
+    const created = await createRecurringSchedule({
+      userId,
+      type,
+      amount,
+      category_id,
+      note,
+      title,
+      goal_id,
+      frequency,
+      start_date,
+      end_date,
+      never_ends,
+      first_transaction_date,
+      skipFirstOccurrence: skip_first_transaction === true,
+    });
 
     res.json({
       success: true,
       message: 'Recurring transaction created',
-      id: result.insertId,
+      id: created.id,
+      firstTransaction: created.firstTransaction,
     });
   } catch (err) {
     res.status(500).json({
@@ -156,7 +176,15 @@ const updateRecurringTransaction = async (req, res) => {
       ? newStartDate.split('T')[0]
       : toIstDateString(newStartDate);
     const endDateStr = end_date ? toIstDateString(end_date) : end_date;
-    const nextExecutionDate = startDateStr > today ? startDateStr : today;
+
+    // Anchor as before (future start -> starts then, else due immediately),
+    // then skip any occurrence that already has a transaction so editing a
+    // schedule that already ran cannot make the scheduler duplicate it.
+    const effectiveFrequency = frequency || current[0].frequency;
+    const anchoredDate = startDateStr > today ? startDateStr : today;
+    const nextExecutionDate = anchoredDate > today
+      ? anchoredDate
+      : await advancePastExecutedOccurrences(userId, id, anchoredDate, effectiveFrequency);
 
     const [result] = await pool.query(
       `UPDATE recurring_transactions 

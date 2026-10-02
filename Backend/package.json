@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "lint": "eslint .",
+    "test": "node --test tests/*.test.js",
     "start": "node server.js",
     "seed-demo": "node scripts/seed-demo-user.js",
     "update-demo-production": "node scripts/update-demo-production.js"

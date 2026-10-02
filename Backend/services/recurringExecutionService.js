@@ -146,32 +146,83 @@ async function hasTransactionBeenExecuted(userId, recurringTransactionId, execut
 }
 
 /**
- * Create a transaction from a recurring schedule
+ * Which optional expense columns actually exist on this server.
+ *
+ * `title` and `goal_id` are NOT part of the recurring startup migrations, so
+ * production (an older schema) may not have them while a fresh schema does.
+ * Probing once and caching keeps recurring execution working on both instead
+ * of failing the INSERT with "Unknown column".
  */
-async function createTransactionFromRecurring(recurring) {
+let optionalExpenseColumns = null;
+async function getOptionalExpenseColumns() {
+  if (optionalExpenseColumns) return optionalExpenseColumns;
+  try {
+    const [rows] = await pool.query('SHOW COLUMNS FROM expenses');
+    const present = new Set(rows.map((r) => r.Field));
+    optionalExpenseColumns = { title: present.has('title'), goal_id: present.has('goal_id') };
+  } catch (err) {
+    // Never let schema introspection break execution: assume the modern shape
+    // and let the INSERT itself surface any real problem.
+    console.error(
+      '[RecurringExecution] could not inspect the expenses schema; assuming title/goal_id exist:',
+      err && err.message ? err.message : err
+    );
+    optionalExpenseColumns = { title: true, goal_id: true };
+  }
+  return optionalExpenseColumns;
+}
+
+/**
+ * Create a transaction from a recurring schedule
+ *
+ * `extras` carries fields that only exist on the very first occurrence (the
+ * transaction the user typed when creating the schedule): an explicit title and
+ * an optional goal link. The scheduler never passes them, so every later
+ * occurrence is created exactly as before.
+ */
+async function createTransactionFromRecurring(recurring, extras = {}) {
   const connection = await pool.getConnection();
   const executionDate = requireIstDateString(
     recurring.next_execution_date,
     `next_execution_date of recurring #${recurring.id}`
   );
-  
+
   try {
     await connection.beginTransaction();
 
+    const columns = await getOptionalExpenseColumns();
+    const extraColumns = [];
+    const extraValues = [];
+    if (columns.title) {
+      extraColumns.push('title');
+      extraValues.push(extras.title ? String(extras.title).slice(0, 500) : null);
+    }
+    if (columns.goal_id) {
+      extraColumns.push('goal_id');
+      extraValues.push(extras.goal_id != null ? extras.goal_id : null);
+    }
+
+    const insertColumns = [
+      'user_id', 'category_id', 'amount', 'expense_date', 'note',
+      ...extraColumns, 'is_recurring', 'recurring_transaction_id', 'transaction_type',
+    ];
+    const insertValues = [
+      recurring.user_id,
+      recurring.category_id,
+      recurring.amount,
+      executionDate,
+      recurring.note,
+      ...extraValues,
+      true,
+      recurring.id,
+      recurring.type,
+    ];
+
     // Insert the transaction
     const [result] = await connection.query(
-      `INSERT INTO expenses 
-       (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, transaction_type) 
-       VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)`,
-      [
-        recurring.user_id,
-        recurring.category_id,
-        recurring.amount,
-        executionDate,
-        recurring.note,
-        recurring.id,
-        recurring.type
-      ]
+      `INSERT INTO expenses (${insertColumns.join(', ')}) 
+       VALUES (${insertValues.map(() => '?').join(', ')})`,
+      insertValues
     );
 
     await connection.commit();
@@ -212,8 +263,13 @@ async function createRecurringNotification(userId, type, amount, categoryName) {
 /**
  * Process a single recurring transaction
  * Returns execution result
+ *
+ * This is the single execution engine for BOTH the scheduler and the
+ * first-occurrence path in createRecurringSchedule(), so "due" detection,
+ * duplicate protection, end-date handling and the next-date advancement can
+ * never drift apart between the two entry points.
  */
-async function processRecurringTransaction(recurring) {
+async function processRecurringTransaction(recurring, extras = {}) {
   const today = getIstDate();
   const nextExecutionDate = requireIstDateString(
     recurring.next_execution_date,
@@ -264,7 +320,7 @@ async function processRecurringTransaction(recurring) {
 
   // Create the transaction
   try {
-    const transactionId = await createTransactionFromRecurring(recurring);
+    const transactionId = await createTransactionFromRecurring(recurring, extras);
 
     // Get category name for notification
     const [category] = await pool.query(
@@ -404,6 +460,140 @@ async function processDueRecurringTransactions() {
 }
 
 /**
+ * Load a freshly created schedule row in the exact shape the execution engine
+ * expects, so first-occurrence processing uses the same code path as the
+ * scheduler (same due check, same duplicate guard, same advancement).
+ */
+async function fetchRecurringForExecution(recurringId) {
+  const [rows] = await pool.query(
+    `SELECT id, user_id, type, amount, category_id, note, frequency,
+            start_date, end_date, next_execution_date, never_ends, is_active
+       FROM recurring_transactions
+      WHERE id = ?
+      LIMIT 1`,
+    [recurringId]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Create a recurring schedule AND its first occurrence in one place.
+ *
+ * Root cause this fixes: the schedule used to be stored with
+ * next_execution_date = start_date + 1 period, so the occurrence ON start_date
+ * was never selected by the scheduler
+ * (`WHERE next_execution_date <= today`) and was silently dropped. The
+ * frontend papered over this by inserting the first transaction itself, which
+ * left two sources of truth and produced either a missing or a duplicated
+ * first transaction depending on the path taken.
+ *
+ * Now the backend owns the whole lifecycle:
+ *   1. the rule is stored with next_execution_date = its first occurrence,
+ *   2. if that occurrence is due now, it is executed immediately through the
+ *      very same processRecurringTransaction() the scheduler uses, which also
+ *      advances next_execution_date to the following occurrence,
+ *   3. if it is in the future, nothing is created and the stored date is left
+ *      for the scheduler to pick up on the day it comes due.
+ *
+ * `skipFirstOccurrence` is used when the caller already materialised the first
+ * transaction itself (converting an existing transaction into a recurring
+ * one); the rule is then anchored one period past that transaction.
+ */
+async function createRecurringSchedule(input) {
+  const {
+    userId, type, amount, category_id, note, title, goal_id,
+    frequency, start_date, end_date, never_ends,
+    first_transaction_date, skipFirstOccurrence = false,
+  } = input;
+
+  const startDateStr = requireIstDateString(start_date, 'start_date');
+  const endDateStr = end_date == null ? null : requireIstDateString(end_date, 'end_date');
+
+  // The first occurrence is the transaction the user typed, when they gave one
+  // (AddTransactionModal keeps its own Date field separate from Start Date).
+  // Without it the start date itself is the first occurrence.
+  const firstOccurrence = first_transaction_date == null
+    ? startDateStr
+    : requireIstDateString(first_transaction_date, 'first_transaction_date');
+
+  // A rule whose first transaction already exists must not schedule that same
+  // occurrence again, or the scheduler would recreate it.
+  const initialNextExecution = skipFirstOccurrence
+    ? requireIstDateString(calculateNextExecutionDate(firstOccurrence, frequency), 'calculated next_execution_date')
+    : firstOccurrence;
+
+  const [result] = await pool.query(
+    `INSERT INTO recurring_transactions
+     (user_id, type, amount, category_id, note, frequency, start_date, end_date, next_execution_date, never_ends)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, amount, category_id, note, frequency, startDateStr, endDateStr, initialNextExecution, never_ends]
+  );
+
+  const recurringId = result.insertId;
+
+  if (skipFirstOccurrence) {
+    return {
+      id: recurringId,
+      firstTransaction: { status: 'skipped', reason: 'first_transaction_already_exists' },
+    };
+  }
+
+  const recurring = await fetchRecurringForExecution(recurringId);
+  if (!recurring) {
+    return { id: recurringId, firstTransaction: { status: 'skipped', reason: 'rule_not_found' } };
+  }
+
+  // Not due yet: leave next_execution_date exactly as stored and let the
+  // scheduler create the transaction on the day it comes due (never early).
+  if (requireIstDateString(recurring.next_execution_date, 'next_execution_date') > getIstDate()) {
+    return {
+      id: recurringId,
+      firstTransaction: { status: 'skipped', reason: 'not_due' },
+      nextExecutionDate: recurring.next_execution_date,
+    };
+  }
+
+  // Due now: run the shared execution engine. A failure here must not discard
+  // the rule that was just created — the scheduler retries it on its next run.
+  try {
+    const execution = await processRecurringTransaction(recurring, { title, goal_id });
+    return { id: recurringId, firstTransaction: execution };
+  } catch (err) {
+    console.error(
+      `First occurrence of recurring ${recurringId} could not be created; the scheduler will retry:`,
+      err && err.message ? err.message : err
+    );
+    return {
+      id: recurringId,
+      firstTransaction: { status: 'failed', reason: err.message },
+    };
+  }
+}
+
+/**
+ * Find the first occurrence at or after `candidateDate` that has not been
+ * executed yet.
+ *
+ * The edit path re-anchors a schedule so it becomes due immediately. Without
+ * this guard, editing a schedule that already ran its first occurrence would
+ * point next_execution_date back at an executed date and the scheduler would
+ * duplicate that transaction. Walking forward past executed occurrences keeps
+ * "due immediately" for untouched schedules and makes edits idempotent.
+ */
+async function advancePastExecutedOccurrences(userId, recurringId, candidateDate, frequency, maxSteps = 400) {
+  let date = requireIstDateString(candidateDate, 'candidate next_execution_date');
+  for (let step = 0; step < maxSteps; step++) {
+    const executed = await hasTransactionBeenExecuted(userId, recurringId, date);
+    if (!executed) return date;
+    date = requireIstDateString(
+      calculateNextExecutionDate(date, frequency),
+      'calculated next_execution_date'
+    );
+  }
+  return date;
+}
+
+/**
  * Get recurring summary for AI/analytics consumption
  */
 async function getRecurringSummary(userId) {
@@ -488,6 +678,8 @@ module.exports = {
   toIstDateString,
   requireIstDateString,
   calculateNextExecutionDate,
+  createRecurringSchedule,
+  advancePastExecutedOccurrences,
   processRecurringTransaction,
   processDueRecurringTransactions,
   getRecurringSummary,

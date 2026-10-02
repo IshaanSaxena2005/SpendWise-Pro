@@ -435,7 +435,9 @@ function TransactionForm({
             recurring_transaction_id: null,
           });
         } else if (!hasExistingRecurring && isRecurring) {
-          // Non-recurring → now recurring: CREATE new recurring record, link to transaction
+          // Non-recurring → now recurring: CREATE new recurring record, link to transaction.
+          // The transaction being edited IS the first occurrence, so the rule is told
+          // not to schedule (and the backend must not create) a duplicate of it.
           const recurringResponse = await recurringAPI.add({
             type: transactionType,
             amount: numAmount,
@@ -445,6 +447,7 @@ function TransactionForm({
             start_date: startDate,
             end_date: endDate || undefined,
             never_ends: neverEnds,
+            skip_first_transaction: true,
           });
           await expenseAPI.updateExpense(editTxn.id, {
             title,
@@ -470,27 +473,25 @@ function TransactionForm({
           });
         }
       } else if (isRecurring) {
-        const recurringResponse = await recurringAPI.add({
+        // The backend creates the schedule AND its first occurrence: it stores
+        // the rule with the first occurrence due and, when that date has
+        // arrived, creates the transaction itself and advances the rule to the
+        // following occurrence. Creating it here as well would double-charge
+        // the user, so only the schedule is requested here.
+        await recurringAPI.add({
           type: transactionType,
           amount: numAmount,
           category_id: Number(catId),
           note: notes.trim() || title,
+          title: title.trim() || undefined,
+          goal_id: goalId ? Number(goalId) : undefined,
           frequency: frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
           start_date: startDate,
+          // This transaction is the first occurrence; the recurring rule's own
+          // Start Date stays as entered.
+          first_transaction_date: date,
           end_date: endDate || undefined,
           never_ends: neverEnds,
-        });
-
-        await expenseAPI.addExpense({
-          title,
-          category_id: Number(catId),
-          amount: numAmount,
-          expense_date: date,
-          note: notes.trim() || title,
-          is_recurring: true,
-          recurring_transaction_id: recurringResponse.data.id,
-          transaction_type: transactionType,
-          goal_id: goalId ? Number(goalId) : null,
         });
       } else {
         await expenseAPI.addExpense({

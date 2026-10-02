@@ -338,8 +338,8 @@ export const aiAPI = {
 
 export const recurringAPI = {
   getAll: () => api.get<{ success: boolean; recurring_transactions: any[] }>('/recurring'),
-  add: (data: { type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date: string; end_date?: string; never_ends: boolean }) =>
-    api.post<{ success: boolean; message?: string; id?: number }>('/recurring', data),
+  add: (data: { type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; title?: string; goal_id?: number; frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date: string; first_transaction_date?: string; skip_first_transaction?: boolean; end_date?: string; never_ends: boolean }) =>
+    api.post<{ success: boolean; message?: string; id?: number; firstTransaction?: { status: string; reason?: string; transactionId?: number; executionDate?: string; nextExecutionDate?: string } }>('/recurring', data),
   update: (id: number, data: Partial<{ type: 'income' | 'expense'; amount: number; category_id?: number; note?: string; frequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'; start_date?: string; end_date?: string; never_ends?: boolean; is_active?: boolean }>) =>
     api.put<{ success: boolean; message?: string }>(`/recurring/${id}`, data),
   delete: (id: number) => api.delete<{ success: boolean; message?: string }>(`/recurring/${id}`),

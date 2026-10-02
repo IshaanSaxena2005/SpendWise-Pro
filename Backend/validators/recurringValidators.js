@@ -17,6 +17,17 @@ const recurringValidation = [
   body('start_date')
     .isISO8601({ strict: true }).withMessage('Invalid start date')
     .toDate(),
+  // Optional: the date of the first transaction the user typed when creating
+  // the schedule. It is kept separate from start_date because the add-transaction
+  // form exposes both fields independently.
+  body('first_transaction_date')
+    .optional({ nullable: true, checkFalsy: true })
+    .isISO8601({ strict: true }).withMessage('Invalid first transaction date'),
+  // Set only when the caller already created that first transaction itself
+  // (converting an existing transaction into a recurring one).
+  body('skip_first_transaction')
+    .optional({ nullable: true })
+    .isBoolean().withMessage('Skip first transaction must be a boolean'),
   body('end_date')
     .optional({ nullable: true, checkFalsy: true })
     .isISO8601({ strict: true }).withMessage('Invalid end date')
