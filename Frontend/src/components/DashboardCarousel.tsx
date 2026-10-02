@@ -14,7 +14,7 @@ const mockups = [
     title: 'Transaction Management',
     desc: 'Categorize, search, filter, and export transaction lists cleanly.',
     img: '/screenshots/transactions.png',
-    url: 'spendwise.pro/dashboard/expenses'
+    url: 'spendwise.pro/dashboard/transactions'
   },
   {
     title: 'Budget Tracking',

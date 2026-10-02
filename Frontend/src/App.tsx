@@ -186,7 +186,9 @@ function App() {
           </ProtectedRoute>
         }>
           <Route index                   element={<DashboardOverview />} />
-          <Route path="expenses"         element={<ExpensesPage />} />
+          <Route path="transactions"     element={<ExpensesPage />} />
+          {/* Old path kept working: bookmarks and shared links land on the new URL. */}
+          <Route path="expenses"         element={<Navigate to="/dashboard/transactions" replace />} />
           <Route path="budgets"          element={<BudgetsPage />} />
           <Route path="analytics"        element={<AnalyticsPage />} />
           <Route path="insights"         element={<InsightsPage />} />

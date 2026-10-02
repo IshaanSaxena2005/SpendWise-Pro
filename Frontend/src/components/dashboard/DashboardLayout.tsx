@@ -19,7 +19,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 
 const navItems = [
   { name: 'Dashboard',    href: '/dashboard',            icon: LayoutDashboard },
-  { name: 'Transactions', href: '/dashboard/expenses',   icon: Receipt },
+  { name: 'Transactions', href: '/dashboard/transactions', icon: Receipt },
   { name: 'Budgets',      href: '/dashboard/budgets',    icon: Target },
   { name: 'Analytics',   href: '/dashboard/analytics',  icon: BarChart2 },
   { name: 'History',      href: '/dashboard/history',    icon: History },

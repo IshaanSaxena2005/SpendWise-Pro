@@ -297,7 +297,7 @@ export function DashboardOverview() {
         <div style={{ animationDelay: '240ms' }} className="card-rise lg:col-span-2 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
             <h2 className="font-semibold text-black text-sm">Recent Transactions</h2>
-            <a href="/dashboard/expenses" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
+            <a href="/dashboard/transactions" className="text-xs text-violet-600 font-medium hover:text-violet-700 transition-colors">View all →</a>
           </div>
           <div className="divide-y divide-black/5 flex-1">
             {currentMonthTransactions.length === 0 ? (
