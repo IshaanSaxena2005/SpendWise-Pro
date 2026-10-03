@@ -295,12 +295,15 @@ test('J. quota, overload and timeout failures all degrade cleanly', async () => 
 
 // ── K. Cross-user data isolation ─────────────────────────────────────────────
 test('K. one user\'s financial data never appears in another user\'s context', async () => {
-  await handleAIChat(userA, 'Analyse my spending for me');
+  // A general question, so this exercises the Gemini path and the context block
+  // it builds. ("Analyse my spending" is now a deterministic intent — covered
+  // separately in spendingAnalysis.test.js.)
+  await handleAIChat(userA, 'Give me some general advice');
   const promptA = lastPrompt();
   assert.match(promptA, /Groceries/, 'own data is present');
   assert.ok(!promptA.includes('SECRET_TRIP_MARKER'), 'user B data absent from user A');
 
-  await handleAIChat(userB, 'Analyse my spending for me');
+  await handleAIChat(userB, 'Give me some general advice');
   const promptB = lastPrompt();
   assert.match(promptB, /SECRET_TRIP_MARKER/, 'own data present for B');
   assert.ok(!promptB.includes('Groceries'), "user A's data absent from user B");

@@ -83,12 +83,162 @@ function answerCategoryQuestion(userId, query) {
 
 // Intent keywords → handler mapping for fast deterministic responses.
 // Each entry: { patterns: [regex, ...], handler: string }
+/**
+ * Full spending-analysis intent.
+ *
+ * Deliberately narrow so it does not steal the existing deterministic answers:
+ * every branch either names a spending noun (so "analyse this unusual
+ * transaction" still routes to the anomaly handler) or is unambiguously a
+ * reduction request. Deliberately broad on phrasing, because these arrive as
+ * follow-ups with no context of their own.
+ */
+const SPENDING_ANALYSIS_RE = new RegExp(
+  [
+    // "analyse my last month spending", "check my expenses and tell me"
+    '(?:analy[sz]e|analysis|review|check|look\\s+at)\\b[^?]*\\b(?:spend\\w*|expenses?\\b|kharch\\w*|kharche\\b)\\b',
+    // "where can I cut", "which expenses can I reduce", "what should I cut"
+    '\\bwhere\\s+can\\s+i\\s+(?:cut|reduce|save|trim|bring)',
+    '\\bwhich\\s+(?:expenses?|categories|category|things?|ones?)\\s+(?:can|should)\\s+i\\s+(?:cut|reduce|drop|trim)',
+    '\\bwhat\\s+should\\s+i\\s+(?:cut|reduce|avoid|stop|drop|trim)',
+    // "how can I bring my spending down", "cut my expenses by X"
+    '\\b(?:bring|get)\\b[^?]*\\b(?:spend\\w*|expenses?|kharch\\w*|kharche)\\b[^?]*\\bdown\\b',
+    '\\b(?:cut|reduce|trim|lower)\\b[^?]*\\b(?:spend\\w*|expenses?|kharch\\w*|kharche)\\b',
+    // "how can I save 2000" — requires a number so plain "how can I save"
+    // still reaches the savings-tips handler.
+    '\\bhow\\s+(?:can|could|do|shall|should)\\s+i\\s+save\\b[^?]*\\d',
+    // "bring it down to 20000" / "decrease it to 20000"
+    '\\b(?:decrease|reduce|bring|cut|lower)\\b[^?]*?\\b(?:to|by)\\s*(?:₹|rs\\.?)?\\s*[\\d,]+',
+    '\\bsuggest\\b[^?]*\\bwhere\\s+to\\s+cut\\b',
+    '\\bwhere\\s+(?:to\\s+)?(?:cut|save|reduce)\\b',
+  ]
+    .map((source) => `(?:${source})`)
+    .join('|'),
+  'i'
+);
+
+/**
+ * How much of a category's spend is realistically recoverable.
+ *
+ * Fractions are of the ACTUAL amount the user spent in that category — nothing
+ * here invents a category, and essential spend is never presented as a saving
+ * opportunity. `low`/`high` bracket the advice; `mid` is used for planning.
+ */
+const REDUCIBILITY = [
+  {
+    kind: 'discretionary',
+    match: /travel|traveling|trip|vacation|holiday|shopping|shop|entertainment|movie|movies|ott|subscription|subscriptions|netflix|hotstar|prime|youtube|zee5|hotspot|gaming|game|gift|gifts|fashion|clothing|dress|coffee|cafe|dining|restaurant|hobby|party|outing|personal\s*care|haircut|beauty|makeup|cosmetics/i,
+    low: 0.35,
+    high: 0.55,
+  },
+  {
+    kind: 'semi',
+    match: /food|grocer|grocery|khana|dining\s*out|outside\s*(?:food|order)|meal|lunch|dinner|fuel|petrol|diesel|transport|commute|cab|taxi|auto|metro|bus\b/i,
+    low: 0.2,
+    high: 0.35,
+  },
+  {
+    kind: 'essential',
+    match: /rent|bill|bills|utility|utilities|electric|water|maintenance|loan|emi|insurance|medical|medicine|hospital|doctor|health|education|school|tuition|fee|fees|mortgage|tax|provident|pf\b|loan EMI|currency/i,
+    low: 0,
+    high: 0,
+  },
+];
+
+const DEFAULT_REDUCIBILITY = { kind: 'other', low: 0.15, high: 0.3 };
+
+function classifyReducibility(categoryName) {
+  const name = String(categoryName || '');
+  for (const tier of REDUCIBILITY) {
+    if (tier.match.test(name)) return tier;
+  }
+  return DEFAULT_REDUCIBILITY;
+}
+
+/** Category words the user has explicitly ruled out in this conversation. */
+const EXCLUSION_SYNONYMS = {
+  ott: [
+    'ott',
+    'subscription',
+    'subscriptions',
+    'netflix',
+    'hotstar',
+    'hotspot',
+    'prime',
+    'youtube',
+    'zee5',
+    'sony',
+    'disney',
+    'membership',
+  ],
+  food: ['food', 'dining', 'restaurant', 'outside'],
+};
+
+/**
+ * "OTT I don't use", "I don't use netflix", "no more coffee" → tokens.
+ *
+ * Only ever scans the live conversation, so a preference stated once is honoured
+ * for the rest of that conversation without persisting anything.
+ */
+function discoverExcludedCategories(query, history = []) {
+  const texts = [String(query || '')];
+  if (Array.isArray(history)) {
+    for (const m of history) if (m && m.role === 'user') texts.push(String(m.content || ''));
+  }
+
+  const excluded = new Set();
+  for (const text of texts) {
+    const found = [];
+    // "I don't use ott", "we never have coffee", "I don't order food"
+    found.push(...String(text).matchAll(
+      /\b(?:i|we)\s+(?:don'?t|do\s+not|never)\s+(?:use|have|watch|order|eat|buy|subscribe(?:\s+to)?)\s+(?:an?\s+|the\s+|my\s+|any\s+)?([a-z][a-z-]{1,20})\b/gi
+    ));
+    // "ott I don't use", "coffee we never buy"
+    found.push(...String(text).matchAll(
+      /\b([a-z][a-z-]{1,20})\s+(?:i|we)\s+(?:don'?t|do\s+not|never)\s+(?:use|have|watch|order|eat|buy|subscribe)\b/gi
+    ));
+    // "not interested in ott", "no more coffee"
+    found.push(...String(text).matchAll(
+      /\b(?:not\s+interested\s+in|no\s+more)\s+([a-z][a-z-]{1,20})\b(?=\s*[.,!?;:]|\s*$)/gi
+    ));
+
+    for (const match of found) {
+      const token = match[1].toLowerCase();
+      excluded.add(token);
+      for (const aliases of Object.values(EXCLUSION_SYNONYMS)) {
+        if (aliases.includes(token)) {
+          for (const alias of aliases) excluded.add(alias);
+        }
+      }
+    }
+  }
+  return excluded;
+}
+
+function isCategoryExcluded(categoryName, excluded) {
+  if (!excluded || excluded.size === 0) return false;
+  const name = String(categoryName || '').toLowerCase();
+  for (const token of excluded) {
+    if (name === token) return true;
+    if (token.length >= 4 && name.includes(token)) return true;
+    if (name.length >= 4 && token.includes(name)) return true;
+  }
+  return false;
+}
+
 const INTENT_PATTERNS = [
   {
     // Chat-level category questions — checked first (Part 6); unresolved ones
     // return null and fall through to Gemini.
     patterns: [CATEGORY_QUESTION_RE],
     handler: 'answerCategoryQuestion',
+  },
+  {
+    // Full spending analysis / "where can I cut" / "bring spending down to X".
+    // MUST precede the last-month pattern: "analyse my last month spending"
+    // contains both, and the narrower pattern used to win and answer with a
+    // single category total instead of a full breakdown.
+    patterns: [SPENDING_ANALYSIS_RE],
+    handler: 'analyseSpending',
   },
   {
     // Last-month spending, incl. bare follow-ups ("last month?"). Checked
@@ -363,6 +513,148 @@ async function checkOverspending(userId) {
   return "You don't have a budget set up yet.";
 }
 
+/** "decrease it to 20000", "save 2000", "bring it down to ₹20,000". */
+function parseSpendingTarget(query) {
+  const text = String(query || '');
+  const match =
+    /\b(?:decrease|reduce|bring|cut|lower|down)\b[^?]*?\b(?:to|by)\s*(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)/i.exec(text) ||
+    /\b(?:save|cut|reduce)\s*(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)/i.exec(text);
+  if (!match) return null;
+  const value = Number(String(match[1]).replace(/,/g, ''));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/**
+ * Full spending analysis with concrete, data-backed reduction advice.
+ *
+ * Everything quoted here comes from a single user-scoped aggregate query, so
+ * no category is ever mentioned that the user does not actually spend on.
+ */
+async function analyseSpending(userId, query, history = []) {
+  const isLastMonth = /\b(?:last\s+month|pichl[ae]\s+mahin\w*)\b|पिछले\s*महीने/i.test(query);
+  // Range mirrors getLastMonthSpending exactly, so a follow-up total always
+  // agrees with the "₹22,559.68" quoted earlier in the conversation.
+  const range = isLastMonth
+    ? `AND e.expense_date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')`
+    : `AND e.expense_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')`;
+
+  const [rows] = await pool.query(
+    `SELECT
+      c.name AS category,
+      COALESCE(SUM(e.amount), 0) AS total,
+      COUNT(*) AS txn_count
+    FROM expenses e
+    JOIN categories c ON c.id = e.category_id
+    WHERE e.user_id = ?
+      AND c.name NOT IN ('Salary', 'Freelance')
+      ${range}
+    GROUP BY c.id, c.name
+    ORDER BY total DESC`,
+    [userId]
+  );
+
+  const periodLabel = isLastMonth ? 'last month' : 'this month';
+  const all = rows
+    .map((r) => ({ name: r.category, total: Number(r.total) || 0, txns: Number(r.txn_count) || 0 }))
+    .filter((c) => c.total > 0);
+
+  if (all.length === 0) {
+    return `I checked your ${periodLabel} spending and there are no expenses recorded yet, so there's nothing to analyse. Add a few transactions and I'll break it down by category.`;
+  }
+
+  const total = all.reduce((sum, c) => sum + c.total, 0);
+  const txnCount = all.reduce((sum, c) => sum + c.txns, 0);
+  const excluded = discoverExcludedCategories(query, history);
+
+  const ranked = all.map((c) => {
+    const tier = classifyReducibility(c.name);
+    const mid = Math.round(((tier.low + tier.high) / 2) * c.total);
+    return { ...c, kind: tier.kind, low: Math.round(tier.low * c.total), high: Math.round(tier.high * c.total), mid };
+  });
+
+  const skipped = ranked.filter((c) => isCategoryExcluded(c.name, excluded));
+  const reducible = ranked
+    .filter((c) => !isCategoryExcluded(c.name, excluded) && c.high > 0)
+    .sort((a, b) => b.mid - a.mid);
+
+  const target = parseSpendingTarget(query);
+  const needed = target !== null ? Math.max(0, total - target) : null;
+
+  // Greedy fill toward the target, otherwise the top few opportunities.
+  const plan = [];
+  let running = 0;
+  for (const c of reducible) {
+    if (needed !== null) {
+      if (running >= needed) break;
+      const take = Math.min(c.mid, needed - running);
+      if (take <= 0) continue;
+      plan.push({ ...c, cut: Math.round(take) });
+      running += take;
+    } else {
+      plan.push({ ...c, cut: c.mid });
+      running += c.mid;
+    }
+    if (needed === null && plan.length >= 4) break;
+  }
+
+  const planned = plan.reduce((sum, p) => sum + p.cut, 0);
+  const fixed = ranked.filter((c) => c.kind === 'essential');
+
+  const lines = [];
+  lines.push(`Yes — I checked your full ${periodLabel} spending.`);
+  lines.push('');
+  lines.push(`Total: ₹${total.toFixed(2)} (${txnCount} transaction${txnCount === 1 ? '' : 's'})`);
+  if (needed !== null) {
+    lines.push(`Target: ₹${target.toFixed(2)} → need to cut ₹${needed.toFixed(2)}`);
+  }
+
+  lines.push('');
+  lines.push(`Full breakdown ${periodLabel}:`);
+  for (const c of ranked) {
+    const mark = isCategoryExcluded(c.name, excluded)
+      ? ' — skipped, you said you don\'t use it'
+      : c.kind === 'essential'
+        ? ' — essential, not a place to cut'
+        : '';
+    lines.push(`• ${c.name} — ₹${c.total.toFixed(2)}${mark}`);
+  }
+
+  if (plan.length > 0) {
+    lines.push('');
+    lines.push('Biggest realistic areas to reduce:');
+    for (const p of plan) {
+      const txNote = p.txns <= 3 ? ` across ${p.txns} transaction${p.txns === 1 ? '' : 's'}` : '';
+      lines.push(`• ${p.name} — ₹${p.total.toFixed(2)}${txNote} → reduce ~₹${p.cut} (roughly ₹${p.low}–₹${p.high})`);
+    }
+  }
+
+  if (skipped.length > 0) {
+    lines.push('');
+    lines.push(`I won't suggest ${skipped.map((s) => s.name).join(', ')} — you mentioned you don't use it.`);
+  }
+
+  if (plan.length > 0) {
+    lines.push('');
+    const combo = plan.map((p) => `${p.name} ₹${p.cut}`).join(' + ');
+    lines.push(`A realistic combination: ${combo} ≈ ₹${planned}.`);
+    lines.push(`That would bring you to about ₹${(total - planned).toFixed(2)} ${periodLabel}.`);
+    if (needed !== null) {
+      lines.push(
+        planned >= needed
+          ? `That covers the ₹${needed.toFixed(2)} you need to cut and slightly overshoots the target.`
+          : `That gets you close, but it's ₹${(needed - planned).toFixed(2)} short of the ₹${needed.toFixed(2)} target.`
+      );
+    }
+  } else if (fixed.length > 0 && needed !== 0) {
+    lines.push('');
+    lines.push('Most of your spending is on essentials, so there is little safe room to cut without changing your lifestyle.');
+  }
+
+  return lines.join('\n');
+}
+
 async function getSavingsTips(userId) {
   const [recommendations] = await pool.query(
     'SELECT * FROM recommendations WHERE user_id = ? ORDER BY impact_score DESC LIMIT 3',
@@ -584,6 +876,21 @@ async function buildFinancialContext(userId) {
     [userId]
   );
 
+  // Last-month category breakdown — lets follow-ups ("analyse last month")
+  // that reach Gemini work from real numbers instead of the month total alone.
+  const [lastMonthCategories] = await pool.query(
+    `SELECT c.name AS category_name, COALESCE(SUM(e.amount), 0) AS total_amount
+     FROM expenses e
+     JOIN categories c ON c.id = e.category_id
+     WHERE e.user_id = ?
+       AND c.name NOT IN ('Salary', 'Freelance')
+       AND e.expense_date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
+       AND e.expense_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')
+     GROUP BY c.id, c.name
+     ORDER BY total_amount DESC`,
+    [userId]
+  );
+
   // All categories this month with amounts
   const [allCategories] = await pool.query(
     `SELECT c.name AS category_name, COALESCE(SUM(e.amount), 0) AS total_amount
@@ -674,6 +981,10 @@ async function buildFinancialContext(userId) {
       amount: Number(r.total_amount) || 0,
     })),
     allCategories: allCategories.map((r) => ({
+      category: r.category_name,
+      amount: Number(r.total_amount) || 0,
+    })),
+    lastMonthCategories: lastMonthCategories.map((r) => ({
       category: r.category_name,
       amount: Number(r.total_amount) || 0,
     })),
@@ -886,6 +1197,7 @@ async function handleRuleBasedChat(userId, userQuery, conversationHistory = []) 
 
   const handlers = {
     answerCategoryQuestion,
+    analyseSpending,
     getThisMonthSpending,
     getLastMonthSpending,
     getSavingsAmount,

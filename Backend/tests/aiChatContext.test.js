@@ -152,8 +152,16 @@ test('A2. the offending budget queries no longer reference a joined column outsi
 
 test('A3. GROUP BY is not silently widened with MAX()/MIN() aggregations of joined columns', () => {
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
-  // MAX(c.name) etc. would hide the bug rather than fix it.
-  assert.doesNotMatch(source, /\b(MAX|MIN|GROUP_CONCAT)\s*\(\s*c\./i);
+  // MAX(c.name) etc. would hide the bug rather than fix it. Scan only the SQL
+  // template literals, so ordinary JS like Math.min(c.mid, …) is not flagged.
+  const sqlBlocks = source.match(/`[^`]*`/g) || [];
+  for (const block of sqlBlocks) {
+    assert.doesNotMatch(
+      block,
+      /\b(MAX|MIN|GROUP_CONCAT)\s*\(\s*c\./i,
+      'joined columns must be grouped, not aggregated away'
+    );
+  }
 });
 
 // ── B. Correctness of the context the chatbot receives ───────────────────────
