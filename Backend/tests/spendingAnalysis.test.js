@@ -237,6 +237,124 @@ test('G2. the Gemini context now carries the last-month breakdown', async () => 
   assert.equal(food.amount, LAST_MONTH.Food + EXTRA_FOOD);
 });
 
+// ── Language mirroring ──────────────────────────────────────────────────────
+// detectChatLanguage (already used by the other handlers) picks the bucket:
+// 'hi' for Devanagari, 'hinglish' for romanised Hindi, 'en' otherwise.
+const DEVANAGARI = /[ऀ-ॿ]/;
+
+test('1. English analysis stays English and unchanged', async () => {
+  const out = await handleAIChat(A(), 'analyse my last month spending');
+  assert.match(out, /^Yes — I checked your full last month spending\./);
+  assert.match(out, /Total: ₹/);
+  assert.match(out, /Full breakdown last month:/);
+  assert.match(out, /Biggest realistic areas to reduce:/);
+  assert.ok(!DEVANAGARI.test(out), 'no Devanagari in an English reply');
+});
+
+test('2. Hindi query returns a Hindi analysis with the same real numbers', async () => {
+  const out = await handleAIChat(A(), 'मेरे पिछले महीने का खर्चा बताओ और बताओ कहां से कम कर सकता हूं');
+
+  assert.ok(DEVANAGARI.test(out), 'reply is in Devanagari');
+  assert.match(out, new RegExp(A_TOTAL.toFixed(2)), 'the real total is still quoted');
+  for (const name of Object.keys(LAST_MONTH)) {
+    assert.ok(out.includes(name), `${name} still listed from the DB`);
+  }
+  assert.match(out, /लक्ष्य|कुल/);
+});
+
+test('3. Hinglish query returns Hinglish with the same real numbers', async () => {
+  const out = await handleAIChat(
+    A(),
+    'last month ka spending check karke batao kahan se kam kar sakta hu'
+  );
+  assert.ok(!DEVANAGARI.test(out), 'romanised, not Devanagari');
+  assert.match(out, /Haan — maine aapka pichhle mahine ka poora kharcha check kar liya hai\./);
+  assert.match(out, new RegExp(A_TOTAL.toFixed(2)), 'the real total is still quoted');
+  assert.match(out, /Sabse zyada bachat yahan ho sakti hai:/);
+});
+
+test('4. Hindi + target amount computes the same gap as English', async () => {
+  const out = await handleAIChat(A(), 'मेरे पिछले महीने का खर्चा 15000 तक कैसे कम करूं');
+  assert.match(out, /लक्ष्य: ₹15000\.00/, 'Hindi target label');
+  assert.match(out, new RegExp(`₹${(A_TOTAL - 15000).toFixed(2)} कम करना है`), 'gap computed exactly');
+});
+
+test('4b. Hinglish "10000 tak" target is parsed too', async () => {
+  const out = await handleAIChat(A(), 'pichle mahine ka kharcha 10000 tak kaise kam karein');
+  assert.match(out, /Target: ₹10000\.00/);
+  assert.match(out, new RegExp(`₹${(A_TOTAL - 10000).toFixed(2)} kam karna hai`));
+});
+
+test('5. Hinglish honours "OTT I don\'t use" and still mirrors the language', async () => {
+  const history = [{ role: 'user', content: "OTT I don't use" }];
+  const out = await handleAIChat(ids.b, 'last month ka kharcha check karke batao', history);
+
+  assert.match(out, /Main Subscriptions ke baare mein suggest nahi karunga/, 'Hinglish exclusion line');
+  const plan = (out.split(/Sabse zyada bachat yahan ho sakti hai:/)[1] || '').split('Ek realistic combination')[0];
+  assert.ok(
+    !plan.split('\n').filter((l) => l.trim().startsWith('•')).some((l) => l.includes('Subscriptions')),
+    'Subscriptions absent from every recommendation line'
+  );
+  assert.match(out, /Travel — ₹1000\.00/, 'real categories still recommended');
+});
+
+test('5b. Hindi mirrors the exclusion too', async () => {
+  const history = [{ role: 'user', content: 'OTT I don\'t use' }];
+  const out = await handleAIChat(ids.b, 'मेरे पिछले महीने का खर्चा बताओ और कहां से कम कर सकता हूं', history);
+  assert.match(out, /सुझाव नहीं दूँगा/, 'Hindi exclusion line');
+  assert.ok(!/Netflix|Prime/.test(out), 'no invented brands');
+});
+
+test('6. English output is byte-identical to the pre-change wording', async () => {
+  // Guards against a language refactor quietly rewording the English copy.
+  const out = await handleAIChat(A(), 'analyse my last month spending');
+  for (const phrase of [
+    'Yes — I checked your full last month spending.',
+    'Full breakdown last month:',
+    'Biggest realistic areas to reduce:',
+    'A realistic combination:',
+    'That would bring you to about ₹',
+    ' — essential, not a place to cut',
+  ]) {
+    assert.ok(out.includes(phrase), `English copy must still contain: ${phrase}`);
+  }
+});
+
+test('7. every Hindi/Hinglish phrasing routes to the analysis intent, not another one', () => {
+  const { INTENT_PATTERNS } = require('../services/aiChatService');
+  const route = (q) => {
+    for (const intent of INTENT_PATTERNS) {
+      if (intent.patterns.some((p) => p.test(q))) return intent.handler;
+    }
+    return '(gemini)';
+  };
+  assert.equal(route('pichle mahine mera spending analyse karo'), 'analyseSpending');
+  assert.equal(route('last month ka spending check karke batao kahan se kam kar sakta hu'), 'analyseSpending');
+  assert.equal(route('pichle mahine ka kharcha kam kaise karein'), 'analyseSpending');
+  assert.equal(route('pichle mahine ka kharcha 20000 tak kaise kam karein'), 'analyseSpending');
+  assert.equal(route('मेरे पिछले महीने का खर्चा बताओ और बताओ कहां से कम कर सकता हूं'), 'analyseSpending');
+  assert.equal(route('मेरे खर्चे का विश्लेषण करो'), 'analyseSpending');
+
+  // Plain "how much" questions must NOT be captured by the analysis intent.
+  assert.notEqual(route('पिछले महीने का खर्चा कितना था'), 'analyseSpending');
+  assert.notEqual(route('kitna kharch hua last month'), 'analyseSpending');
+  assert.equal(route('compare this month vs last month'), 'compareThisVsLastMonth');
+  assert.equal(route('how much did I save'), 'getSavingsAmount');
+  assert.equal(route('how can I save money'), 'getSavingsTips');
+});
+
+test('8. language mirroring does not leak another user\'s data', async () => {
+  for (const q of [
+    'analyse my last month spending',
+    'last month ka spending check karke batao kahan se kam kar sakta hu',
+    'मेरे पिछले महीने का खर्चा बताओ और बताओ कहां से कम कर सकता हूं',
+  ]) {
+    const out = await handleAIChat(A(), q);
+    assert.doesNotMatch(out, /99999/, `user C leaked for: ${q}`);
+    assert.match(out, new RegExp(A_TOTAL.toFixed(2)), `own data present for: ${q}`);
+  }
+});
+
 // ── H/I. existing intents untouched ──────────────────────────────────────────
 
 test('H. "what was my last month expense?" is unchanged by the new intent', async () => {

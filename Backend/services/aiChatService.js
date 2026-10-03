@@ -91,21 +91,43 @@ function answerCategoryQuestion(userId, query) {
  * transaction" still routes to the anomaly handler) or is unambiguously a
  * reduction request. Deliberately broad on phrasing, because these arrive as
  * follow-ups with no context of their own.
+ *
+ * English, Hinglish (romanised) and Devanagari all have to reach this intent,
+ * so the noun/verb fragments are shared across word orders. NOTE: `\b` is
+ * ASCII-only, so Devanagari alternatives use `\S*` and are unanchored, exactly
+ * as the existing Hindi patterns elsewhere in this file do.
  */
+const SPEND_NOUN = 'spend\\w*|expenses?\\b|kharch\\w*|kharche\\b|खर्च\\S*|व्यय\\S*';
+const ANALYSE_WORD = 'analy[sz]e|analysis|review|check|look\\s+at|विश्लेषण';
+const CUT_WORD =
+  'cut|reduce|decrease|trim|lower|save\\s+kar|kam\\s?kar|kam\\s+karein|ghatana|ghata|bachaya|कम|घटा|घटाना|बचा';
+
 const SPENDING_ANALYSIS_RE = new RegExp(
   [
     // "analyse my last month spending", "check my expenses and tell me"
-    '(?:analy[sz]e|analysis|review|check|look\\s+at)\\b[^?]*\\b(?:spend\\w*|expenses?\\b|kharch\\w*|kharche\\b)\\b',
+    `(?:${ANALYSE_WORD})\\b[^?]*\\b(?:${SPEND_NOUN})\\b`,
+    // "last month ka spending check karke batao", "खर्चा बताओ ... विश्लेषण"
+    `\\b(?:${SPEND_NOUN})\\b[^?]*\\b(?:${ANALYSE_WORD})\\b`,
     // "where can I cut", "which expenses can I reduce", "what should I cut"
     '\\bwhere\\s+can\\s+i\\s+(?:cut|reduce|save|trim|bring)',
     '\\bwhich\\s+(?:expenses?|categories|category|things?|ones?)\\s+(?:can|should)\\s+i\\s+(?:cut|reduce|drop|trim)',
     '\\bwhat\\s+should\\s+i\\s+(?:cut|reduce|avoid|stop|drop|trim)',
     // "how can I bring my spending down", "cut my expenses by X"
-    '\\b(?:bring|get)\\b[^?]*\\b(?:spend\\w*|expenses?|kharch\\w*|kharche)\\b[^?]*\\bdown\\b',
-    '\\b(?:cut|reduce|trim|lower)\\b[^?]*\\b(?:spend\\w*|expenses?|kharch\\w*|kharche)\\b',
+    '\\b(?:bring|get)\\b[^?]*\\b(?:' + SPEND_NOUN + ')\\b[^?]*\\bdown\\b',
+    // "kharcha kam kaise karein", "spending kam karo" — either word order
+    `\\b(?:${CUT_WORD})\\b[^?]*\\b(?:${SPEND_NOUN})\\b`,
+    `\\b(?:${SPEND_NOUN})\\b[^?]*\\b(?:${CUT_WORD})\\b`,
+    // Hinglish/Hindi follow-ups: "kahan se kam kar sakta hu",
+    // "kharcha 20000 tak kaise kam karein"
+    'kahan\\s+se\\s+(?:kam|bacha|reduce|cut)',
+    '\\bkharch\\w*\\b[^?]*\\d[^?]*\\btak\\b',
+    // Devanagari: `\b` is ASCII-only, so these are deliberately unanchored.
+    '(?:खर्च\\S*|व्यय\\S*|खर्चे)[^?]+(?:विश्लेषण|कम|घटा|घटाना|बचा)',
+    '(?:विश्लेषण|कम|घटा|घटाना|बचा)[^?]+(?:खर्च\\S*|व्यय\\S*|खर्चे)',
     // "how can I save 2000" — requires a number so plain "how can I save"
     // still reaches the savings-tips handler.
     '\\bhow\\s+(?:can|could|do|shall|should)\\s+i\\s+save\\b[^?]*\\d',
+    'kaise\\s+(?:bacha|kam|bachaye|kare)',
     // "bring it down to 20000" / "decrease it to 20000"
     '\\b(?:decrease|reduce|bring|cut|lower)\\b[^?]*?\\b(?:to|by)\\s*(?:₹|rs\\.?)?\\s*[\\d,]+',
     '\\bsuggest\\b[^?]*\\bwhere\\s+to\\s+cut\\b',
@@ -513,16 +535,98 @@ async function checkOverspending(userId) {
   return "You don't have a budget set up yet.";
 }
 
-/** "decrease it to 20000", "save 2000", "bring it down to ₹20,000". */
+/** "decrease it to 20000", "save 2000", "20000 tak", "20000 तक". */
 function parseSpendingTarget(query) {
   const text = String(query || '');
   const match =
+    // Hindi/Hinglish target: "10000 tak", "20000 तक"
+    /(\d[\d,]*(?:\.\d+)?)\s*(?:takki|tak\s+ki|tak|तक)/i.exec(text) ||
     /\b(?:decrease|reduce|bring|cut|lower|down)\b[^?]*?\b(?:to|by)\s*(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)/i.exec(text) ||
     /\b(?:save|cut|reduce)\s*(?:₹|rs\.?)?\s*([\d,]+(?:\.\d+)?)/i.exec(text);
   if (!match) return null;
   const value = Number(String(match[1]).replace(/,/g, ''));
   return Number.isFinite(value) && value > 0 ? value : null;
 }
+
+/**
+ * Response copy for analyseSpending, keyed by the same three buckets that
+ * detectChatLanguage returns, so the deterministic answer mirrors the user's
+ * language exactly like getLastMonthSpending and the other handlers do.
+ *
+ * English is byte-for-byte what this handler always returned. Category names
+ * are deliberately NOT translated — they are the user's own DB values.
+ */
+const ANALYSIS_STRINGS = {
+  en: {
+    lastMonth: 'last month',
+    thisMonth: 'this month',
+    head: (p) => `Yes — I checked your full ${p} spending.`,
+    total: (t, n) => `Total: ₹${t} (${n} transaction${n === 1 ? '' : 's'})`,
+    target: (t, n) => `Target: ₹${t} → need to cut ₹${n}`,
+    breakdown: (p) => `Full breakdown ${p}:`,
+    markSkipped: " — skipped, you said you don't use it",
+    markEssential: ' — essential, not a place to cut',
+    planHeader: 'Biggest realistic areas to reduce:',
+    txNote: (n) => ` across ${n} transaction${n === 1 ? '' : 's'}`,
+    planLine: (name, total, txNote, cut, low, high) =>
+      `• ${name} — ₹${total}${txNote} → reduce ~₹${cut} (roughly ₹${low}–₹${high})`,
+    skipLine: (names) => `I won't suggest ${names} — you mentioned you don't use it.`,
+    combo: (combo, planned) => `A realistic combination: ${combo} ≈ ₹${planned}.`,
+    bring: (after, p) => `That would bring you to about ₹${after} ${p}.`,
+    cover: (needed) => `That covers the ₹${needed} you need to cut and slightly overshoots the target.`,
+    short: (gap, needed) => `That gets you close, but it's ₹${gap} short of the ₹${needed} target.`,
+    essentialsOnly:
+      "Most of your spending is on essentials, so there is little safe room to cut without changing your lifestyle.",
+    noData: (p) =>
+      `I checked your ${p} spending and there are no expenses recorded yet, so there's nothing to analyse. Add a few transactions and I'll break it down by category.`,
+  },
+  hi: {
+    lastMonth: 'पिछले महीने',
+    thisMonth: 'इस महीने',
+    head: (p) => `हाँ — मैंने आपका ${p} का पूरा खर्चा देखा है।`,
+    total: (t, n) => `कुल: ₹${t} (${n} लेन-देन)`,
+    target: (t, n) => `लक्ष्य: ₹${t} → ₹${n} कम करना है`,
+    breakdown: (p) => `${p} का पूरा ब्योरा:`,
+    markSkipped: " — छोड़ दिया, आपने कहा है कि आप इसका उपयोग नहीं करते",
+    markEssential: ' — ज़रूरी खर्चा, यहाँ से कम करना ठीक नहीं',
+    planHeader: 'कहाँ सबसे ज़्यादा बचत हो सकती है:',
+    txNote: (n) => ` (${n} लेन-देन)`,
+    planLine: (name, total, txNote, cut, low, high) =>
+      `• ${name} — ₹${total}${txNote} → लगभग ₹${cut} कम करें (₹${low}–₹${high} के बीच)`,
+    skipLine: (names) => `मैं ${names} के बारे में सुझाव नहीं दूँगा — आपने कहा है कि आप इसका उपयोग नहीं करते।`,
+    combo: (combo, planned) => `एक व्यावहारिक संयोजन: ${combo} ≈ ₹${planned}।`,
+    bring: (after, p) => `इससे आपका खर्चा लगभग ₹${after} ${p} हो जाएगा।`,
+    cover: (needed) => `यह आपकी ज़रूरत की ₹${needed} की कमी से अधिक है।`,
+    short: (gap, needed) => `यह लक्ष्य के करीब है, पर ₹${needed} में से ₹${gap} अभी भी कम है।`,
+    essentialsOnly:
+      'आपका ज़्यादातर खर्चा ज़रूरी चीज़ों पर है, इसलिए जीवनशैली बदले बिना बहुत कम करने की गुंजाइश नहीं है।',
+    noData: (p) =>
+      `मैंने आपका ${p} का खर्चा देखा, लेकिन अभी कोई खर्च दर्ज नहीं है, इसलिए विश्लेषण करने को कुछ नहीं है। कुछ लेन-देन जोड़ें, मैं उन्हें श्रेणीवार बता दूँगा।`,
+  },
+  hinglish: {
+    lastMonth: 'pichhle mahine',
+    thisMonth: 'is mahine',
+    head: (p) => `Haan — maine aapka ${p} ka poora kharcha check kar liya hai.`,
+    total: (t, n) => `Total: ₹${t} (${n} transaction${n === 1 ? '' : 's'})`,
+    target: (t, n) => `Target: ₹${t} → ₹${n} kam karna hai`,
+    breakdown: (p) => `${p} ka pura breakdown:`,
+    markSkipped: " — skip kar diya, aapne kaha hai ki aap ise use nahi karte",
+    markEssential: ' — zaroori kharcha, yahan se kam karna sahi nahi',
+    planHeader: 'Sabse zyada bachat yahan ho sakti hai:',
+    txNote: (n) => ` (${n} transaction${n === 1 ? '' : 's'})`,
+    planLine: (name, total, txNote, cut, low, high) =>
+      `• ${name} — ₹${total}${txNote} → lagbhag ₹${cut} kam karein (₹${low}–₹${high} ke beech)`,
+    skipLine: (names) => `Main ${names} ke baare mein suggest nahi karunga — aapne kaha hai ki aap ise use nahi karte.`,
+    combo: (combo, planned) => `Ek realistic combination: ${combo} ≈ ₹${planned}.`,
+    bring: (after, p) => `Isse aapka kharcha lagbhag ₹${after} ${p} ho jayega.`,
+    cover: (needed) => `Yeh aapki ₹${needed} ki kami se zyada ho jata hai.`,
+    short: (gap, needed) => `Yeh target ke kareeb hai, par ₹${needed} mein se ₹${gap} ab bhi kam hai.`,
+    essentialsOnly:
+      'Aapka zyada tar kharcha zaroori cheezon par hai, isliye lifestyle badle bina kam karne ki zyada gunjaish nahi hai.',
+    noData: (p) =>
+      `Maine aapka ${p} ka kharcha dekha, lekin abhi koi expense recorded nahi hai, isliye analyse karne ko kuch nahi hai. Thodi transactions add karein, main category-wise bata dunga.`,
+  },
+};
 
 /**
  * Full spending analysis with concrete, data-backed reduction advice.
@@ -555,13 +659,16 @@ async function analyseSpending(userId, query, history = []) {
     [userId]
   );
 
-  const periodLabel = isLastMonth ? 'last month' : 'this month';
   const all = rows
     .map((r) => ({ name: r.category, total: Number(r.total) || 0, txns: Number(r.txn_count) || 0 }))
     .filter((c) => c.total > 0);
 
+  // Mirror the user's language using the existing detector — no second one.
+  const L = ANALYSIS_STRINGS[detectChatLanguage(query)] || ANALYSIS_STRINGS.en;
+  const period = isLastMonth ? L.lastMonth : L.thisMonth;
+
   if (all.length === 0) {
-    return `I checked your ${periodLabel} spending and there are no expenses recorded yet, so there's nothing to analyse. Add a few transactions and I'll break it down by category.`;
+    return L.noData(period);
   }
 
   const total = all.reduce((sum, c) => sum + c.total, 0);
@@ -603,53 +710,53 @@ async function analyseSpending(userId, query, history = []) {
   const fixed = ranked.filter((c) => c.kind === 'essential');
 
   const lines = [];
-  lines.push(`Yes — I checked your full ${periodLabel} spending.`);
+  lines.push(L.head(period));
   lines.push('');
-  lines.push(`Total: ₹${total.toFixed(2)} (${txnCount} transaction${txnCount === 1 ? '' : 's'})`);
+  lines.push(L.total(total.toFixed(2), txnCount));
   if (needed !== null) {
-    lines.push(`Target: ₹${target.toFixed(2)} → need to cut ₹${needed.toFixed(2)}`);
+    lines.push(L.target(target.toFixed(2), needed.toFixed(2)));
   }
 
   lines.push('');
-  lines.push(`Full breakdown ${periodLabel}:`);
+  lines.push(L.breakdown(period));
   for (const c of ranked) {
     const mark = isCategoryExcluded(c.name, excluded)
-      ? ' — skipped, you said you don\'t use it'
+      ? L.markSkipped
       : c.kind === 'essential'
-        ? ' — essential, not a place to cut'
+        ? L.markEssential
         : '';
     lines.push(`• ${c.name} — ₹${c.total.toFixed(2)}${mark}`);
   }
 
   if (plan.length > 0) {
     lines.push('');
-    lines.push('Biggest realistic areas to reduce:');
+    lines.push(L.planHeader);
     for (const p of plan) {
-      const txNote = p.txns <= 3 ? ` across ${p.txns} transaction${p.txns === 1 ? '' : 's'}` : '';
-      lines.push(`• ${p.name} — ₹${p.total.toFixed(2)}${txNote} → reduce ~₹${p.cut} (roughly ₹${p.low}–₹${p.high})`);
+      const txNote = p.txns <= 3 ? L.txNote(p.txns) : '';
+      lines.push(L.planLine(p.name, p.total.toFixed(2), txNote, p.cut, p.low, p.high));
     }
   }
 
   if (skipped.length > 0) {
     lines.push('');
-    lines.push(`I won't suggest ${skipped.map((s) => s.name).join(', ')} — you mentioned you don't use it.`);
+    lines.push(L.skipLine(skipped.map((s) => s.name).join(', ')));
   }
 
   if (plan.length > 0) {
     lines.push('');
     const combo = plan.map((p) => `${p.name} ₹${p.cut}`).join(' + ');
-    lines.push(`A realistic combination: ${combo} ≈ ₹${planned}.`);
-    lines.push(`That would bring you to about ₹${(total - planned).toFixed(2)} ${periodLabel}.`);
+    lines.push(L.combo(combo, planned));
+    lines.push(L.bring((total - planned).toFixed(2), period));
     if (needed !== null) {
       lines.push(
         planned >= needed
-          ? `That covers the ₹${needed.toFixed(2)} you need to cut and slightly overshoots the target.`
-          : `That gets you close, but it's ₹${(needed - planned).toFixed(2)} short of the ₹${needed.toFixed(2)} target.`
+          ? L.cover(needed.toFixed(2))
+          : L.short((needed - planned).toFixed(2), needed.toFixed(2))
       );
     }
   } else if (fixed.length > 0 && needed !== 0) {
     lines.push('');
-    lines.push('Most of your spending is on essentials, so there is little safe room to cut without changing your lifestyle.');
+    lines.push(L.essentialsOnly);
   }
 
   return lines.join('\n');
