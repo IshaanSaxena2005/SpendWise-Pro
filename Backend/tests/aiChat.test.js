@@ -27,8 +27,8 @@ let geminiConfigured = true;
 // Mutable flag: aiChatService destructures hasGeminiApiKey at require time, so
 // the mock must consult a variable rather than be reassigned later.
 geminiService.hasGeminiApiKey = () => geminiConfigured;
-geminiService.generateContent = async ({ prompt, cacheKey, temperature, timeoutMs }) => {
-  geminiCalls.push({ prompt, cacheKey, temperature, timeoutMs });
+geminiService.generateContent = async ({ prompt, cacheKey, temperature, timeoutMs, maxOutputTokens, responseMimeType }) => {
+  geminiCalls.push({ prompt, cacheKey, temperature, timeoutMs, maxOutputTokens, responseMimeType });
   if (typeof nextGeminiResult === 'function') return nextGeminiResult(prompt);
   return nextGeminiResult || {
     ok: true,
@@ -433,6 +433,68 @@ test('N8. a message payload still cannot leak the prompt or the API key', async 
   }
   assert.ok(!answer.includes('AIza'), 'no API key literal in the reply');
   assert.ok(prompt.length > 0, 'the prompt was still built normally');
+});
+
+// ── Output-token budget ─────────────────────────────────────────────────────
+// Reasoning models spend ~540-575 tokens on thinking before emitting the
+// envelope, so a 600-token budget truncated the JSON mid-string and the user
+// got the generic fallback instead of a valid answer.
+test('O1. the chatbot asks Gemini for at least 2048 output tokens', async () => {
+  await handleAIChat(userA, 'What is compound interest?');
+  const call = geminiCalls[geminiCalls.length - 1];
+  assert.ok(geminiCalls.length > 0, 'Gemini was called');
+  assert.ok(
+    call.maxOutputTokens >= 2048,
+    `chatbot maxOutputTokens must be >= 2048, saw ${call.maxOutputTokens}`
+  );
+});
+
+test('O2. the raised budget applies to Hinglish and finance-context prompts too', async () => {
+  await handleAIChat(userA, 'Mujhe budget tips batao');
+  assert.ok(geminiCalls[geminiCalls.length - 1].maxOutputTokens >= 2048, 'hinglish');
+
+  await handleAIChat(userA, 'Analyse my spending in detail');
+  assert.ok(geminiCalls[geminiCalls.length - 1].maxOutputTokens >= 2048, 'finance-context');
+});
+
+test('O3. the response schema, timeout and MIME type are unchanged by the budget raise', async () => {
+  await handleAIChat(userA, 'What is an ETF?');
+  const call = geminiCalls[geminiCalls.length - 1];
+  assert.equal(call.responseMimeType, 'application/json');
+  assert.equal(call.timeoutMs, 15000);
+  assert.match(call.prompt, /<financial_context>/);
+  assert.match(call.prompt, /<user_question>/);
+});
+
+test('O4. a long answer that would have been truncated at 600 now survives intact', async () => {
+  const longAnswer = 'Aapka dinner plan. '.repeat(200).trim();
+  const body = { answer: longAnswer, confidence: 95, category: 'hinglish' };
+  nextGeminiResult = { ok: true, json: body, text: JSON.stringify(body), durationMs: 1 };
+  const answer = await handleAIChat(userA, 'Mujhe dinner plan batao');
+  assert.equal(answer, longAnswer, 'a full-length answer is returned whole');
+  assert.ok(!answer.includes('{') && !answer.includes('}'), 'no JSON braces leak');
+});
+
+test('O5. truncated JSON is still rejected safely, not shown to the user', async () => {
+  // Simulates the pre-fix failure: the envelope was cut off mid-string.
+  nextGeminiResult = { ok: true, json: null, text: '{"answer": "Aapke budget ke andar', durationMs: 1 };
+  const answer = await handleAIChat(userA, 'Mujhe dinner ideas batao');
+  assert.ok(answer.length > 0, 'user still gets a usable reply');
+  assert.ok(!answer.includes('Aapke budget'), 'the truncated fragment is not shown');
+  assert.ok(!answer.includes('"answer"'), 'no JSON is shown');
+});
+
+test('O6. deterministic finance questions still bypass Gemini entirely', async () => {
+  await handleAIChat(userA, 'How much did I spend last month?');
+  assert.equal(geminiCalls.length, 0, 'no model call for a deterministic question');
+
+  await handleAIChat(userA, 'Show my budget status');
+  assert.equal(geminiCalls.length, 0, 'no model call for budget status');
+});
+
+test('O7. a category question still answers from the keyword table', async () => {
+  await handleAIChat(userA, 'Which category should I book a restaurant expense under?');
+  assert.equal(geminiCalls.length, 0, 'no model call for a category question');
 });
 
 // ── Response hygiene ─────────────────────────────────────────────────────────
