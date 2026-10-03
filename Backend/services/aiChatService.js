@@ -316,7 +316,7 @@ async function getCategoryNeedingAttention(userId) {
     WHERE b.user_id = ? 
       AND b.category_id IS NOT NULL
       AND b.month = DATE_FORMAT(CURDATE(), '%Y-%m-01')
-    GROUP BY b.id
+    GROUP BY b.id, b.amount_limit, c.name
     ORDER BY (spent / b.amount_limit) DESC
     LIMIT 1`,
     [userId, userId]
@@ -433,7 +433,7 @@ async function showBudgetStatus(userId) {
       AND e.user_id = ?
     WHERE b.user_id = ? 
       AND b.month = DATE_FORMAT(CURDATE(), '%Y-%m-01')
-    GROUP BY b.id`,
+    GROUP BY b.id, b.amount_limit, c.name`,
     [userId, userId]
   );
 
@@ -611,7 +611,7 @@ async function buildFinancialContext(userId) {
        AND e.user_id = ?
      WHERE b.user_id = ?
        AND b.month = DATE_FORMAT(CURDATE(), '%Y-%m-01')
-     GROUP BY b.id
+     GROUP BY b.id, b.amount_limit, c.name
      LIMIT 8`,
     [userId, userId]
   );
@@ -710,28 +710,50 @@ async function buildFinancialContext(userId) {
 }
 
 /**
+ * Explicitly supported answer fields, in priority order.
+ *
+ * The model is asked for `{"answer": ...}`, but it intermittently answers with
+ * `{"status": "ready", "message": "..."}` instead. `message` is the only other
+ * key accepted, and only as a fallback — nothing else is ever read out of a
+ * model payload, so an unexpected shape can never leak arbitrary JSON to the
+ * user.
+ */
+const ANSWER_FIELDS = ['answer', 'message'];
+
+/** First non-empty string found under an explicitly supported key. */
+function pickAnswerText(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return '';
+  for (const field of ANSWER_FIELDS) {
+    const value = obj[field];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+/**
  * Pull the user-facing answer out of a Gemini reply.
  *
  * The model is asked for JSON, but it does not always comply: it may fence the
- * block, wrap it in prose, or return it truncated. Falling back to the raw text
- * would show the user `{"answer":"...","confidence":80}` — so a JSON-looking
- * payload is parsed, and anything still unparseable is dropped rather than
- * leaked.
+ * block, wrap it in prose, use a different answer key, or return it truncated.
+ * Falling back to the raw text would show the user `{"answer":"...","confidence":80}`
+ * — so a JSON-looking payload is parsed, and anything still unparseable is
+ * dropped rather than leaked.
  */
 function extractChatAnswer(json, text) {
-  const fromJson = json && typeof json.answer === 'string' ? json.answer.trim() : '';
+  const fromJson = pickAnswerText(json);
   if (fromJson) return fromJson;
 
   const raw = typeof text === 'string' ? text.trim() : '';
   if (!raw) return '';
 
   const unfenced = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  if (/^[[{]/.test(unfenced)) {
-    const parsed = extractJsonObject(unfenced);
-    if (parsed && typeof parsed.answer === 'string' && parsed.answer.trim()) {
-      return parsed.answer.trim();
-    }
-    return ''; // malformed JSON envelope — never surface braces to the user
+
+  // Any reply that looks like JSON — bare, fenced, or wrapped in prose — is
+  // parsed and only a supported field is returned. This is what keeps braces
+  // off the chat bubble; a JSON-looking reply with no usable field yields ''
+  // (the caller shows its normal fallback) instead of leaking the payload.
+  if (/```|\{/.test(unfenced)) {
+    return pickAnswerText(extractJsonObject(unfenced));
   }
   return unfenced;
 }
@@ -945,5 +967,6 @@ async function handleAIChat(userId, userQuery, conversationHistory = []) {
 
 module.exports = {
   handleAIChat,
+  buildFinancialContext,
   INTENT_PATTERNS,
 };

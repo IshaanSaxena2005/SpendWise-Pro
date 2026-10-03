@@ -324,6 +324,12 @@ async function generateContent({ prompt, temperature = 0.2, maxOutputTokens = 51
       if (classified.reason === 'MODEL_NOT_FOUND') {
         break;
       }
+      // A timeout is per-request, not per-model: this model may simply be slow
+      // or overloaded right now, while another rung answers normally. Fall
+      // through exactly like the 429/503 cases above rather than giving up.
+      if (classified.reason === 'TIMEOUT') {
+        break;
+      }
       // Quota (429) / transient 503 high-demand: fall through to the next
       // model (each model has its own quota bucket — a 429 on one does not
       // imply the other is exhausted); 503 additionally gets one short retry.
