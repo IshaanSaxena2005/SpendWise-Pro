@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
 
 require('dotenv').config();
 const pool = require('../config/db');
+const { ensureCategory } = require('./helpers/ensureCategory');
 const { handleAIChat, buildFinancialContext } = require('../services/aiChatService');
 
 // Last-month figures for user A (transaction_type is not filtered, matching
@@ -45,14 +46,11 @@ async function mkUser(key) {
 }
 
 async function addExpense(userId, categoryName, amount, type = 'expense') {
-  const [c] = await pool.query(
-    'INSERT INTO categories (user_id, name) VALUES (?, ?)',
-    [userId, categoryName]
-  );
+  const categoryId = await ensureCategory(userId, categoryName);
   await pool.query(
     `INSERT INTO expenses (user_id, category_id, amount, expense_date, note, title, transaction_type)
      VALUES (?, ?, ?, DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-05'), 'lm', 'lm', ?)`,
-    [userId, c.insertId, amount, type]
+    [userId, categoryId, amount, type]
   );
 }
 
@@ -62,11 +60,11 @@ before(async () => {
     await addExpense(a, name, amount);
   }
   // A second, older transaction in Food so the "N transactions" hint is real.
-  const [foodRows] = await pool.query('SELECT id FROM categories WHERE user_id = ? AND name = ?', [a, 'Food']);
+  const foodIdA = await ensureCategory(a, 'Food');
   await pool.query(
     `INSERT INTO expenses (user_id, category_id, amount, expense_date, note, title, transaction_type)
      VALUES (?, ?, ?, DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-09'), 'lm2', 'lm2', 'expense')`,
-    [a, foodRows[0].id, EXTRA_FOOD]
+    [a, foodIdA, EXTRA_FOOD]
   );
 
   const b = await mkUser('b');

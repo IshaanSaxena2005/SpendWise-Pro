@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
 
 require('dotenv').config();
 const pool = require('../config/db');
+const { ensureCategory } = require('./helpers/ensureCategory');
 const service = require('../services/recurringExecutionService');
 const controller = require('../controllers/recurringController');
 
@@ -81,6 +82,64 @@ function fakeExchange({ body = {}, params = {} } = {}) {
   return { req: { user: { id: userId, email: EMAIL }, body, params }, res };
 }
 
+// ── Edit-path date anchoring (schedule-anchored, never today-anchored) ──────
+
+/** Insert a rule row directly, bypassing the create path — the edit handler is
+ *  meant to work on schedules that already exist, possibly with execution
+ *  history the create path could not have produced. */
+async function insertRuleRow(overrides = {}) {
+  const row = {
+    type: 'expense', amount: 500, category_id: categoryId, note: 'Bills',
+    frequency: 'monthly', start_date: today(), end_date: null,
+    next_execution_date: today(), never_ends: 1, is_active: 1,
+    ...overrides,
+  };
+  const [r] = await pool.query(
+    `INSERT INTO recurring_transactions
+       (user_id, type, amount, category_id, note, frequency, start_date,
+        end_date, next_execution_date, never_ends, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, row.type, row.amount, row.category_id, row.note, row.frequency,
+     row.start_date, row.end_date, row.next_execution_date, row.never_ends,
+     row.is_active]
+  );
+  return r.insertId;
+}
+
+/** Seed a transaction the schedule already created on `date` (an executed
+ *  occurrence), exactly as the execution engine would have. */
+async function seedExecution(recurringId, date) {
+  await pool.query(
+    `INSERT INTO expenses
+       (user_id, category_id, amount, expense_date, note, is_recurring,
+        recurring_transaction_id, transaction_type)
+     VALUES (?, ?, 500, ?, 'Bills', TRUE, ?, 'expense')`,
+    [userId, categoryId, date, recurringId]
+  );
+}
+
+/** Edit a rule exactly like RecurringManagementModal.handleSaveEdit does. */
+async function editRule(recurringId, bodyOverrides = {}) {
+  const { req, res } = fakeExchange({
+    params: { id: recurringId },
+    body: {
+      amount: 500, category_id: categoryId, note: 'Bills', frequency: 'monthly',
+      start_date: today(), never_ends: true,
+      ...bodyOverrides,
+    },
+  });
+  await controller.updateRecurringTransaction(req, res);
+  return res;
+}
+
+function monthsAgoSameDay(iso, months) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1 - months, d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+const firstOfCurrentMonth = `${today().slice(0, 8)}01`;
+
 before(async () => {
   const [u] = await pool.query(
     `INSERT INTO users (full_name, email, password_hash, is_verified, auth_provider, has_local_password)
@@ -88,8 +147,7 @@ before(async () => {
     [EMAIL]
   );
   userId = u.insertId;
-  const [c] = await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userId, 'Bills']);
-  categoryId = c.insertId;
+  categoryId = await ensureCategory(userId, 'Bills');
 });
 
 after(async () => {
@@ -345,4 +403,135 @@ test('K. the HTTP create endpoint returns the first transaction it created', asy
   assert.equal(res.payload.firstTransaction.status, 'succeeded');
   assert.ok(res.payload.firstTransaction.transactionId, 'reports the created transaction id');
   assert.equal((await transactionsOf(res.payload.id)).length, 1);
+});
+
+// ── Edit-path date anchoring (BUG regression tests) ──────────────────────────
+// The recurrence schedule must stay anchored to its start/occurrence dates.
+// Today is only used by the scheduler to decide due-ness — an edit must never
+// re-anchor next_execution_date onto today's date, or a monthly rule on the
+// 1st silently becomes monthly on whichever day the edit happened.
+
+test('L. edit with past start advances from the schedule, not today (monthly Oct 1 → Nov 1)', async () => {
+  const id = await insertRuleRow({ start_date: firstOfCurrentMonth, next_execution_date: firstOfCurrentMonth });
+  await seedExecution(id, firstOfCurrentMonth); // the Oct 1 occurrence already ran
+
+  const res = await editRule(id, { start_date: firstOfCurrentMonth });
+  assert.equal(res.statusCode, 200, res.payload && res.payload.message);
+
+  const rule = await ruleOf(id);
+  assert.equal(rule.start_date, firstOfCurrentMonth);
+  assert.equal(
+    rule.next_execution_date,
+    calculateNextExecutionDate(firstOfCurrentMonth, 'monthly'),
+    'next must be the next scheduled occurrence (Nov 1), never today'
+  );
+  assert.notEqual(rule.next_execution_date, today(), 'edit must not anchor to today');
+  assert.equal((await transactionsOf(id)).length, 1, 'the edit itself creates no transaction');
+});
+
+test('M. edit leaves a not-yet-executed today occurrence due today (start = today)', async () => {
+  const id = await insertRuleRow({ start_date: today(), next_execution_date: today() });
+
+  const res = await editRule(id, { start_date: today() });
+  assert.equal(res.statusCode, 200);
+
+  const rule = await ruleOf(id);
+  assert.equal(rule.next_execution_date, today(), 'the unexecuted today occurrence stays due today');
+
+  const run = await service.processDueRecurringTransactions();
+  const detail = run.details.find((d) => d.recurringId === id);
+  assert.equal(detail && detail.status, 'succeeded', 'first occurrence runs after the edit');
+
+  const ruleAfter = await ruleOf(id);
+  assert.equal(ruleAfter.next_execution_date, calculateNextExecutionDate(today(), 'monthly'));
+  assert.equal((await transactionsOf(id)).length, 1);
+});
+
+test('N. edit with Sep+Oct both executed walks the schedule (Sep 1 start → Nov 1)', async () => {
+  const sepStart = monthsAgoSameDay(firstOfCurrentMonth, 1);
+  const id = await insertRuleRow({ start_date: sepStart, next_execution_date: sepStart });
+  await seedExecution(id, sepStart);
+  await seedExecution(id, firstOfCurrentMonth);
+
+  const res = await editRule(id, { start_date: sepStart });
+  assert.equal(res.statusCode, 200);
+
+  const rule = await ruleOf(id);
+  assert.equal(
+    rule.next_execution_date,
+    calculateNextExecutionDate(calculateNextExecutionDate(sepStart, 'monthly'), 'monthly'),
+    'next is Nov 1 — pure schedule arithmetic, never today'
+  );
+  assert.notEqual(rule.next_execution_date, today());
+  assert.equal((await transactionsOf(id)).length, 2, 'no duplicate was created by the edit');
+});
+
+test('O. edit with a future start stays on the future date (no early execution)', async () => {
+  const startDate = daysFromToday(10);
+  const id = await insertRuleRow({ start_date: startDate, next_execution_date: startDate });
+
+  const res = await editRule(id, { start_date: startDate });
+  assert.equal(res.statusCode, 200);
+
+  const rule = await ruleOf(id);
+  assert.equal(rule.next_execution_date, startDate);
+
+  const run = await service.processDueRecurringTransactions();
+  assert.ok(!run.details.some((d) => d.recurringId === id), 'not picked up by the scheduler');
+  assert.equal((await transactionsOf(id)).length, 0, 'nothing created early');
+});
+
+test('P. weekly schedule advances by weeks from its own start (start executed → start + 7)', async () => {
+  const weeklyStart = daysFromToday(-4);
+  const id = await insertRuleRow({ frequency: 'weekly', start_date: weeklyStart, next_execution_date: weeklyStart });
+  await seedExecution(id, weeklyStart);
+
+  const res = await editRule(id, { frequency: 'weekly', start_date: weeklyStart });
+  assert.equal(res.statusCode, 200);
+
+  const rule = await ruleOf(id);
+  assert.equal(
+    rule.next_execution_date,
+    calculateNextExecutionDate(weeklyStart, 'weekly'),
+    'next is start + 7 days, never today'
+  );
+  assert.notEqual(rule.next_execution_date, today());
+});
+
+test('Q. edit catches up a long-overdue rule without backfilling duplicates', async () => {
+  const start = monthsAgoSameDay(today(), 2);
+  const id = await insertRuleRow({ start_date: start, next_execution_date: start });
+  await seedExecution(id, start);
+  await seedExecution(id, calculateNextExecutionDate(start, 'monthly'));
+
+  const res = await editRule(id, { start_date: start });
+  assert.equal(res.statusCode, 200);
+  assert.equal((await transactionsOf(id)).length, 2, 'edit creates no transactions itself');
+
+  const run = await service.processDueRecurringTransactions();
+  const detail = run.details.find((d) => d.recurringId === id);
+  assert.equal(detail && detail.status, 'succeeded');
+
+  const txns = await transactionsOf(id);
+  assert.equal(txns.length, 3, 'exactly one catch-up occurrence was created');
+  assert.equal(
+    txns[2].expense_date,
+    calculateNextExecutionDate(calculateNextExecutionDate(start, 'monthly'), 'monthly'),
+    'dated the occurrence that was actually due'
+  );
+});
+
+test('R. editing an already-executed rule repeatedly never duplicates the transaction', async () => {
+  const created = await createRecurringSchedule(baseRule({ frequency: 'monthly' }));
+  assert.equal((await transactionsOf(created.id)).length, 1);
+
+  for (let i = 0; i < 3; i++) {
+    const res = await editRule(created.id, { start_date: today(), frequency: 'monthly' });
+    assert.equal(res.statusCode, 200);
+  }
+
+  await service.processDueRecurringTransactions();
+  const txns = await transactionsOf(created.id);
+  assert.equal(txns.length, 1, 'repeated edits + scheduler runs produce no duplicate');
+  assert.equal(txns[0].expense_date, today(), 'the original first occurrence is untouched');
 });

@@ -3,9 +3,12 @@ const { DEMO_EMAIL } = require('../config/constants');
 const {
   createRecurringSchedule,
   advancePastExecutedOccurrences,
-  getIstDate,
   toIstDateString,
 } = require('../services/recurringExecutionService');
+
+// The only cadences the recurrence arithmetic understands; the create-path
+// validator enforces the same set.
+const FREQUENCIES = ['daily', 'weekly', 'monthly', 'yearly'];
 
 const createRecurringTransaction = async (req, res) => {
   try {
@@ -160,15 +163,16 @@ const updateRecurringTransaction = async (req, res) => {
     const storedIsActive = current[0].is_active === null ? 1 : current[0].is_active;
     const effectiveIsActive = is_active === undefined ? storedIsActive : (is_active ? 1 : 0);
 
-    // Recalculate next execution date, anchored on the (possibly new) start_date
-    // but never earlier than today (IST):
-    //   - start_date in the future → schedule begins on start_date
-    //   - start_date today or past → due immediately; process-due picks it up
-    //     and advances it from there (catch-up behavior preserved)
-    // (Previously this stored start_date + 1 frequency step, so editing a
-    // recurring to be "due today" actually made it due next period.)
+    // Recalculate next execution date from the schedule itself:
+    //   - start_date in the future → the first occurrence IS start_date
+    //   - start_date today or past → the first occurrence is the (possibly
+    //     new) start_date too; any occurrence that already has a transaction
+    //     is skipped forward until the next unexecuted one
+    // Today is used ONLY to decide whether the next occurrence is due —
+    // never as the recurrence anchor. Re-anchoring a past start date onto
+    // today's date would silently change the cadence (monthly on the 1st
+    // would become monthly on whichever day the edit happened).
     const newStartDate = start_date || current[0].start_date;
-    const today = getIstDate();
     // Normalize dates to IST 'YYYY-MM-DD' strings before storing: the validator
     // hands us JS Date objects, and mysql2 serializes those in server-local
     // time, which can shift the stored date by a day on non-IST servers.
@@ -177,14 +181,18 @@ const updateRecurringTransaction = async (req, res) => {
       : toIstDateString(newStartDate);
     const endDateStr = end_date ? toIstDateString(end_date) : end_date;
 
-    // Anchor as before (future start -> starts then, else due immediately),
-    // then skip any occurrence that already has a transaction so editing a
-    // schedule that already ran cannot make the scheduler duplicate it.
-    const effectiveFrequency = frequency || current[0].frequency;
-    const anchoredDate = startDateStr > today ? startDateStr : today;
-    const nextExecutionDate = anchoredDate > today
-      ? anchoredDate
-      : await advancePastExecutedOccurrences(userId, id, anchoredDate, effectiveFrequency);
+    // Anchor on the schedule's own start date, then skip any occurrence that
+    // already has a transaction so editing a schedule that already ran cannot
+    // make the scheduler duplicate it (e.g. start Oct 1, today Oct 5, Oct 1
+    // already executed → next_execution_date becomes Nov 1, never Oct 5).
+    const effectiveFrequency = FREQUENCIES.includes(frequency)
+      ? frequency
+      : FREQUENCIES.includes(current[0].frequency)
+        ? current[0].frequency
+        : 'monthly';
+    const nextExecutionDate = await advancePastExecutedOccurrences(
+      userId, id, startDateStr, effectiveFrequency
+    );
 
     const [result] = await pool.query(
       `UPDATE recurring_transactions 

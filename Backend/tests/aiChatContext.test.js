@@ -20,6 +20,7 @@ const path = require('node:path');
 
 require('dotenv').config();
 const pool = require('../config/db');
+const { ensureCategory } = require('./helpers/ensureCategory');
 const { buildFinancialContext } = require('../services/aiChatService');
 
 const SOURCE_PATH = path.join(__dirname, '..', 'services', 'aiChatService.js');
@@ -60,12 +61,10 @@ before(async () => {
   );
   userId = u.insertId;
 
-  const [f] = await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userId, 'Food']);
-  foodId = f.insertId;
-  const [t] = await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userId, 'Travel']);
-  travelId = t.insertId;
+  foodId = await ensureCategory(userId, 'Food');
+  travelId = await ensureCategory(userId, 'Travel');
   // Income category: must be EXCLUDED from spending categories by name.
-  await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userId, 'Salary']);
+  await ensureCategory(userId, 'Salary');
 
   const month = "DATE_FORMAT(CURDATE(), '%Y-%m-01')";
   await pool.query(
@@ -88,11 +87,11 @@ before(async () => {
   // Last month, must not leak into this-month figures.
   await insertExpense(foodId, 999.25, "DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-05')");
   // Salary income this month.
-  const [[salaryRow]] = await pool.query('SELECT id FROM categories WHERE user_id = ? AND name = ?', [userId, 'Salary']);
+  const salaryId = await ensureCategory(userId, 'Salary');
   await pool.query(
     `INSERT INTO expenses (user_id, category_id, amount, expense_date, note, title, transaction_type)
      VALUES (?, ?, 50000, DATE_FORMAT(CURDATE(), '%Y-%m-03'), 'salary', 'salary', 'income')`,
-    [userId, salaryRow.id]
+    [userId, salaryId]
   );
 });
 

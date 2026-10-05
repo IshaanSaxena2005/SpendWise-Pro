@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 
 require('dotenv').config();
 const pool = require('../config/db');
+const { ensureCategory } = require('./helpers/ensureCategory');
 
 // ── Mock the provider before the service under test is loaded ────────────────
 const geminiService = require('../services/geminiService');
@@ -63,10 +64,8 @@ before(async () => {
   userA = await mk(EMAIL_A);
   userB = await mk(EMAIL_B);
 
-  const [c1] = await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userA, 'Food']);
-  foodCatA = c1.insertId;
-  const [c2] = await pool.query('INSERT INTO categories (user_id, name) VALUES (?, ?)', [userB, 'Travel']);
-  travelCatB = c2.insertId;
+  foodCatA = await ensureCategory(userA, 'Food');
+  travelCatB = await ensureCategory(userB, 'Travel');
 
   // User A: one expense this month, one last month (deterministic totals).
   await pool.query(

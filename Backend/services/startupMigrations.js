@@ -78,21 +78,98 @@ async function applyMigrationFile(filename) {
   console.log(`[StartupMigrations] applied/verified ${filename}`);
 }
 
-async function ensureCanonicalCategoriesForAllUsers() {
-  // One row per canonical name: SELECT ... UNION ALL SELECT ...
-  // INSERT IGNORE + UNIQUE(user_id, name) -> no duplicates, no updates, no deletes.
-  const seeds = CANONICAL_CATEGORY_NAMES.map(() => 'SELECT ? AS name').join(' UNION ALL ');
-  const [result] = await pool.query(
-    `INSERT IGNORE INTO categories (user_id, name)
-     SELECT u.id, s.name FROM users u
-     CROSS JOIN (${seeds}) s
-     WHERE NOT EXISTS (
-       SELECT 1 FROM categories existing
-       WHERE existing.user_id = u.id AND existing.name = s.name
-     )`,
-    [...CANONICAL_CATEGORY_NAMES]
+/**
+ * Verify (and, when it is safe, create) UNIQUE (user_id, name) on categories.
+ *
+ * The category backfill's entire duplicate-safety guarantee rests on this
+ * constraint — previously the code merely assumed it existed. If a database was
+ * created before the constraint was added to schema.sql, INSERT IGNORE would
+ * happily create duplicates, so we check instead of trusting.
+ *
+ * Never deletes or renames a row: if duplicates already exist the constraint
+ * cannot be added and we log loudly rather than touching user data. Existing
+ * category ids and relationships are never affected either way.
+ */
+async function ensureCategoriesUniqueIndex() {
+  const [existing] = await pool.query(
+    `SELECT INDEX_NAME, NON_UNIQUE, COLUMN_NAME
+       FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'categories'
+      ORDER BY INDEX_NAME, SEQ_IN_INDEX`
   );
-  const inserted = result ? result.affectedRows || 0 : 0;
+
+  // A unique index must cover exactly (user_id, name) in that order.
+  const byIndex = new Map();
+  for (const row of existing) {
+    if (!byIndex.has(row.INDEX_NAME)) byIndex.set(row.INDEX_NAME, []);
+    byIndex.get(row.INDEX_NAME).push(row);
+  }
+  for (const rows of byIndex.values()) {
+    const cols = rows.map((r) => r.COLUMN_NAME);
+    if (Number(rows[0].NON_UNIQUE) === 0 && cols.length === 2 && cols[0] === 'user_id' && cols[1] === 'name') {
+      return true;
+    }
+  }
+
+  const [[dupes]] = await pool.query(
+    'SELECT COUNT(*) AS dup_groups FROM (SELECT 1 FROM categories GROUP BY user_id, name HAVING COUNT(*) > 1) d'
+  );
+  if (Number(dupes.dup_groups) > 0) {
+    console.warn(
+      `[StartupMigrations] categories is missing UNIQUE (user_id, name) AND contains ` +
+        `${dupes.dup_groups} duplicate group(s). Not adding the constraint and not deleting any rows — ` +
+        `resolve the duplicates manually. Canonical backfill still runs INSERT IGNORE.`
+    );
+    return false;
+  }
+
+  try {
+    await pool.query('ALTER TABLE categories ADD CONSTRAINT uq_categories_user_name UNIQUE (user_id, name)');
+  } catch (err) {
+    // Someone/something added it concurrently, or it exists under another name
+    // that our check could not see. Re-check rather than guessing.
+    if (err && err.code === 'ER_DUP_KEYNAME') {
+      return true;
+    }
+    throw err;
+  }
+  console.log('[StartupMigrations] added missing UNIQUE (user_id, name) on categories (no duplicates were present)');
+  return true;
+}
+
+/**
+ * Backfill the canonical categories for every user.
+ *
+ * Runs one INSERT IGNORE ... SELECT per canonical name and performs NO string
+ * comparison at all.
+ *
+ * Why: the previous version compared a real column against a derived column
+ * built from placeholders —
+ *     CROSS JOIN (SELECT ? AS name UNION ALL ...) s
+ *     WHERE NOT EXISTS (SELECT 1 FROM categories existing
+ *                       WHERE existing.user_id = u.id AND existing.name = s.name)
+ * `existing.name` is IMPLICIT with the column's own collation, and `s.name` is
+ * also IMPLICIT but inherits the CONNECTION collation. On a database created
+ * with the MySQL 8 default that pair is utf8mb4_0900_ai_ci vs utf8mb4_unicode_ci
+ * (mysql2 pins the connection collation), and TiDB rejects it outright:
+ *   "Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and
+ *    (utf8mb4_unicode_ci,IMPLICIT) for operation '='"
+ * which aborted the whole startup migration and left personalized learning
+ * unapplied.
+ *
+ * Duplicate safety is unchanged and now explicit: INSERT IGNORE plus
+ * UNIQUE (user_id, name), guaranteed by ensureCategoriesUniqueIndex() which
+ * runs immediately before this. No updates, no deletes, no renames.
+ */
+async function ensureCanonicalCategoriesForAllUsers() {
+  let inserted = 0;
+  for (const name of CANONICAL_CATEGORY_NAMES) {
+    const [result] = await pool.query(
+      'INSERT IGNORE INTO categories (user_id, name) SELECT u.id, ? FROM users u',
+      [name]
+    );
+    inserted += result ? result.affectedRows || 0 : 0;
+  }
   console.log(`[StartupMigrations] canonical category backfill complete (${inserted} categories added across all users)`);
   return inserted;
 }
@@ -176,12 +253,46 @@ async function ensureRecurringSchemaColumns() {
   console.log('[StartupMigrations] recurring pipeline schema columns verified');
 }
 
+/**
+ * Log the collation of every text column the startup path reads or writes.
+ *
+ * Purely diagnostic: nothing is altered here. The failure this guards against
+ * was invisible because the schema inherits the server default (utf8mb4_0900_ai_ci
+ * on MySQL 8) while mysql2 pins the connection to utf8mb4_unicode_ci, so the
+ * mismatch only ever appeared as a runtime error on TiDB.
+ */
+async function logCollationDrift() {
+  const TABLES = ['categories', 'user_category_learning', 'merchant_aliases', 'correction_events'];
+  const [rows] = await pool.query(
+    `SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME IN (?)
+        AND COLLATION_NAME IS NOT NULL
+      ORDER BY TABLE_NAME, COLUMN_NAME`,
+    [TABLES]
+  );
+  const [[conn]] = await pool.query('SELECT @@collation_connection AS c');
+  const distinct = [...new Set(rows.map((r) => r.COLLATION_NAME))];
+  const drifted = distinct.filter((c) => c !== conn.c);
+  if (drifted.length > 0) {
+    console.log(
+      `[StartupMigrations] collation note: columns use ${distinct.join(', ')} ` +
+        `while the connection is ${conn.c}. Startup SQL avoids cross-collation ` +
+        `comparisons, so this is informational only.`
+    );
+  }
+  return { connection: conn.c, columnCollations: distinct };
+}
+
 async function runStartupMigrations() {
   // 1. Learning tables (migration 003) — verbatim schema from the migration file.
   await applyMigrationFile('003_create_user_category_learning.sql');
   // 2. Correction events (migration 007).
   await applyMigrationFile('007_create_correction_events.sql');
-  // 3. Canonical categories (incl. Fuel) for every existing user, no duplicates.
+  // 3. Make sure the constraint the backfill depends on actually exists.
+  await ensureCategoriesUniqueIndex();
+  // 4. Canonical categories (incl. Fuel) for every existing user, no duplicates.
   await ensureCanonicalCategoriesForAllUsers();
   // 4. One-time cleanup of learning rows poisoned by the historical bug.
   await cleanupPoisonedFuelLearning();
@@ -191,14 +302,18 @@ async function runStartupMigrations() {
   await healNullIsActiveRecurring();
   // 7. Ensure columns the recurring pipeline references exist (schema drift heal).
   await ensureRecurringSchemaColumns();
+  // 8. Record any collation drift so a future failure is diagnosable up front.
+  await logCollationDrift();
 }
 
 module.exports = {
   runStartupMigrations,
   ensureCanonicalCategoriesForAllUsers,
+  ensureCategoriesUniqueIndex,
   cleanupPoisonedFuelLearning,
   healNullIsActiveRecurring,
   ensureRecurringSchemaColumns,
+  logCollationDrift,
   CANONICAL_CATEGORY_NAMES,
   FUEL_KEYWORDS,
 };
