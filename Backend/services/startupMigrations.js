@@ -285,7 +285,55 @@ async function logCollationDrift() {
   return { connection: conn.c, columnCollations: distinct };
 }
 
+async function ensureAnomalyNotificationSchema() {
+  // Schema drift: the anomaly-alert fix links anomaly notifications to the
+  // expense that produced them. Databases created before the fix never gain
+  // the column/FK from schema.sql (server.js only runs schema.sql on an EMPTY
+  // database), so — exactly like ensureRecurringSchemaColumns — we add them
+  // in place, tolerating the "already exists" errors that make this
+  // idempotent. No data is modified: existing rows simply keep
+  // expense_id = NULL (only legacy anomaly alerts can be orphaned; the
+  // dashboard query filters those, see anomalyService.getAnomalyHistory).
+  //   - notifications.expense_id      (this fix; FK ON DELETE CASCADE)
+  try {
+    await pool.query('ALTER TABLE notifications ADD COLUMN expense_id BIGINT UNSIGNED NULL');
+    console.log('[StartupMigrations] schema drift: added notifications.expense_id');
+  } catch (err) {
+    if (!(err && (err.code === 'ER_DUP_FIELDNAME' || err.code === 'ER_DUP_KEYNAME'))) throw err;
+  }
+
+  try {
+    await pool.query(
+      `ALTER TABLE notifications
+       ADD CONSTRAINT fk_notifications_expense
+           FOREIGN KEY (expense_id) REFERENCES expenses (id)
+           ON DELETE CASCADE`
+    );
+    console.log('[StartupMigrations] schema drift: added fk_notifications_expense (ON DELETE CASCADE)');
+  } catch (err) {
+    // ER_FK_DUP_NAME: constraint already present. ER_CANT_CREATE_TABLE:
+    // MySQL reports a few constraint problems this way (e.g. a previous
+    // partial run left the name behind). Both mean the constraint already
+    // exists — expected on every run after the first.
+    if (!(err && (err.code === 'ER_FK_DUP_NAME' || err.code === 'ER_CANT_CREATE_TABLE'))) throw err;
+  }
+
+  // Dashboard index for the anomaly query (user_id, type, created_at DESC).
+  try {
+    await pool.query(
+      'ALTER TABLE notifications ADD INDEX idx_notifications_user_type_created (user_id, type, created_at DESC)'
+    );
+  } catch (err) {
+    if (!(err && (err.code === 'ER_DUP_KEYNAME' || err.code === 'ER_CANT_DUP_FIELD'))) throw err;
+  }
+
+  console.log('[StartupMigrations] anomaly notification schema verified');
+}
+
 async function runStartupMigrations() {
+  // 0. Anomaly alert fix: notifications.expense_id + FK ON DELETE CASCADE
+  //    (schema drift heal; see ensureAnomalyNotificationSchema).
+  await ensureAnomalyNotificationSchema();
   // 1. Learning tables (migration 003) — verbatim schema from the migration file.
   await applyMigrationFile('003_create_user_category_learning.sql');
   // 2. Correction events (migration 007).
@@ -313,6 +361,7 @@ module.exports = {
   cleanupPoisonedFuelLearning,
   healNullIsActiveRecurring,
   ensureRecurringSchemaColumns,
+  ensureAnomalyNotificationSchema,
   logCollationDrift,
   CANONICAL_CATEGORY_NAMES,
   FUEL_KEYWORDS,

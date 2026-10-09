@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { checkAnomaly } = require('../services/anomalyService');
+const { checkAnomaly, createAnomalyNotificationOnce } = require('../services/anomalyService');
 const { DEMO_EMAIL } = require('../config/constants');
 const learningService = require('../services/learningService');
 const { learnFromUserChoice } = learningService;
@@ -19,31 +19,34 @@ const addExpense = async (req, res) => {
     const expenseNote = note && note.trim() ? note : (title || '');
     const txnType = transaction_type === 'income' ? 'income' : 'expense';
 
-    await pool.query(
+    const [insertResult] = await pool.query(
       'INSERT INTO expenses (user_id, category_id, amount, expense_date, note, is_recurring, recurring_transaction_id, goal_id, transaction_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [userId, category_id, amount, expense_date, expenseNote, is_recurring || false, recurring_transaction_id || null, goal_id || null, txnType]
     );
+    const expenseId = insertResult.insertId;
 
     const merchantName = title || note || '';
     if (merchantName) {
       await learnFromUserChoice(userId, merchantName, category_id);
     }
 
-    const anomaly = await checkAnomaly(userId, amount, category_id);
+    // The new expense id is passed so it can be excluded from its own history
+    // and linked to any anomaly notification it triggers.
+    const anomaly = await checkAnomaly(userId, amount, category_id, expenseId);
     if (anomaly.is_anomaly) {
       const [categories] = await pool.query(
         'SELECT name FROM categories WHERE id = ?',
         [category_id]
       );
       const categoryName = categories[0]?.name || 'Unknown';
-      await pool.query(
-        `INSERT INTO notifications (user_id, title, description, type, read_status) 
-         VALUES (?, ?, ?, 'anomaly', FALSE)`,
-        [
-          userId,
-          'Unusual spending detected',
-          `Your transaction of ₹${amount} in ${categoryName} is unusually high.`
-        ]
+
+      // Linked to the expense (expense_id) so the alert dies with it, and
+      // deduplicated (Phase 8) inside the service helper.
+      await createAnomalyNotificationOnce(
+        userId,
+        expenseId,
+        'Unusual spending detected',
+        `Your transaction of ₹${amount} in ${categoryName} is unusually high.`
       );
     }
 
@@ -212,6 +215,19 @@ const deleteExpense = async (req, res) => {
         success: false,
         message: 'Expense not found',
       });
+    }
+
+    // Defensive cleanup: the notifications.expense_id FK already cascades this
+    // deletion, so here it normally affects 0 rows. It covers databases where
+    // the FK could not be added (legacy/limited-permission deployments) so a
+    // deleted expense can never leave a stale anomaly alert behind.
+    try {
+      await pool.query(
+        `DELETE FROM notifications WHERE user_id = ? AND expense_id = ? AND type = 'anomaly'`,
+        [userId, id]
+      );
+    } catch (cleanupErr) {
+      console.error('Anomaly notification cleanup after expense delete failed:', cleanupErr);
     }
 
     res.json({

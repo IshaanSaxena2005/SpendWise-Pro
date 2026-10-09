@@ -123,10 +123,18 @@ CREATE TABLE notifications (
     description TEXT NOT NULL,
     type VARCHAR(50) NOT NULL,
     read_status BOOLEAN DEFAULT FALSE,
+    expense_id BIGINT UNSIGNED NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_notifications_user 
         FOREIGN KEY (user_id) REFERENCES users (id) 
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    -- Links an anomaly alert to the expense that produced it; deleting the
+    -- expense removes the alert automatically. Other notification types
+    -- (budget, goal, recurring, ...) stay NULL and are unaffected.
+    CONSTRAINT fk_notifications_expense
+        FOREIGN KEY (expense_id) REFERENCES expenses (id)
+        ON DELETE CASCADE,
+    INDEX idx_notifications_user_type_created (user_id, type, created_at DESC)
 ) ENGINE=InnoDB;
 
 -- AI Insights

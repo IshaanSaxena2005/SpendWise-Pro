@@ -5,7 +5,8 @@ Endpoints:
                         can run health checks; never loads or trains the model)
     POST /categorize  — TF-IDF + LogisticRegression transaction categorization
     POST /forecast    — linear-regression next-month spending forecast
-    POST /anomaly     — IsolationForest anomaly detection
+    POST /anomaly     — IsolationForest anomaly detection (high-spending only;
+                        returns {is_anomaly, anomaly_score, reason})
 
 Authentication:
     All POST endpoints require the shared secret header:
@@ -120,11 +121,15 @@ def anomaly():
         # Validate current_expense numeric
         if not isinstance(current_expense, (int, float)):
             return jsonify({'error': '"current_expense" must be a number'}), 400
-        # Run Isolation Forest detection
+        # Run (direction-aware) Isolation Forest detection. The decision rule
+        # lives in detect_anomaly(): IsolationForest prediction as the primary
+        # signal plus a robust median+MAD HIGH-spending direction check. A
+        # lower-than-normal amount can no longer be reported as "unusually high".
         result = detect_anomaly(history, current_expense)
         return jsonify({
             'is_anomaly': result['is_anomaly'],
-            'anomaly_score': round(result['anomaly_score'], 4) if result['anomaly_score'] is not None else None
+            'anomaly_score': round(result['anomaly_score'], 4) if result['anomaly_score'] is not None else None,
+            'reason': result.get('reason')
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

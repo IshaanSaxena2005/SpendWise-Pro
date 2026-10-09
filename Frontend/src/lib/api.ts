@@ -243,6 +243,8 @@ export interface Anomaly {
   category_id?: number;
   amount?: number;
   anomaly_score?: number;
+  /** Expense that produced the alert; NULL only on pre-fix legacy rows. */
+  expense_id?: number | null;
 }
 
 // ──────────────────────────────────────────────────────
