@@ -26,9 +26,13 @@ const fs = require('fs/promises');
 const path = require('path');
 const pool = require('../config/db');
 
-// Canonical per-user categories (matches authController.js defaultCategories).
-// Fuel + Health were missing from the demo/seed scripts, which is why some
-// production users never had them.
+// Default per-user categories, seeded ONLY at signup-time (authController.js
+// createSignupCategories). History: startupMigrations used to re-seed these
+// names for EVERY existing user on EVERY server start, which resurrected
+// categories users had deliberately deleted (delete persisted, the backfill
+// undid it on the next boot). That backfill is gone; deleting Food or Bills is
+// now permanent. The list lives here solely so the regression test can verify
+// that no startup path inserts categories anymore.
 const CANONICAL_CATEGORY_NAMES = [
   'Food',
   'Shopping',
@@ -138,41 +142,25 @@ async function ensureCategoriesUniqueIndex() {
 }
 
 /**
- * Backfill the canonical categories for every user.
+ * REMOVED: ensureCanonicalCategoriesForAllUsers().
  *
- * Runs one INSERT IGNORE ... SELECT per canonical name and performs NO string
- * comparison at all.
+ * On every server start this used to run
+ *     INSERT IGNORE INTO categories (user_id, name) SELECT u.id, ? FROM users u
+ * for all 8 canonical category names, which silently resurrected categories
+ * users had deleted — the DELETE in categoryController.deleteCategory worked,
+ * but the next boot brought the name back (under a NEW id), repeatedly, for
+ * every user. Users could not permanently delete Food/Bills/etc.
  *
- * Why: the previous version compared a real column against a derived column
- * built from placeholders —
- *     CROSS JOIN (SELECT ? AS name UNION ALL ...) s
- *     WHERE NOT EXISTS (SELECT 1 FROM categories existing
- *                       WHERE existing.user_id = u.id AND existing.name = s.name)
- * `existing.name` is IMPLICIT with the column's own collation, and `s.name` is
- * also IMPLICIT but inherits the CONNECTION collation. On a database created
- * with the MySQL 8 default that pair is utf8mb4_0900_ai_ci vs utf8mb4_unicode_ci
- * (mysql2 pins the connection collation), and TiDB rejects it outright:
- *   "Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and
- *    (utf8mb4_unicode_ci,IMPLICIT) for operation '='"
- * which aborted the whole startup migration and left personalized learning
- * unapplied.
+ * Default categories are now seeded exactly once, per user, at signup — see
+ * createSignupCategories in authController.js (email + Google paths), and only
+ * there. No other code path inserts categories, so deletions persist.
  *
- * Duplicate safety is unchanged and now explicit: INSERT IGNORE plus
- * UNIQUE (user_id, name), guaranteed by ensureCategoriesUniqueIndex() which
- * runs immediately before this. No updates, no deletes, no renames.
+ * Historical note (why the backfill once mattered): production users created
+ * before the demo seed scripts had Fuel/Health absent; startup re-seeding was
+ * the band-aid. The lasting fix is the same one-time seed inside
+ * scripts/seed-default-categories.js (kept for manual repair), not per-boot
+ * re-seeding that fought user intent forever.
  */
-async function ensureCanonicalCategoriesForAllUsers() {
-  let inserted = 0;
-  for (const name of CANONICAL_CATEGORY_NAMES) {
-    const [result] = await pool.query(
-      'INSERT IGNORE INTO categories (user_id, name) SELECT u.id, ? FROM users u',
-      [name]
-    );
-    inserted += result ? result.affectedRows || 0 : 0;
-  }
-  console.log(`[StartupMigrations] canonical category backfill complete (${inserted} categories added across all users)`);
-  return inserted;
-}
 
 async function cleanupPoisonedFuelLearning() {
   // Historical bug: users without a "Fuel" category saved fuel transactions
@@ -338,10 +326,8 @@ async function runStartupMigrations() {
   await applyMigrationFile('003_create_user_category_learning.sql');
   // 2. Correction events (migration 007).
   await applyMigrationFile('007_create_correction_events.sql');
-  // 3. Make sure the constraint the backfill depends on actually exists.
+  // 3. Make sure the UNIQUE (user_id, name) constraint exists (schema drift heal).
   await ensureCategoriesUniqueIndex();
-  // 4. Canonical categories (incl. Fuel) for every existing user, no duplicates.
-  await ensureCanonicalCategoriesForAllUsers();
   // 4. One-time cleanup of learning rows poisoned by the historical bug.
   await cleanupPoisonedFuelLearning();
   // 5. Budget carry-forward claim table (idempotent; empty table is harmless).
@@ -356,13 +342,12 @@ async function runStartupMigrations() {
 
 module.exports = {
   runStartupMigrations,
-  ensureCanonicalCategoriesForAllUsers,
+  CANONICAL_CATEGORY_NAMES,
   ensureCategoriesUniqueIndex,
   cleanupPoisonedFuelLearning,
   healNullIsActiveRecurring,
   ensureRecurringSchemaColumns,
   ensureAnomalyNotificationSchema,
   logCollationDrift,
-  CANONICAL_CATEGORY_NAMES,
   FUEL_KEYWORDS,
 };

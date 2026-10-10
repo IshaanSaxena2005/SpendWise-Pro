@@ -8,6 +8,33 @@ const { DEMO_EMAIL } = require('../config/constants');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+/**
+ * Seed the default categories for ONE user. Called exactly once per user, at
+ * signup (email + Google paths). INSERT IGNORE + UNIQUE (user_id, name) makes
+ * it safe to call on an existing account (Google login of an already-seeded
+ * user inserts nothing) — and it is NEVER run for every user on a timer or on
+ * server boot, because that resurrected deliberately deleted categories.
+ */
+const DEFAULT_CATEGORY_NAMES = [
+  'Food',
+  'Shopping',
+  'Travel',
+  'Entertainment',
+  'Bills',
+  'Health',
+  'Salary',
+  'Fuel',
+];
+
+async function createSignupCategories(userId) {
+  for (const categoryName of DEFAULT_CATEGORY_NAMES) {
+    await pool.query(
+      'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
+      [userId, categoryName]
+    );
+  }
+}
+
 // ─── Cookie helpers ───────────────────────────────────────────────────────────
 // Durations
 const ACCESS_TOKEN_TTL_SECONDS  = 15 * 60;           // 15 minutes
@@ -180,24 +207,8 @@ const signup = async (req, res) => {
     );
     const userId = result.insertId;
 
-    // Create default categories for new user
-    const defaultCategories = [
-      'Food',
-      'Shopping',
-      'Travel',
-      'Entertainment',
-      'Bills',
-      'Health',
-      'Salary',
-      'Fuel'
-    ];
-
-    for (const categoryName of defaultCategories) {
-      await pool.query(
-        'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
-        [userId, categoryName]
-      );
-    }
+    // Create default categories for new user (once, at signup)
+    await createSignupCategories(userId);
 
     // Do not claim that the verification email was sent if Brevo rejected it.
     // The account remains unverified and the user can use resend-verification.
@@ -680,17 +691,9 @@ const googleLogin = async (req, res) => {
         role: 'Member'
       };
 
-      const defaultCategories = [
-        'Food', 'Shopping', 'Travel', 'Entertainment',
-        'Bills', 'Health', 'Salary', 'Fuel'
-      ];
-
-      for (const categoryName of defaultCategories) {
-        await pool.query(
-          'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
-          [user.id, categoryName]
-        );
-      }
+      // Default categories for a brand-new Google user (first login creates
+      // the account — this is signup, not a per-boot re-seed).
+      await createSignupCategories(user.id);
     }
 
     await issueTokens(res, user);
@@ -713,6 +716,8 @@ const googleLogin = async (req, res) => {
 };
 
 module.exports = {
+  DEFAULT_CATEGORY_NAMES,
+  createSignupCategories,
   me,
   refresh,
   logout,

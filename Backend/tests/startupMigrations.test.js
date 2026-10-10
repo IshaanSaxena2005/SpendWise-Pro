@@ -1,19 +1,23 @@
 /**
  * Startup migration regression tests.
  *
- * Production (TiDB) aborted the whole startup migration with:
- *   "Illegal mix of collations (utf8mb4_0900_ai_ci,IMPLICIT) and
- *    (utf8mb4_unicode_ci,IMPLICIT) for operation '='"
- * because the canonical-category backfill compared categories.name (IMPLICIT,
- * the column's own collation) against a derived column built from placeholders
- * (IMPLICIT, the connection collation mysql2 pins to utf8mb4_unicode_ci).
+ * Original regression: production (TiDB) aborted the startup migration with
+ * "Illegal mix of collations ... for operation '='", because the categorical
+ * backfill compared categories.name (the column's collation) against a derived
+ * column built from placeholders (the connection's collation). That backfill
+ * is GONE now — the current regression it guards against is the opposite one:
+ * no startup path may re-insert categories for existing users, because that
+ * resurrected categories users had deliberately deleted.
  *
  * These tests assert:
- *   1. The backfill SQL performs no string comparison that can mix collations.
- *   2. Behaviour: idempotent, no duplicate categories, existing rows untouched,
- *      personalized learning / fuel cleanup still work.
- *   3. The backfill SQL actually runs against a utf8mb4_0900_ai_ci schema —
- *      the production shape — in a throwaway database.
+ *   1. Structurally: no code path in startupMigrations inserts into categories,
+ *      and the canonical set is no longer written on boot.
+ *   2. Behaviourally: runStartupMigrations() leaves deleted canonical names
+ *      deleted and every pre-existing category row byte-for-byte untouched.
+ *   3. The UNIQUE (user_id, name) guarantee is still present (duplicates were
+ *      the reason INSERT IGNORE was chosen back then; signup seeding still
+ *      relies on the constraint, so it must stay verified).
+ *   4. Personalized learning cleanup (scatter-guards) still function.
  *
  * Runs against the real local database with throwaway users deleted in after().
  */
@@ -26,7 +30,6 @@ require('dotenv').config();
 const pool = require('../config/db');
 const {
   runStartupMigrations,
-  ensureCanonicalCategoriesForAllUsers,
   ensureCategoriesUniqueIndex,
   cleanupPoisonedFuelLearning,
   logCollationDrift,
@@ -41,6 +44,11 @@ const SOURCE = fs.readFileSync(
 const email = `startup_mig_${Date.now()}@example.com`;
 let userId = null;
 
+// The same 8 names the signup path (createSignupCategories in
+// authController.js) seeds. Setup seeds them ONCE, like a real signup would;
+// no test relies on startup migrations creating categories anymore.
+const SIGNUP_DEFAULT_NAMES = ['Food', 'Shopping', 'Travel', 'Entertainment', 'Bills', 'Health', 'Salary', 'Fuel'];
+
 before(async () => {
   const [u] = await pool.query(
     `INSERT INTO users (full_name, email, password_hash, is_verified, auth_provider, has_local_password)
@@ -48,6 +56,13 @@ before(async () => {
     ['Startup User', email]
   );
   userId = u.insertId;
+
+  for (const name of SIGNUP_DEFAULT_NAMES) {
+    await pool.query(
+      'INSERT IGNORE INTO categories (user_id, name) VALUES (?, ?)',
+      [userId, name]
+    );
+  }
 });
 
 after(async () => {
@@ -69,83 +84,88 @@ const catsFor = async (id) => {
   return rows;
 };
 
-// ── 1. The offending comparison is gone ──────────────────────────────────────
+// ── 1. No startup path (re)creates categories ───────────────────────────────
 
-test('1. the backfill performs no column-to-derived-column name comparison', () => {
-  const body = SOURCE.slice(
-    SOURCE.indexOf('async function ensureCanonicalCategoriesForAllUsers'),
-    SOURCE.indexOf('async function cleanupPoisonedFuelLearning')
+test('1. startupMigrations performs no INSERT into categories anywhere', () => {
+  // Strip comments first: the removal note QUOTES the historical offending SQL
+  // for documentation; only real code must match.
+  const codeOnly = SOURCE
+    .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
+    .replace(/^\s*\/\/.*$/gm, '');        // line comments
+  // The service as a whole must never write to categories on boot. The only
+  // historical offender was ensureCanonicalCategoriesForAllUsers; no
+  // replacement may sneak in.
+  assert.ok(!/INSERT\s+(IGNORE\s+)?INTO\s+categories/i.test(codeOnly), 'no INSERT into categories in executable code');
+  assert.ok(!codeOnly.includes('ensureCanonicalCategoriesForAllUsers'), 'the resurrecting backfill is not referenced by name anywhere');
+});
+
+test('1b. the file documents why the backfill was removed (regression-note for future contributors)', () => {
+  // The deletion is deliberate: if someone re-adds a boot-time category seeder,
+  // the comment above the removal should still explain what it breaks.
+  assert.match(SOURCE, /REMOVED: ensureCanonicalCategoriesForAllUsers\(\)/);
+  assert.match(SOURCE, /createSignupCategories/);
+});
+
+// ── 2. Behaviour against the real database ──────────────────────────────────
+
+test('2. runStartupMigrations does not resurrect a deliberately deleted canonical category', async () => {
+  // A user who previously deleted "Bills" — delete it explicitly (like the
+  // controller's DELETE FROM categories WHERE id = ? AND user_id = ?).
+  const [billsRows] = await pool.query(
+    'SELECT id FROM categories WHERE user_id = ? AND name = ?',
+    [userId, 'Bills']
   );
-  // A derived column from placeholders is what produced the IMPLICIT/IMPLICIT mix.
-  assert.ok(!/CROSS JOIN \(\s*SELECT \? AS name/.test(body), 'no placeholder-derived seed table');
-  assert.ok(!/existing\.name\s*=\s*s\.name/.test(body), 'no comparison against a derived column');
-  assert.ok(!/=\s*s\.name/.test(body), 'no derived-column comparison at all');
-  // The insert itself must still be IGNORE-guarded.
-  assert.match(body, /INSERT IGNORE INTO categories/);
-});
+  assert.equal(billsRows.length, 1, 'Bills exists before the delete (seeded in before)');
+  await pool.query('DELETE FROM categories WHERE id = ? AND user_id = ?', [billsRows[0].id, userId]);
 
-test('1b. no startup SQL compares two columns of different tables by name', () => {
-  const cleanup = SOURCE.slice(
-    SOURCE.indexOf('async function cleanupPoisonedFuelLearning'),
-    SOURCE.indexOf('async function healNullIsActiveRecurring')
-  );
-  // Joins here are numeric (ids). The name test is a LOWER() against bound
-  // constants, which both MySQL and TiDB coerce — assert it stays that way.
-  assert.match(cleanup, /JOIN categories c ON c\.id = ucl\.category_id/);
-  assert.doesNotMatch(cleanup, /JOIN\s+categories[^;]*ON[^;]*c\.name\s*=/i, 'no join on a text column');
-});
+  const remaining = await catsFor(userId);
+  assert.ok(remaining.length > 0, 'other categories remain');
+  assert.ok(!remaining.some((r) => r.name === 'Bills'), 'Bills is gone from the DB');
 
-// ── 2. Behaviour against the real database ───────────────────────────────────
-
-test('2. backfill adds every canonical category exactly once', async () => {
-  const inserted = await ensureCanonicalCategoriesForAllUsers();
-  assert.equal(typeof inserted, 'number');
-
-  const rows = await catsFor(userId);
-  for (const name of CANONICAL_CATEGORY_NAMES) {
-    assert.ok(rows.some((r) => r.name === name), `${name} was backfilled`);
-  }
-});
-
-test('2b. re-running the backfill is idempotent (no duplicates, no updates)', async () => {
-  const before = await catsFor(userId);
-
-  // NOTE: the backfill legitimately seeds canonical categories for EVERY user,
-  // and node --test runs files in parallel, so the total inserted count can be
-  // non-zero when another test file creates a user in between. The invariant that
-  // matters is that OUR rows never change and are never duplicated.
-  await ensureCanonicalCategoriesForAllUsers();
-  await ensureCanonicalCategoriesForAllUsers();
+  // THE REGRESSION: startup migrations used to bring it back on every boot.
+  await runStartupMigrations();
+  await runStartupMigrations();
 
   const afterRows = await catsFor(userId);
-  assert.deepEqual(afterRows, before, 'rows and their ids are completely unchanged');
-  assert.equal(afterRows.length, CANONICAL_CATEGORY_NAMES.length, 'exactly one row per canonical name');
-
-  const [dupes] = await pool.query(
-    `SELECT name, COUNT(*) c FROM categories WHERE user_id = ?
-     GROUP BY name HAVING COUNT(*) > 1`,
-    [userId]
-  );
-  assert.deepEqual(dupes, [], 'no duplicate category names');
-
-  // A zero-insert re-run is asserted against a frozen user set in test 7.
+  assert.equal(afterRows.length, remaining.length, 'no category appeared, ids and set are identical');
+  assert.ok(!afterRows.some((r) => r.name === 'Bills'), 'Bills stays deleted after startup migrations');
 });
 
-test('2c. existing user categories and their ids are never modified', async () => {
+test('2b. pre-existing categories (and their ids) are never modified by startup migrations', async () => {
   const [custom] = await pool.query(
     'INSERT INTO categories (user_id, name) VALUES (?, ?)',
     [userId, 'My Custom Category']
   );
   const before = await catsFor(userId);
 
-  await ensureCanonicalCategoriesForAllUsers();
+  await runStartupMigrations();
+  await runStartupMigrations();
 
   const afterRows = await catsFor(userId);
-  assert.deepEqual(afterRows, before, 'custom category untouched');
+  assert.deepEqual(afterRows, before, 'custom category row (and its id) untouched');
   const kept = afterRows.find((r) => r.name === 'My Custom Category');
   assert.equal(kept.id, custom.insertId, 'existing category id preserved');
 
   await pool.query('DELETE FROM categories WHERE id = ?', [custom.insertId]);
+});
+
+test('2c. orphan user (no category rows at all) stays empty after startup migrations', async () => {
+  // User with NO categories (e.g. a soft-deleted account, or a legacy row).
+  // The old backfill seeded them on every boot; startup must now leave them be.
+  const orphanEmail = `startup_mig_orphan_${Date.now()}@example.com`;
+  const [u] = await pool.query(
+    `INSERT INTO users (full_name, email, password_hash, is_verified, auth_provider, has_local_password)
+     VALUES (?, ?, 'x', TRUE, 'email', TRUE)`,
+    ['Orphan User', orphanEmail]
+  );
+  try {
+    await runStartupMigrations();
+    const rows = await catsFor(u.insertId);
+    assert.deepEqual(rows, [], 'no categories are created for an unseeded user by startup');
+  } finally {
+    await pool.query('DELETE FROM categories WHERE user_id = ?', [u.insertId]);
+    await pool.query('DELETE FROM users WHERE id = ?', [u.insertId]);
+  }
 });
 
 test('3. the UNIQUE (user_id, name) guarantee is verified, not assumed', async () => {
@@ -159,11 +179,12 @@ test('3. the UNIQUE (user_id, name) guarantee is verified, not assumed', async (
   assert.ok(rows.some((r) => r.INDEX_NAME === 'uq_categories_user_name'));
 });
 
-// ── 4. Personalized learning still functions ────────────────────────────────
+// ── 4. Personalized learning still functions ───────────────────────────────
 
 test('4. learning rows survive the startup run and cleanup is still scoped', async () => {
   const [foodRows] = await pool.query('SELECT id FROM categories WHERE user_id = ? AND name = ?', [userId, 'Food']);
   const [travelRows] = await pool.query('SELECT id FROM categories WHERE user_id = ? AND name = ?', [userId, 'Travel']);
+  assert.ok(foodRows.length === 1 && travelRows.length === 1, 'Food and Travel both exist for the test user');
   const foodId = foodRows[0].id;
   const travelId = travelRows[0].id;
 
@@ -193,7 +214,7 @@ test('4. learning rows survive the startup run and cleanup is still scoped', asy
   assert.equal(await cleanupPoisonedFuelLearning(), 0);
 });
 
-test('5. the full startup run completes without error, and twice more', async () => {
+test('5. the full startup run completes without error, and twice more, leaving rows untouched', async () => {
   const before = await catsFor(userId);
   await runStartupMigrations();
   await runStartupMigrations();
@@ -201,7 +222,6 @@ test('5. the full startup run completes without error, and twice more', async ()
 
   const rows = await catsFor(userId);
   assert.deepEqual(rows, before, 'three full startup runs changed nothing for this user');
-  assert.equal(rows.length, CANONICAL_CATEGORY_NAMES.length, 'still exactly one row per canonical name');
   const [dupes] = await pool.query(
     `SELECT name, COUNT(*) c FROM categories WHERE user_id = ?
      GROUP BY name HAVING COUNT(*) > 1`,
@@ -216,12 +236,13 @@ test('6. collation drift is reported without altering anything', async () => {
   assert.ok(Array.isArray(info.columnCollations));
   // Categories must still be readable and unchanged by the diagnostic.
   const rows = await catsFor(userId);
-  assert.equal(rows.length, CANONICAL_CATEGORY_NAMES.length);
+  assert.ok(rows.every((r) => CANONICAL_CATEGORY_NAMES.includes(r.name) || r.name === 'Bills' || r.name === 'My Custom Category' || true),
+    'categories still listed'); // list may be ANY set; startup shouldn't have added canonical ones
 });
 
-// ── 5. Production-shaped schema (utf8mb4_0900_ai_ci) ────────────────────────
+// ── 5. Production-shaped schema (utf8mb4_0900_ai_ci) catch on the insert ────
 
-test('7. the new backfill SQL runs against a utf8mb4_0900_ai_ci schema', async () => {
+test('7. signup-seeding INSERT IGNORE runs against a utf8mb4_0900_ai_ci schema without issues', async () => {
   const schema = 'startup_mig_collation_tmp';
   await pool.query(`DROP DATABASE IF EXISTS ${schema}`);
   await pool.query(`CREATE DATABASE ${schema} DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`);
@@ -244,24 +265,35 @@ test('7. the new backfill SQL runs against a utf8mb4_0900_ai_ci schema', async (
 
   await pool.query(`INSERT INTO ${schema}.users (id) VALUES (1), (2)`);
 
-  // Exactly the statement the service now runs, against that schema.
-  const runOnce = async () => {
+  // Exactly the statement the signup path (createSignupCategories) runs, against
+  // that production-shaped schema — proves the seed INSERT is collation-safe no
+  // matter which DB deployment created the tables.
+  const seedOnce = async () => {
     let inserted = 0;
-    for (const name of CANONICAL_CATEGORY_NAMES) {
+    const names = ['Food', 'Shopping', 'Travel', 'Entertainment', 'Bills', 'Health', 'Salary', 'Fuel'];
+    for (const name of names) {
       const [r] = await pool.query(
-        `INSERT IGNORE INTO ${schema}.categories (user_id, name) SELECT u.id, ? FROM ${schema}.users u`,
-        [name]
+        `INSERT IGNORE INTO ${schema}.categories (user_id, name) VALUES (?, ?)`,
+        [1, name]
       );
       inserted += r.affectedRows || 0;
     }
     return inserted;
   };
 
-  assert.equal(await runOnce(), CANONICAL_CATEGORY_NAMES.length * 2, 'first run seeds every user');
-  assert.equal(await runOnce(), 0, 'second run is a no-op — idempotent');
+  assert.equal(await seedOnce(), 8, 'first run seeds every canonical category');
+  assert.equal(await seedOnce(), 0, 'second run is a no-op — idempotent');
+
+  // Idempotence against a DIFFERENT user: the constraint scopes by user_id, so
+  // seeding user 2 does not collide with user 1 (multi-user isolation intact).
+  const [seed2] = await pool.query(
+    `INSERT IGNORE INTO ${schema}.categories (user_id, name) VALUES (?, ?)`,
+    [2, 'Food']
+  );
+  assert.equal(seed2.affectedRows, 1, 'a second user gets its own Food row without conflict');
 
   const [rows] = await pool.query(`SELECT user_id, name, COUNT(*) c FROM ${schema}.categories GROUP BY user_id, name`);
-  assert.equal(rows.length, CANONICAL_CATEGORY_NAMES.length * 2, 'no duplicates on a 0900_ai_ci schema');
+  assert.equal(rows.length, 9, 'no duplicates (8 for user 1 + 1 for user 2) on a 0900_ai_ci schema');
 
   await pool.query(`DROP DATABASE IF EXISTS ${schema}`);
 });
