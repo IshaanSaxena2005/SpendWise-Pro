@@ -13,7 +13,7 @@ import { AvatarCircle } from './ProfilePhotoUploader';
 import { AVATAR_UPDATED_EVENT, fetchProfileAvatar } from '../../lib/avatar';
 import { DEMO_EMAIL } from '../../lib/constants';
 import { notificationAPI, type Notification } from '../../lib/api';
-import { notifyFinanceDataChanged } from '../../lib/financeEvents';
+import { subscribeFinanceDataChanged, notifyFinanceDataChanged } from '../../lib/financeEvents';
 import { BUTTON_VARIANTS } from './DashboardOverview';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -194,6 +194,17 @@ export function DashboardLayout() {
   // Chatbot launcher position — survives tab navigation (same component tree),
   // resets naturally on full page reload since useState initial is null.
   const [chatbotPos, setChatbotPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Refresh the bell whenever finance data changes anywhere in the app
+  // (add/edit/delete transaction, budgets, ...). Deleting a transaction must
+  // remove its anomaly alert from the bell immediately, not after up to a
+  // 5-minute poll or a user switch.
+  useEffect(() => {
+    if (!user) return;
+    return subscribeFinanceDataChanged(() => {
+      void fetchNotifications().catch(() => { /* fetchNotifications self-handles errors */ });
+    });
+  }, [user, fetchNotifications]);
 
   // Clear and refetch notifications when user changes (login/logout/demo switch)
   useEffect(() => {

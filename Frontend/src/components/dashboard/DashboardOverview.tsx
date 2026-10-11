@@ -102,12 +102,15 @@ export function DashboardOverview() {
       const currentRequestId = requestIdRef.current;
       void (async () => {
         try {
-          const [txRes, catRes, budRes, healthRes, summaryRes] = await Promise.all([
+          const [txRes, catRes, budRes, healthRes, summaryRes, anomalyRes] = await Promise.all([
             expenseAPI.getAllExpenses(),
             categoryAPI.getAllCategories(),
             budgetAPI.getAllBudgets(),
             healthAPI.getHealthScore(),
             analyticsAPI.getDashboardSummary(),
+            // Deleting a transaction must remove its anomaly alert immediately,
+            // not only after some later full remount.
+            anomalyAPI.getAnomalyHistory(),
           ]);
           if (!cancelled && currentRequestId === requestIdRef.current) {
             setTransactions(txRes.data.expenses || []);
@@ -115,6 +118,7 @@ export function DashboardOverview() {
             setBudgets(budRes.data.budgets || []);
             setAiScore(healthRes.data.score || 0);
             setDashboardSummary(summaryRes.data.summary || null);
+            setAnomalies(anomalyRes.data.anomalies || []);
             try {
               const gRes = await goalsAPI.getAll();
               if (!cancelled && currentRequestId === requestIdRef.current) {

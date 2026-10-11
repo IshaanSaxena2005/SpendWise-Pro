@@ -279,9 +279,10 @@ async function ensureAnomalyNotificationSchema() {
   // the column/FK from schema.sql (server.js only runs schema.sql on an EMPTY
   // database), so — exactly like ensureRecurringSchemaColumns — we add them
   // in place, tolerating the "already exists" errors that make this
-  // idempotent. No data is modified: existing rows simply keep
-  // expense_id = NULL (only legacy anomaly alerts can be orphaned; the
-  // dashboard query filters those, see anomalyService.getAnomalyHistory).
+  // idempotent. The ALTERs change no data; legacy orphaned anomaly rows
+  // (expense_id = NULL, created before this fix) ARE purged once at the end
+  // of this function — otherwise they surface as permanently stale alerts in
+  // both the dashboard list and the notification bell.
   //   - notifications.expense_id      (this fix; FK ON DELETE CASCADE)
   try {
     await pool.query('ALTER TABLE notifications ADD COLUMN expense_id BIGINT UNSIGNED NULL');
@@ -313,6 +314,31 @@ async function ensureAnomalyNotificationSchema() {
     );
   } catch (err) {
     if (!(err && (err.code === 'ER_DUP_KEYNAME' || err.code === 'ER_CANT_DUP_FIELD'))) throw err;
+  }
+
+  // Legacy orphan purge: anomaly rows created BEFORE the expense_id link
+  // existed (expense_id IS NULL) can never die with their expense — their
+  // expense reference is unknowable, so they surface as permanent stale
+  // alerts in both the dashboard list and the notification bell (which no
+  // longer lists un-linkable anomaly rows either). Delete exactly those rows,
+  // for every user, once; every later anomaly alert is created linked.
+  // A dangling id (row whose expense vanished while the FK was missing) is
+  // left for the EXISTS-style read filters above — deleting on a missing id
+  // here could race an in-flight expense insert, and the read filters already
+  // treat it as invisible.
+  try {
+    const [legacy] = await pool.query(
+      "DELETE FROM notifications WHERE type = 'anomaly' AND expense_id IS NULL"
+    );
+    const purged = legacy ? legacy.affectedRows || 0 : 0;
+    if (purged > 0) {
+      console.log(`[StartupMigrations] purged ${purged} legacy anomaly notification(s) with no expense link`);
+    }
+  } catch (err) {
+    // Migration not applied yet (no expense_id column): the ALTERs above have
+    // already added it by this point, so this can only fail on something
+    // environmental — say so instead of silently skipping.
+    console.error('[StartupMigrations] legacy anomaly purge failed:', err && err.message ? err.message : err);
   }
 
   console.log('[StartupMigrations] anomaly notification schema verified');

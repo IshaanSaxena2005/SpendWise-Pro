@@ -60,7 +60,38 @@ async function updatePreferences(req, res) {
 const getNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [rows] = await pool.query('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+    let rows;
+    try {
+      // Anomaly alerts are linked to their expense via notifications.expense_id
+      // and must disappear with it. The FK (ON DELETE CASCADE) + the defensive
+      // cleanup in deleteExpense delete linked rows, but PRE-FIX legacy anomaly
+      // rows have expense_id = NULL (created before the link existed) and old
+      // deployments without the migration have no column at all — those must
+      // never resurface as active alerts in the bell.
+      //
+      // Fallback: if the migration is not applied (no expense_id column), every
+      // type='anomaly' row is by definition an un-linkable legacy orphan, so
+      // fall back to the raw read without failing the endpoint (the raw shape
+      // is also what pre-migration code always returned).
+      [rows] = await pool.query(
+        `SELECT * FROM notifications n
+         WHERE n.user_id = ?
+           AND NOT (n.type = 'anomaly'
+                    AND (n.expense_id IS NULL
+                         OR NOT EXISTS (SELECT 1 FROM expenses e WHERE e.id = n.expense_id)))
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+    } catch (schemaErr) {
+      if (schemaErr && (schemaErr.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(schemaErr.message || ''))) {
+        [rows] = await pool.query(
+          `SELECT * FROM notifications WHERE user_id = ? AND type <> 'anomaly' ORDER BY created_at DESC`,
+          [userId]
+        );
+      } else {
+        throw schemaErr;
+      }
+    }
     const notifications = rows.map(row => ({
       ...row,
       read: row.read_status
