@@ -99,32 +99,7 @@
 
 ## Architecture
 
-```mermaid
-flowchart LR
-
-    FE["Frontend<br/>React + Vite"]
-
-    BE["Backend API<br/>Node.js + Express"]
-
-    DB[("TiDB Cloud")]
-
-    ML["ML Service<br/>Flask + Scikit-learn"]
-
-    AI["Gemini AI"]
-
-    FE -->|REST API| BE
-    BE --> DB
-    BE --> ML
-    BE --> AI
-```
-
-| Service     | Platform   |
-| ----------- | ---------- |
-| Frontend    | Vercel     |
-| Backend API | Render     |
-| Database    | TiDB Cloud |
-| ML Service  | Render     |
-| AI Provider | Google Gemini |
+![Architecture](screenshots/architecture.png)
 
 ---
 
