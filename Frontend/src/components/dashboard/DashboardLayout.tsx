@@ -73,7 +73,7 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
       >
         <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 flex items-center justify-center overflow-hidden shrink-0 transition-all duration-200 ease-out group-hover:shadow-md group-hover:scale-105">
           <img
-            src="/logo2-trim.png"
+            src="/logo2.png"
             alt="SpendWise Pro"
             className="w-full h-full object-contain"
           />

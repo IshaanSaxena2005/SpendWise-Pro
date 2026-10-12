@@ -73,7 +73,7 @@ export function Footer() {
         {/* Col 1 — Brand */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            <img src="/logo2-trim.png" alt="SpendWise Pro" className="w-10 h-10 object-contain rounded-xl" />
+            <img src="/logo2.png" alt="SpendWise Pro" className="w-10 h-10 object-contain rounded-xl" />
             <span className="text-lg font-extrabold text-black tracking-tight">SpendWise Pro</span>
           </div>
           <p className="text-sm text-black/45 leading-relaxed max-w-xs">

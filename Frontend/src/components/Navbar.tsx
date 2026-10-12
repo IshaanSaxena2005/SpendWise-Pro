@@ -139,7 +139,7 @@ export function Navbar({ onOpenAuth }: { onOpenAuth: (view: 'login' | 'signup') 
           {/* Brand Logo & Name */}
           <a href="/" onClick={(e) => handleLinkClick(e, '#')} className="flex items-center gap-3 z-50 group h-full">
             <img 
-              src="/logo2-trim.png" 
+              src="/logo2.png" 
               alt="SpendWise Pro Logo" 
               className="h-full w-auto object-contain transition-transform duration-300 group-hover:scale-105"
               style={{ maxHeight: '72px' }}
