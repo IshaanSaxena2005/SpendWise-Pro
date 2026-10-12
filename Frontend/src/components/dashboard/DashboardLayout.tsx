@@ -71,7 +71,10 @@ function SidebarContent({ user, pathname, onNavClick, onLogout }: SidebarProps) 
         onClick={onNavClick}
         className="group flex items-center gap-4 px-5 py-5 border-b border-black/5"
       >
-        <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 flex items-center justify-center overflow-hidden shrink-0 transition-all duration-200 ease-out group-hover:shadow-md group-hover:scale-105">
+        {/* bg matches the logo PNG's own backdrop (rgb 243,242,242) so the
+            letterbox bands of the 5:4 image blend into the square instead of
+            showing the white sidebar behind them */}
+        <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5 bg-[#F3F2F2] flex items-center justify-center overflow-hidden shrink-0 transition-all duration-200 ease-out group-hover:shadow-md group-hover:scale-105">
           <img
             src="/logo2.png"
             alt="SpendWise Pro"
