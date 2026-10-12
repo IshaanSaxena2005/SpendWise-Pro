@@ -212,7 +212,7 @@ export function AuthModal({ isOpen, onClose, initialView = 'login', verification
 
         {/* Brand */}
         <div className="flex items-center gap-2 mb-8">
-          <img src="/logo2.png" alt="SpendWise Pro" className="w-8 h-8 object-contain rounded-lg" />
+          <img src="/logo2-trim.png" alt="SpendWise Pro" className="w-8 h-8 object-contain rounded-lg" />
           <span className="text-xl font-semibold text-black">SpendWise Pro</span>
         </div>
 

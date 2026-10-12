@@ -44,12 +44,15 @@ export function BudgetsPage() {
   const isDemoUser = user?.email === DEMO_EMAIL;
   const requestIdRef = useRef(0);
 
-  // Clear state when user changes
+  // Clear state when user changes (passive only; the load effect below resets data)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCategories([]);
     setBudgets([]);
     setExpenses([]);
   }, [user?.id]);
+
+  const alertRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const fetchFinanceData = useCallback(async () => {
     const currentRequestId = requestIdRef.current;
@@ -64,7 +67,6 @@ export function BudgetsPage() {
     const budgetsData = budRes.data.budgets || [];
     const categoriesData = catRes.data.categories || [];
     const expensesData = expRes.data.expenses || [];
-
     setBudgets(budgetsData);
     setCategories(categoriesData);
     setExpenses(expensesData);
@@ -108,6 +110,33 @@ export function BudgetsPage() {
   const currentMonthStr = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }, []);
+
+  // Highlight state for the card an alert points at (TTL so it fades automatically).
+  const [highlightedBudgetId, setHighlightedBudgetId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Budget-alert click handler.
+   * - Category budget: scroll to + flash the matching budget card.
+   * - Overall budget: no dedicated card exists (totals already live in the
+   *   summary cards + Overall Utilization donut), so flash the donut card —
+   *   it IS the overall summary.
+   * - No matching card (deleted / other month): show a message instead of
+   *   silently doing nothing.
+   */
+  const handleBudgetAlertClick = useCallback((budgetId: number) => {
+    const card = alertRefs.current.get(budgetId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setHighlightedBudgetId(budgetId);
+      highlightTimerRef.current = setTimeout(() => setHighlightedBudgetId(null), 2200);
+      return;
+    }
+    // No matching card (deleted / not current month): meaningful fallback.
+    window.alert('This budget is no longer visible here. It may have been deleted or belongs to a different month.');
   }, []);
 
   const currentMonthBudgets = useMemo(
@@ -338,24 +367,42 @@ export function BudgetsPage() {
             </div>
             {alerts.length > 0 ? (
               <ul className="space-y-2">
-                {alerts.map((alert) => (
-                  <li
-                    key={alert.budgetId}
-                    className={`flex items-center gap-2.5 text-sm rounded-xl px-3 py-2 ${
-                      alert.severity === 'warning'
-                        ? 'bg-orange-50 text-orange-800'
-                        : 'bg-rose-50 text-rose-800'
-                    }`}
-                  >
-                    <span className="shrink-0 leading-5" aria-hidden>{alert.emoji}</span>
-                    <span className="flex-1 min-w-0 leading-5">
-                      <span className="font-medium">{alert.label}</span>
-                      <span className="text-current/70"> — {Math.round(alert.rawPct)}% used</span>
-                      <span className="block text-xs opacity-70 truncate">{alert.message}</span>
-                    </span>
-                    <ArrowRight className="w-4 h-4 shrink-0 opacity-60" aria-hidden />
-                  </li>
-                ))}
+                    {alerts.map((alert) => {
+                      const targetBudget = currentMonthBudgets.find((b) => b.id === alert.budgetId);
+                      // Overall budget = no category_id. Flash the Overall Utilization
+                      // donut (registered under -1) — it IS the overall summary.
+                      const isOverall = targetBudget ? isOverallBudget(targetBudget) : false;
+                      const targetKey = isOverall ? -1 : alert.budgetId;
+
+                      return (
+                        <li
+                          key={alert.budgetId}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${alert.label}: ${Math.round(alert.rawPct)}% used. ${isOverall ? 'Show overall budget summary' : 'Show this budget card'}`}
+                          onClick={() => handleBudgetAlertClick(targetKey)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              handleBudgetAlertClick(targetKey);
+                            }
+                          }}
+                          className={`flex items-center gap-2.5 text-sm rounded-xl px-3 py-2 cursor-pointer transition-colors duration-150 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 ${
+                            alert.severity === 'warning'
+                              ? 'bg-orange-50 text-orange-800'
+                              : 'bg-rose-50 text-rose-800'
+                          }`}
+                        >
+                          <span className="shrink-0 leading-5" aria-hidden>{alert.emoji}</span>
+                          <span className="flex-1 min-w-0 leading-5">
+                            <span className="font-medium">{alert.label}</span>
+                            <span className="text-current/70"> — {Math.round(alert.rawPct)}% used</span>
+                            <span className="block text-xs opacity-70 truncate">{alert.message}</span>
+                          </span>
+                          <ArrowRight className="w-4 h-4 shrink-0 opacity-60" aria-hidden />
+                        </li>
+                      );
+              })}
               </ul>
             ) : budgets.length === 0 ? (
               <div className="flex items-center gap-3 text-left py-2">
@@ -380,7 +427,15 @@ export function BudgetsPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 flex flex-col items-center justify-center text-center group hover:border-violet-200 transition-colors">
+        <div
+          ref={(el) => {
+            if (el) alertRefs.current.set(-1, el);
+            else alertRefs.current.delete(-1);
+          }}
+          className={`bg-white rounded-2xl border border-black/5 shadow-sm p-6 flex flex-col items-center justify-center text-center group transition-shadow ${
+            highlightedBudgetId === -1 ? 'ring-2 ring-violet-400' : ''
+          }`}
+        >
           <h3 className="text-sm font-semibold text-black mb-6">Overall Utilization</h3>
           <div className="relative flex items-center justify-center w-32 h-32 mb-4">
             <svg className="transform -rotate-90 w-32 h-32 drop-shadow-sm">
@@ -471,7 +526,16 @@ export function BudgetsPage() {
               const isEditing = editingId === b.id;
 
             return (
-              <div key={b.id} className="bg-white rounded-2xl border border-black/5 shadow-sm p-5">
+              <div
+                key={b.id}
+                ref={(el) => {
+                  if (el) alertRefs.current.set(b.id, el);
+                  else alertRefs.current.delete(b.id);
+                }}
+                className={`bg-white rounded-2xl border border-black/5 shadow-sm p-5 transition-shadow ${
+                  highlightedBudgetId === b.id ? 'ring-2 ring-violet-400' : 'hover:ring-2 hover:ring-violet-400/30'
+                }`}
+              >
                 {isEditing ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between mb-2">
