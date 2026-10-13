@@ -79,8 +79,17 @@ api.interceptors.response.use(
       } catch (refreshError) {
         isRefreshing = false;
         onRefreshed(false);
-        // Emit a custom event so AuthContext can clear state without a circular import
-        window.dispatchEvent(new CustomEvent('sw:auth:expired'));
+        // Only a genuine auth rejection from /auth/refresh means the session
+        // is really over. Network errors and 5xx responses are transient
+        // (cold starts, blips) and must NOT destroy a still-valid session —
+        // so emit the "session expired" event only for 401/403.
+        const refreshStatus = axios.isAxiosError(refreshError)
+          ? refreshError.response?.status
+          : undefined;
+        if (refreshStatus === 401 || refreshStatus === 403) {
+          // Emit a custom event so AuthContext can clear state without a circular import
+          window.dispatchEvent(new CustomEvent('sw:auth:expired'));
+        }
         return Promise.reject(refreshError);
       }
     }

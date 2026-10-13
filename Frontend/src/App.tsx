@@ -54,12 +54,6 @@ function LandingPage() {
   const [verificationSuccess, setVerificationSuccess] = useState(false);
   const [deletedToast, setDeletedToast] = useState(false);
 
-  // Redirect already-authenticated users straight to the dashboard.
-  // Only redirect once the session check is complete (isLoading === false).
-  if (!isLoading && isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   useEffect(() => {
     let shouldUpdateParams = false;
 
@@ -106,6 +100,15 @@ function LandingPage() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // Redirect already-authenticated users straight to the dashboard.
+  // Only redirect once the session check is complete (isLoading === false).
+  // This must come AFTER every hook: an early return above the useEffect
+  // made the hook order depend on auth state (rules-of-hooks violation,
+  // and a crash for signed-in users landing on "/").
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const openAuth = (view: 'login' | 'signup' | 'forgot-password' | 'reset-password') => {
     setAuthView(view);

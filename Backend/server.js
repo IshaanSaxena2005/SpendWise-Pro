@@ -142,6 +142,12 @@ async function start() {
     ) ENGINE=InnoDB
   `);
   for (const migration of [
+    // `role` was missing from schema.sql and from earlier deployments, so
+    // every /auth/me and /auth/refresh SELECT (which reference users.role)
+    // failed with "Unknown column 'role'" and sessions could never be
+    // restored after login. Idempotently add it for existing databases;
+    // fresh installs get it from schema.sql.
+    "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'Member'",
     "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) NOT NULL DEFAULT 'email'",
     'ALTER TABLE users ADD COLUMN has_local_password BOOLEAN NOT NULL DEFAULT TRUE',
     'ALTER TABLE users ADD COLUMN verification_token_expires_at TIMESTAMP NULL',

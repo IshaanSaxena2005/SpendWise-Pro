@@ -4,6 +4,7 @@ CREATE TABLE users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'Member',
     auth_provider VARCHAR(20) NOT NULL DEFAULT 'email',
     has_local_password BOOLEAN NOT NULL DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT FALSE,
