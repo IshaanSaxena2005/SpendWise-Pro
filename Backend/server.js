@@ -68,6 +68,20 @@ app.use((err, req, res, next) => {
   next(err);
 });
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Public DB liveness probe for Render/platform health checks. Registered
+// BEFORE the routers: the authenticated /api/health/score router is mounted
+// at /api/health too, and a router mounted first shadows this exact path
+// (verified live: GET /api/health used to return 401 instead of the DB check).
+app.get('/api/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.status(200).json({ success: true, status: 'healthy', db: 'connected' });
+  } catch (err) {
+    res.status(503).json({ success: false, status: 'unhealthy', db: 'disconnected', error: err.message });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/expenses', expenseRoutes);
@@ -85,15 +99,6 @@ app.use('/api/goals',  goalRoutes);
 app.use('/api/recurring', recurringRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/reports', reportRoutes);
-
-app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.status(200).json({ success: true, status: 'healthy', db: 'connected' });
-  } catch (err) {
-    res.status(503).json({ success: false, status: 'unhealthy', db: 'disconnected', error: err.message });
-  }
-});
 
 app.get('/test-db', async (req, res) => {
   try {
@@ -122,6 +127,7 @@ async function start() {
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id BIGINT UNSIGNED NOT NULL UNIQUE,
       file_path VARCHAR(255) NOT NULL,
+      public_id VARCHAR(255) NULL,
       uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_profile_photo_user
         FOREIGN KEY (user_id)
@@ -129,6 +135,13 @@ async function start() {
         ON DELETE CASCADE
     ) ENGINE=InnoDB
   `);
+  // public_id was added to schema.sql later; databases whose profile_photos
+  // predates that commit never gained it, and userController SELECTs it.
+  try {
+    await pool.query('ALTER TABLE profile_photos ADD COLUMN public_id VARCHAR(255) NULL');
+  } catch (err) {
+    if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_notification_preferences (
       user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
@@ -200,6 +213,25 @@ async function start() {
       created_at TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uniq_user_event (user_id, event_key),
       CONSTRAINT fk_email_events_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+
+  // ── Financial health cache (idempotent migration) ────────────────────────
+  // Mirrors the historical table created by hand (it was missing from
+  // schema.sql and every tracked migration); aiChatService reads it for the
+  // chatbot's financial-health answers.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS financial_health (
+      id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id        BIGINT UNSIGNED NOT NULL,
+      score          INT NOT NULL,
+      rating         VARCHAR(20) NOT NULL,
+      factors        JSON NULL,
+      recommendations TEXT NULL,
+      created_at     TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_financial_health_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
     ) ENGINE=InnoDB

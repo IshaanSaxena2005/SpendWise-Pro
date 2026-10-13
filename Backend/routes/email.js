@@ -11,17 +11,9 @@ const router = express.Router();
 // ── Scheduler endpoints ───────────────────────────────────────────────────────
 // Protected by CRON_SECRET for external cron services. Defined BEFORE
 // authMiddleware so they bypass user authentication (called by schedulers).
-
-function requireCronSecret(req, res, next) {
-  const cronSecret = req.headers['x-cron-secret'];
-  if (cronSecret !== process.env.CRON_SECRET) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized: Invalid CRON_SECRET',
-    });
-  }
-  next();
-}
+// requireCronSecret fails closed when CRON_SECRET is unset and compares the
+// secret in constant time (see middleware/cronAuth.js).
+const { requireCronSecret } = require('../middleware/cronAuth');
 
 // Send the previous month's spending report to every real user (run on the 1st).
 router.post('/cron/monthly-report', requireCronSecret, async (req, res) => {

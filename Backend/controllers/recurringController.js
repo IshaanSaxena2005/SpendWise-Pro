@@ -40,6 +40,22 @@ const createRecurringTransaction = async (req, res) => {
       }
     }
 
+    // Validate goal ownership if provided: generated expenses would otherwise
+    // be able to attach to ANOTHER user's goal (same gap the expense
+    // validator closes on the one-off transaction path).
+    if (goal_id) {
+      const [goals] = await pool.query(
+        'SELECT id FROM goals WHERE id = ? AND user_id = ?',
+        [goal_id, userId]
+      );
+      if (goals.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid goal',
+        });
+      }
+    }
+
     // The backend owns the whole lifecycle of a new schedule: the rule is
     // stored with its first occurrence due, and that occurrence — when it is
     // already due — is created right here, then advanced to the next one.

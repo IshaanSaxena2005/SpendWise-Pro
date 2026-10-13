@@ -10,22 +10,16 @@ const {
 } = require('../controllers/recurringController');
 const { recurringValidation, idParamValidation } = require('../validators/recurringValidators');
 const { processDueRecurringTransactions, getRecurringSummary, getRecurringExecutionHistory } = require('../services/recurringExecutionService');
+const { requireCronSecret } = require('../middleware/cronAuth');
 
 const router = express.Router();
 
-// Scheduler endpoint - protected by CRON_SECRET for external cron services
-// This endpoint does NOT require authMiddleware as it's called by external schedulers
-// Must be defined before authMiddleware to bypass authentication
-router.post('/process-due', async (req, res) => {
-  const cronSecret = req.headers['x-cron-secret'];
-  
-  if (cronSecret !== process.env.CRON_SECRET) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized: Invalid CRON_SECRET'
-    });
-  }
-
+// Scheduler endpoint - protected by CRON_SECRET for external cron services.
+// This endpoint does NOT require authMiddleware as it's called by external
+// schedulers; must be defined before authMiddleware to bypass authentication.
+// requireCronSecret fails closed when CRON_SECRET is unset and compares in
+// constant time (see middleware/cronAuth.js).
+router.post('/process-due', requireCronSecret, async (req, res) => {
   try {
     const results = await processDueRecurringTransactions();
     

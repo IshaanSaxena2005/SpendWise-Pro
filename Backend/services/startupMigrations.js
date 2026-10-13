@@ -228,6 +228,12 @@ async function ensureRecurringSchemaColumns() {
     "ALTER TABLE expenses ADD COLUMN is_recurring BOOLEAN DEFAULT FALSE",
     "ALTER TABLE expenses ADD COLUMN recurring_transaction_id BIGINT UNSIGNED NULL",
     "ALTER TABLE expenses ADD COLUMN transaction_type ENUM('income', 'expense') NOT NULL DEFAULT 'expense'",
+    // goal_id was added by the manual migration 004 only; without it every
+    // /expenses/add 500s on databases that never ran the script by hand.
+    'ALTER TABLE expenses ADD COLUMN goal_id BIGINT UNSIGNED NULL',
+    // public_id is in schema.sql but was never added to older databases;
+    // userController SELECTs/INSERTs it for Cloudinary avatar management.
+    'ALTER TABLE profile_photos ADD COLUMN public_id VARCHAR(255) NULL',
   ];
   for (const sql of columnMigrations) {
     try {
@@ -237,6 +243,25 @@ async function ensureRecurringSchemaColumns() {
       if (err && err.code === 'ER_DUP_FIELDNAME') continue; // column already exists — expected
       throw err; // real failure (permissions, connection) — logged loudly by caller
     }
+  }
+
+  // Index + FK for expenses.goal_id (mirrors migration 004). Best-effort for
+  // the FK: a database with legacy orphan goal_ids cannot add it, and the
+  // feature works without it (queries are app-scoped); never fail startup.
+  try {
+    await pool.query('CREATE INDEX idx_expenses_goal_id ON expenses(goal_id)');
+  } catch (err) {
+    if (!(err && (err.code === 'ER_DUP_KEYNAME' || err.code === 'ER_CANT_CREATE_TABLE'))) throw err;
+  }
+  try {
+    await pool.query(
+      `ALTER TABLE expenses
+       ADD CONSTRAINT fk_expenses_goal
+       FOREIGN KEY (goal_id) REFERENCES goals(id)
+       ON DELETE SET NULL ON UPDATE CASCADE`
+    );
+  } catch (err) {
+    console.error('[StartupMigrations] fk_expenses_goal not added (continuing):', err && err.code ? err.code : err);
   }
   console.log('[StartupMigrations] recurring pipeline schema columns verified');
 }

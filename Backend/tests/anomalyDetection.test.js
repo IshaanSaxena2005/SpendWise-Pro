@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Anomaly detection regression tests (anomaly-alert audit fix).
  *
  * Run with:  cd Backend && node --test tests/
@@ -339,9 +339,15 @@ test('duplicate anomaly processing → only one notification for the expense', a
 });
 
 test('ML unavailable → expense still created, no notification, graceful response', async () => {
-  restoreAxiosPost(); // real axios; ML_SERVICE_URL is unset or unreachable locally
+  // Use a fresh category with fewer than MIN_HISTORY expenses so the early
+  // gate fires before any ML network call.  The old comment 'ML_SERVICE_URL
+  // is unset or unreachable locally' was wrong in environments where the local
+  // ML service IS running, causing Travel-e2e (10+ expenses of 500) to get a
+  // real is_anomaly=true verdict for 777, flipping the assertion.
+  const cid = await ensureCategory(userId, 'Travel-ml-unavail');
+  await seedPreviousExpenses(3, { categoryId: cid, amount: 300 });
+  restoreAxiosPost();
   const before = await countAnomalyNotifications();
-  const cid = await ensureCategory(userId, 'Travel-e2e');
   const res = await addExpenseViaController({ category_id: cid, amount: 777, title: 'Fallback taxi' });
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.success, true);

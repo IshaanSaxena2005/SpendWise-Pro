@@ -137,11 +137,11 @@ const getGoals = async (req, res) => {
     const [goals] = await pool.query(
       `SELECT g.id, g.user_id, g.name AS title, g.name, g.icon, g.category,
               g.target_amount,
-              (g.saved_amount + COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0)) AS current_amount,
+              (g.saved_amount + COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.goal_id = g.id AND e.user_id = g.user_id), 0)) AS current_amount,
               g.saved_amount,
               g.saved_amount AS manual_saved_amount,
-              COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0) AS linked_amount,
-              (SELECT COUNT(*) FROM expenses WHERE goal_id = g.id) AS linked_count,
+              COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.goal_id = g.id AND e.user_id = g.user_id), 0) AS linked_amount,
+              (SELECT COUNT(*) FROM expenses e WHERE e.goal_id = g.id AND e.user_id = g.user_id) AS linked_count,
               g.monthly_contribution,
               DATE_FORMAT(g.target_date, '%Y-%m-%d') AS target_date,
               g.priority, g.notes, g.is_completed, g.created_at, g.updated_at
@@ -221,7 +221,7 @@ const updateGoal = async (req, res) => {
     // Fetch current state to compute milestone transitions
     const [existing] = await pool.query(
       `SELECT g.id, g.name, g.target_amount, 
-              (g.saved_amount + COALESCE((SELECT SUM(amount) FROM expenses WHERE goal_id = g.id), 0)) AS current_amount
+              (g.saved_amount + COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.goal_id = g.id AND e.user_id = g.user_id), 0)) AS current_amount
        FROM goals g 
        WHERE g.id = ? AND g.user_id = ?`,
       [id, userId],

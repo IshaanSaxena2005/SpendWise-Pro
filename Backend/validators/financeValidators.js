@@ -44,6 +44,21 @@ const categoryExistsForUser = async (categoryId, { req }) => {
   }
 };
 
+// Goal ownership: without this check any authenticated user could attach
+// their transactions to ANOTHER user's goal (goal ids are sequential),
+// contaminating that goal's progress totals and leaking its name through
+// getExpenses' goal_title join. Same pattern as categoryExistsForUser.
+const goalExistsForUser = async (goalId, { req }) => {
+  const [rows] = await pool.query(
+    'SELECT id FROM goals WHERE id = ? AND user_id = ?',
+    [goalId, req.user.id]
+  );
+
+  if (rows.length === 0) {
+    throw new Error('Invalid goal');
+  }
+};
+
 const expenseValidation = [
   body('amount')
     .isFloat({ gt: 0, max: 100000000 }).withMessage('Amount must be greater than 0 and less than ₹10 Crore')
@@ -78,7 +93,8 @@ const expenseValidation = [
   body('goal_id')
     .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1 }).withMessage('Invalid goal_id')
-    .toInt(),
+    .toInt()
+    .custom(goalExistsForUser),
 ];
 
 const categoryValidation = [
@@ -127,4 +143,5 @@ module.exports = {
   categoryValidation,
   budgetValidation,
   goalValidation,
+  goalExistsForUser,
 };
