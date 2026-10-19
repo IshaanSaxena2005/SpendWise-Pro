@@ -37,3 +37,12 @@ ML-Service/_curated_tmp.json
 ML-Service/_ml_service.log
 # ...except the ML-Service env template (placeholders only, needed for deployment)
 !ML-Service/.env.example
+
+# Manual test and migration scripts (local development only)
+Backend/_smoke.js
+Backend/_smoke2.js
+Backend/_test_apis.js
+Backend/_test_categorize_pipeline.js
+Backend/_fix_aliases.js
+Backend/_migrate_local.js
+Backend/test-auth-account-flows.js
