@@ -14,6 +14,12 @@ import { useAuth } from '../../context/AuthContext';
 
 function fmt(n: number) { return '₹' + Math.floor(n).toLocaleString('en-IN'); }
 
+function formatMonthLabel(monthStr: string): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const date = new Date(monthStr + '-01');
+  return months[date.getMonth()];
+}
+
 interface TooltipEntry { name: string; value: number; color: string; }
 interface TooltipProps { active?: boolean; payload?: TooltipEntry[]; label?: string; }
 
@@ -180,7 +186,7 @@ export function AnalyticsPage() {
 
         const trend = trendRes.data.trend
           ? trendRes.data.trend.map((item: MonthlyTrendItem) => ({
-              month: item.month,
+              month: formatMonthLabel(item.month),
               expenses: item.total_amount,
             }))
           : [];
@@ -310,9 +316,8 @@ export function AnalyticsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={monthlyTrend} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorExpense" x1="0%" y1="0%" x2="0%" y2="1%">
-                      <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.5} />
-                      <stop offset="50%" stopColor="#F43F5E" stopOpacity={0.2} />
+                    <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.4} />
                       <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -346,8 +351,7 @@ export function AnalyticsPage() {
                     name="Expenses"
                     stroke="#F43F5E"
                     strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorExpense)"
+                    fill="url(#expenseGradient)"
                     activeDot={{
                       r: 6,
                       strokeWidth: 2,
