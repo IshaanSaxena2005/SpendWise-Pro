@@ -99,7 +99,56 @@
 
 ## Architecture
 
-![Architecture](screenshots/architecture.png)
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        UI[React Frontend<br/>TypeScript + Vite + Tailwind]
+    end
+
+    subgraph "Backend Layer"
+        API[Express.js API<br/>Node.js + JWT + Multer]
+        AUTH[Authentication<br/>Google OAuth + Email Verification]
+        EMAIL[Email Service<br/>Brevo API]
+    end
+
+    subgraph "ML & AI Layer"
+        ML[ML Service<br/>Python + Flask + Scikit-learn]
+        GEMINI[Gemini AI<br/>Financial Assistant]
+        CATEGORIZE[Smart Categorization<br/>TF-IDF + Logistic Regression]
+        FORECAST[Spending Forecast<br/>Linear Regression]
+        ANOMALY[Anomaly Detection<br/>Isolation Forest]
+    end
+
+    subgraph "Data Layer"
+        DB[(MySQL Database<br/>TiDB Cloud)]
+        CLOUD[Cloudinary<br/>Image Storage]
+    end
+
+    subgraph "External Services"
+        BREVO[Brevo Email API]
+        GOOGLE[Google OAuth]
+    end
+
+    UI -->|HTTP/REST| API
+    UI -->|OAuth| GOOGLE
+    API --> AUTH
+    API --> EMAIL
+    API -->|API Calls| ML
+    API -->|SQL Queries| DB
+    API -->|Upload/Download| CLOUD
+    ML --> GEMINI
+    ML --> CATEGORIZE
+    ML --> FORECAST
+    ML --> ANOMALY
+    EMAIL --> BREVO
+
+    style UI fill:#61DAFB,stroke:#007FFF,stroke-width:2px
+    style API fill:#339933,stroke:#228B22,stroke-width:2px
+    style ML fill:#3776AB,stroke:#1E90FF,stroke-width:2px
+    style DB fill:#4479A1,stroke:#005696,stroke-width:2px
+    style GEMINI fill:#4285F4,stroke:#1E90FF,stroke-width:2px
+    style EMAIL fill:#FF6B6B,stroke:#E74C3C,stroke-width:2px
+```
 
 ---
 
