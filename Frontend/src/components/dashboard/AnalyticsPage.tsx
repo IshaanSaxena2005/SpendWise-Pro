@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target, ArrowUp, ArrowDown, Calendar, DollarSign, Zap, Award, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart2, PieChart, Activity, Target, ArrowUp, ArrowDown, Calendar, DollarSign, Zap, Award, AlertCircle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from 'recharts';
 import {
   forecastAPI,
@@ -306,118 +306,57 @@ export function AnalyticsPage() {
             </div>
           </div>
           {monthlyTrend.length > 0 ? (
-            <div className="relative">
-              {/* Floating Summary */}
-              <div className="absolute top-0 left-0 z-10 bg-white/95 backdrop-blur-sm rounded-xl p-3 border border-black/10 shadow-lg">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Maximize2 className="w-3 h-3 text-rose-500" />
-                    <div>
-                      <div className="text-[9px] text-black/40 uppercase tracking-wider">Highest</div>
-                      <div className="text-xs font-bold text-black">{worstMonth?.month || 'N/A'}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Minimize2 className="w-3 h-3 text-emerald-500" />
-                    <div>
-                      <div className="text-[9px] text-black/40 uppercase tracking-wider">Lowest</div>
-                      <div className="text-xs font-bold text-black">{bestMonth?.month || 'N/A'}</div>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-black/10">
-                    <div className="text-[9px] text-black/40 uppercase tracking-wider">Average</div>
-                    <div className="text-xs font-bold text-black">{fmt(avgMonthlyExpense)}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="h-96 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyTrend} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorExpense" x1="0%" y1="0%" x2="0%" y2="1%">
-                        <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.5} />
-                        <stop offset="50%" stopColor="#F43F5E" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
-                      </linearGradient>
-                      <filter id="glow">
-                        <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
-                        <feMerge>
-                          <feMergeNode in="coloredBlur"/>
-                          <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    <XAxis 
-                      dataKey="month" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }} 
-                      tickMargin={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }} 
-                      tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
-                      tickMargin={10}
-                    />
-                    <CartesianGrid 
-                      vertical={false} 
-                      stroke="#E5E7EB" 
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.5}
-                    />
-                    <Tooltip 
-                      content={<CustomTooltip />}
-                      cursor={{ stroke: '#F43F5E', strokeWidth: 1, strokeDasharray: '4 4' }}
-                    />
-                    <Area 
-                      type="natural" 
-                      dataKey="expenses" 
-                      name="Expenses" 
-                      stroke="#F43F5E" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#colorExpense)"
-                      activeDot={{ 
-                        r: 8, 
-                        strokeWidth: 3, 
-                        stroke: '#F43F5E',
-                        fill: '#FFFFFF',
-                        filter: 'url(#glow)'
-                      }}
-                      dot={(props: any) => {
-                        const { cx, cy, payload, index } = props;
-                        const isLast = index === monthlyTrend.length - 1;
-                        const isHighest = payload.expenses === (worstMonth?.expenses || 0);
-                        const isLowest = payload.expenses === (bestMonth?.expenses || 0);
-                        
-                        if (isLast) {
-                          return (
-                            <g>
-                              <circle cx={cx} cy={cy} r={12} fill="#F43F5E" fillOpacity={0.2} />
-                              <circle cx={cx} cy={cy} r={8} fill="#F43F5E" filter="url(#glow)" />
-                              <circle cx={cx} cy={cy} r={4} fill="#FFFFFF" />
-                            </g>
-                          );
-                        }
-                        if (isHighest) {
-                          return (
-                            <circle cx={cx} cy={cy} r={5} fill="#F43F5E" stroke="#FFFFFF" strokeWidth={2} />
-                          );
-                        }
-                        if (isLowest) {
-                          return (
-                            <circle cx={cx} cy={cy} r={5} fill="#10B981" stroke="#FFFFFF" strokeWidth={2} />
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+            <div className="h-96 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyTrend} margin={{ top: 20, right: 20, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorExpense" x1="0%" y1="0%" x2="0%" y2="1%">
+                      <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.5} />
+                      <stop offset="50%" stopColor="#F43F5E" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
+                    tickMargin={10}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
+                    tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`}
+                    tickMargin={10}
+                  />
+                  <CartesianGrid
+                    vertical={false}
+                    stroke="#E5E7EB"
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.5}
+                  />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: '#F43F5E', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  />
+                  <Area
+                    type="natural"
+                    dataKey="expenses"
+                    name="Expenses"
+                    stroke="#F43F5E"
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorExpense)"
+                    activeDot={{
+                      r: 6,
+                      strokeWidth: 2,
+                      stroke: '#F43F5E',
+                      fill: '#FFFFFF',
+                    }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           ) : (
             <div className="h-96 flex items-center justify-center">
