@@ -320,6 +320,16 @@ export function AnalyticsPage() {
                       <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.4} />
                       <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
                     </linearGradient>
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#F43F5E" floodOpacity={0.3} />
+                    </filter>
                   </defs>
                   <XAxis
                     dataKey="month"
@@ -352,6 +362,10 @@ export function AnalyticsPage() {
                     stroke="#F43F5E"
                     strokeWidth={3}
                     fill="url(#expenseGradient)"
+                    animationBegin={0}
+                    animationDuration={1500}
+                    animationEasing="ease-in-out"
+                    filter="url(#glow)"
                     activeDot={{
                       r: 6,
                       strokeWidth: 2,
@@ -377,6 +391,24 @@ export function AnalyticsPage() {
               <div className="h-56 w-full flex items-center justify-center relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsPieChart>
+                    <defs>
+                      {pieData.map((entry, index) => (
+                        <linearGradient key={`pieGradient-${index}`} id={`pieGradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor={entry.color} stopOpacity={1} />
+                          <stop offset="100%" stopColor={entry.color} stopOpacity={0.7} />
+                        </linearGradient>
+                      ))}
+                      <filter id="pieGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+                        <feMerge>
+                          <feMergeNode in="coloredBlur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                      <filter id="pieShadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity={0.15} />
+                      </filter>
+                    </defs>
                     <Pie
                       data={pieData}
                       cx="50%"
@@ -385,9 +417,13 @@ export function AnalyticsPage() {
                       outerRadius={90}
                       paddingAngle={2}
                       dataKey="value"
+                      animationBegin={0}
+                      animationDuration={1500}
+                      animationEasing="ease-in-out"
+                      filter="url(#pieShadow)"
                     >
                       {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={`url(#pieGradient-${index})`} />
                       ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
