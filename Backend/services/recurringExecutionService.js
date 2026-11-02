@@ -299,23 +299,43 @@ async function processRecurringTransaction(recurring, extras = {}) {
     return { status: 'completed', reason: 'end_date_passed' };
   }
 
-  // Check for duplicate execution (idempotency)
+  // Advance helper: calculates next date, handles end_date deactivation, and
+  // updates recurring_transactions safely without regressing if already advanced.
+  const advanceSchedule = async () => {
+    const newNextDate = requireIstDateString(
+      calculateNextExecutionDate(nextExecutionDate, recurring.frequency),
+      `calculated next_execution_date of recurring #${recurring.id}`
+    );
+
+    if (endDate && newNextDate > endDate) {
+      await pool.query(
+        'UPDATE recurring_transactions SET next_execution_date = ?, is_active = FALSE WHERE id = ? AND next_execution_date <= ?',
+        [newNextDate, recurring.id, nextExecutionDate]
+      );
+    } else {
+      await pool.query(
+        'UPDATE recurring_transactions SET next_execution_date = ? WHERE id = ? AND next_execution_date <= ?',
+        [newNextDate, recurring.id, nextExecutionDate]
+      );
+    }
+    return newNextDate;
+  };
+
+  // Check for duplicate execution (idempotency - application-level check)
   const alreadyExecuted = await hasTransactionBeenExecuted(
     recurring.user_id,
     recurring.id,
     nextExecutionDate
   );
   if (alreadyExecuted) {
-    // Already executed, just update next execution date
-    const newNextDate = requireIstDateString(
-      calculateNextExecutionDate(nextExecutionDate, recurring.frequency),
-      `calculated next_execution_date of recurring #${recurring.id}`
-    );
-    await pool.query(
-      'UPDATE recurring_transactions SET next_execution_date = ? WHERE id = ?',
-      [newNextDate, recurring.id]
-    );
-    return { status: 'skipped', reason: 'already_executed' };
+    // Already executed, advance next execution date
+    const newNextDate = await advanceSchedule();
+    return {
+      status: 'skipped',
+      reason: 'already_executed',
+      executionDate: nextExecutionDate,
+      nextExecutionDate: newNextDate
+    };
   }
 
   // Create the transaction
@@ -337,24 +357,8 @@ async function processRecurringTransaction(recurring, extras = {}) {
       categoryName
     );
 
-    // Calculate and update next execution date
-    const newNextDate = requireIstDateString(
-      calculateNextExecutionDate(nextExecutionDate, recurring.frequency),
-      `calculated next_execution_date of recurring #${recurring.id}`
-    );
-
-    // Check if next execution is beyond end date
-    if (endDate && newNextDate > endDate) {
-      await pool.query(
-        'UPDATE recurring_transactions SET next_execution_date = ?, is_active = FALSE WHERE id = ?',
-        [newNextDate, recurring.id]
-      );
-    } else {
-      await pool.query(
-        'UPDATE recurring_transactions SET next_execution_date = ? WHERE id = ?',
-        [newNextDate, recurring.id]
-      );
-    }
+    // Advance next execution date
+    const newNextDate = await advanceSchedule();
 
     return {
       status: 'succeeded',
@@ -363,6 +367,39 @@ async function processRecurringTransaction(recurring, extras = {}) {
       nextExecutionDate: newNextDate
     };
   } catch (error) {
+    // Determine whether MySQL returned a duplicate-key error (ER_DUP_ENTRY / 1062 / 23000)
+    const isDuplicateKeyError = Boolean(
+      error && (
+        error.code === 'ER_DUP_ENTRY' ||
+        error.errno === 1062 ||
+        error.sqlState === '23000'
+      )
+    );
+
+    if (isDuplicateKeyError) {
+      // Determine whether the conflicting record represents the same recurring transaction,
+      // user, and expense date.
+      const conflictExists = await hasTransactionBeenExecuted(
+        recurring.user_id,
+        recurring.id,
+        nextExecutionDate
+      );
+
+      if (conflictExists) {
+        // Conflicting record matches this recurring transaction, user, and date.
+        // Treat the occurrence as already executed, not as a failed transaction.
+        // Advance next_execution_date correctly so the overdue occurrence is not retried forever.
+        const newNextDate = await advanceSchedule();
+        return {
+          status: 'skipped',
+          reason: 'already_executed',
+          executionDate: nextExecutionDate,
+          nextExecutionDate: newNextDate
+        };
+      }
+    }
+
+    // Do not swallow unrelated database errors or treat unrelated duplicate-key errors as success
     console.error(`Error processing recurring transaction ${recurring.id}:`, error);
     return { status: 'failed', reason: error.message };
   }
@@ -372,7 +409,7 @@ async function processRecurringTransaction(recurring, extras = {}) {
  * Process all due recurring transactions
  * Called by the scheduler endpoint
  */
-async function processDueRecurringTransactions() {
+async function processDueRecurringTransactions(options = {}) {
   const today = requireIstDateString(getIstDate(), 'IST today');
   
   // Get all active recurring transactions that are due.
@@ -383,8 +420,7 @@ async function processDueRecurringTransactions() {
   // "Incorrect datetime value" line. Re-throw: never swallowed, never masked.
   let dueTransactions;
   try {
-    [dueTransactions] = await pool.query(
-      `SELECT 
+    let sql = `SELECT 
         rt.id,
         rt.user_id,
         rt.type,
@@ -399,10 +435,17 @@ async function processDueRecurringTransactions() {
         rt.is_active
        FROM recurring_transactions rt
        WHERE rt.is_active = TRUE
-       AND rt.next_execution_date <= ?
-       ORDER BY rt.next_execution_date ASC`,
-      [today]
-    );
+       AND rt.next_execution_date <= ?`;
+    const params = [today];
+
+    if (options && options.userId != null) {
+      sql += ' AND rt.user_id = ?';
+      params.push(options.userId);
+    }
+
+    sql += ' ORDER BY rt.next_execution_date ASC';
+
+    [dueTransactions] = await pool.query(sql, params);
   } catch (err) {
     throw new Error(
       `process-due due-SELECT failed: ${err.message}` +

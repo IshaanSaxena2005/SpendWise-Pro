@@ -235,7 +235,7 @@ test('D. an overdue rule is caught up one occurrence at a time', async () => {
   );
 
   // Still behind: the scheduler picks up one more occurrence per run.
-  const overdue = calculateNextExecutionDate(daysFromToday(-31), 'monthly');
+  const overdue = calculateNextExecutionDate(startDate, 'monthly');
   await pool.query('UPDATE recurring_transactions SET next_execution_date = ? WHERE id = ?', [overdue, created.id]);
 
   await service.processDueRecurringTransactions();
@@ -535,3 +535,4 @@ test('R. editing an already-executed rule repeatedly never duplicates the transa
   assert.equal(txns.length, 1, 'repeated edits + scheduler runs produce no duplicate');
   assert.equal(txns[0].expense_date, today(), 'the original first occurrence is untouched');
 });
+

@@ -267,6 +267,52 @@ async function ensureRecurringSchemaColumns() {
 }
 
 /**
+ * Add a UNIQUE index on expenses(recurring_transaction_id, user_id, expense_date)
+ * to provide database-level duplicate protection for recurring transactions.
+ *
+ * Context: recurringExecutionService.hasTransactionBeenExecuted() already
+ * prevents duplicates at the application layer. However, if two cron
+ * invocations ever fire concurrently (e.g. both Cloudflare and cron-job.org
+ * are active during the migration window, or the Worker is triggered twice)
+ * both could pass the SELECT check before either has committed the INSERT.
+ * This UNIQUE constraint closes that race at the database level.
+ *
+ * Only covers rows where recurring_transaction_id IS NOT NULL; ordinary
+ * (non-recurring) expenses are unaffected because NULL != NULL in a unique
+ * index (standard SQL — MySQL allows multiple NULL rows).
+ *
+ * Idempotent: ER_DUP_KEYNAME means the constraint already exists — skip.
+ * Best-effort: if the index cannot be added (e.g. pre-existing duplicate
+ * rows from the old single-check path) we log the reason and continue rather
+ * than crashing the server. The app-layer check still protects new runs.
+ */
+async function ensureRecurringDuplicateIndex() {
+  try {
+    await pool.query(
+      `ALTER TABLE expenses
+       ADD UNIQUE INDEX uq_expenses_recurring_user_date
+       (recurring_transaction_id, user_id, expense_date)`
+    );
+    console.log(
+      '[StartupMigrations] added uq_expenses_recurring_user_date ' +
+      '(DB-level duplicate guard for recurring transactions)'
+    );
+  } catch (err) {
+    if (err && err.code === 'ER_DUP_KEYNAME') {
+      // Already present — expected on every run after the first.
+      return;
+    }
+    // ER_DUP_ENTRY means there are already duplicate rows; log loudly but
+    // never crash the server — the app-layer guard still works.
+    console.error(
+      '[StartupMigrations] could not add uq_expenses_recurring_user_date:',
+      err && err.code ? err.code : err && err.message ? err.message : err,
+      '— application-level duplicate check remains active.'
+    );
+  }
+}
+
+/**
  * Log the collation of every text column the startup path reads or writes.
  *
  * Purely diagnostic: nothing is altered here. The failure this guards against
@@ -387,7 +433,10 @@ async function runStartupMigrations() {
   await healNullIsActiveRecurring();
   // 7. Ensure columns the recurring pipeline references exist (schema drift heal).
   await ensureRecurringSchemaColumns();
-  // 8. Record any collation drift so a future failure is diagnosable up front.
+  // 8. DB-level duplicate guard for recurring transactions
+  //    (backs up the app-layer hasTransactionBeenExecuted() check).
+  await ensureRecurringDuplicateIndex();
+  // 9. Record any collation drift so a future failure is diagnosable up front.
   await logCollationDrift();
 }
 
@@ -398,6 +447,7 @@ module.exports = {
   cleanupPoisonedFuelLearning,
   healNullIsActiveRecurring,
   ensureRecurringSchemaColumns,
+  ensureRecurringDuplicateIndex,
   ensureAnomalyNotificationSchema,
   logCollationDrift,
   FUEL_KEYWORDS,

@@ -1,0 +1,15 @@
+{
+  "name": "spendwise-recurring-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker — daily recurring-transaction scheduler for SpendWise Pro",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test tests/worker.test.js",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

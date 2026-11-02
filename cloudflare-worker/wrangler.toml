@@ -1,0 +1,13 @@
+name = "spendwise-recurring-scheduler"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# ── Cron Triggers ───────────────────────────────────────────────────────────
+# 00:00 IST = 18:30 UTC (IST = UTC+5:30)
+[triggers]
+crons = ["30 18 * * *"]
+
+# ── Secrets (bound at deploy time, never in source) ─────────────────────────
+# CRON_SECRET is added via:
+#   wrangler secret put CRON_SECRET
+# It is then available as `env.CRON_SECRET` inside the Worker at runtime.
