@@ -22,6 +22,12 @@ ML-Service (Render web service)
 - Verified live (Phase 4 matrix): `/health` 200 unauthenticated, `/categorize`
   and `/anomaly` 401 without/with-wrong key, 200 with correct key,
   `/forecast` 200 → `{predicted_spending, trend_direction, mae, rmse, r2_score}`.
+- **Verified in production (2026-11-08):** with the backend env vars set, the
+  deployed dashboard renders a genuine ML forecast (real MAE/RMSE/trend) via
+  the validated `forecastController.js` path. When the model cannot
+  self-evaluate on short histories (`r2_score: null`), the controller reports
+  an honest 50% confidence with the low-fit message instead of inventing a
+  model-confidence number.
 - **Cold start warning:** on the free tier the service spins down when idle
   and takes **~50s** to come back (measured). The Node backend's first 4s
   attempt will time out during a cold start; the forecast controller retries
