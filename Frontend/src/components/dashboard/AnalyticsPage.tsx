@@ -459,7 +459,13 @@ export function AnalyticsPage() {
             <p className="text-xs text-black/50">Powered by machine learning</p>
           </div>
           <div className="bg-violet-50 text-violet-700 text-[10px] font-bold px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5 border border-violet-200">
-            <Activity className="w-3 h-3" /> AI Model Active
+            {forecast?.forecast_source === 'ml' ? (
+              <>
+                <Activity className="w-3 h-3" /> AI Model Active
+              </>
+            ) : (
+              <>Average-Based Estimate</>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -222,6 +222,8 @@ export interface Forecast {
   message?: string;
   confidence?: number;
   is_low_confidence?: boolean;
+  /** 'ml' = model prediction, 'average_fallback' = historical average, 'demo' = demo account */
+  forecast_source?: 'ml' | 'average_fallback' | 'demo' | 'none';
 }
 
 export interface Prediction {
